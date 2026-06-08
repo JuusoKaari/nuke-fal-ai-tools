@@ -1,0 +1,101 @@
+# Purpose:
+# - Nuke Group node that runs fal.ai Pika 2.2 Pikaframes keyframe interpolation (2-5 keyframe images).
+# - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
+# - Model: https://fal.ai/models/fal-ai/pika/v2.2/pikaframes
+
+set cut_paste_input [stack 0]
+version 11.3 v6
+push $cut_paste_input
+Group {
+ name Pika_22_Pikaframes_v1
+ selected true
+ xpos -331
+ ypos 7
+ addUserKnob {20 Settings}
+ addUserKnob {1 prompt l Prompt}
+ prompt "smooth cinematic transition"
+ addUserKnob {1 negative_prompt l "Negative prompt"}
+ negative_prompt ""
+ addUserKnob {1 transition_duration l "Transition duration (sec)"}
+ transition_duration "5"
+ addUserKnob {4 resolution l Resolution M {720p 1080p ""}}
+ resolution 720p
+ addUserKnob {1 seed l "Seed (optional)"}
+ seed ""
+ addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}
+ show_success_popup true
+ addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
+ addUserKnob {20 endGroup n -1}
+ addUserKnob {1 python3_cmd l "Python 3 cmd" +INVISIBLE}
+ python3_cmd "py -3"
+ addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
+ helper_path "__INSTALL_ROOT__/nuke/python/fal_pika_v22_pikaframes_helper.py"
+ addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
+ runner_path "__INSTALL_ROOT__/nuke/python/fal_pika_v22_pikaframes_runner_v1.py"
+ addUserKnob {1 FAL +INVISIBLE}
+ FAL "insert your secret key here or use env variable FAL_KEY"
+}
+Text {
+ inputs 0
+ message "Connect 2-5 keyframes in order (keyframe_1 .. keyframe_5).\nLeave unused inputs disconnected. Total transition time must be <= 25 sec.\nSet prompt and options, then Execute."
+ font C:/Windows/Fonts/arial.ttf
+ yjustify bottom
+ Transform 1
+ box {30 30 1906 1052}
+ center {560 372}
+ name Text1
+ xpos 101
+ ypos 294
+}
+set Npikaframes000 [stack 0]
+Output {
+ name Output1
+ xpos 101
+ ypos 406
+}
+Input {
+ inputs 0
+ name keyframe_1
+ xpos 0
+ ypos -51
+}
+Input {
+ inputs 0
+ name keyframe_2
+ xpos 94
+ ypos -51
+ number 1
+}
+Input {
+ inputs 0
+ name keyframe_3
+ xpos 188
+ ypos -51
+ number 2
+}
+Input {
+ inputs 0
+ name keyframe_4
+ xpos 282
+ ypos -51
+ number 3
+}
+Input {
+ inputs 0
+ name keyframe_5
+ xpos 376
+ ypos -51
+ number 4
+}
+push $Npikaframes000
+Viewer {
+ inputs 1
+ frame_range 0-199
+ fps 25
+ input_number 0
+ name Viewer1
+ selected true
+ xpos 281
+ ypos 412
+}
+end_group

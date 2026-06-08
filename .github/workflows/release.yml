@@ -1,0 +1,42 @@
+# Purpose: Build a clean install zip and publish a GitHub Release when a v* tag is pushed.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build release zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF#refs/tags/}"
+          STAGING="nuke-fal-ai-tools"
+          ARCHIVE="nuke-fal-ai-tools-${VERSION}.zip"
+          mkdir -p "dist/${STAGING}"
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='__pycache__' \
+            --exclude='*.py[cod]' \
+            --exclude='planning' \
+            --exclude='dist' \
+            ./ "dist/${STAGING}/"
+          (cd dist && zip -rq "${ARCHIVE}" "${STAGING}")
+          echo "ARCHIVE_PATH=dist/${ARCHIVE}" >> "${GITHUB_ENV}"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ARCHIVE_PATH }}
+          generate_release_notes: true

@@ -1,0 +1,103 @@
+# Purpose:
+# - Nuke Group node that edits a video with a text prompt via fal.ai (Kling O3 video-to-video edit).
+# - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
+
+set cut_paste_input [stack 0]
+version 11.3 v6
+push $cut_paste_input
+Group {
+ name Kling_O3_V2V_Edit_v1
+ selected true
+ xpos -331
+ ypos 7
+ addUserKnob {20 Settings}
+ addUserKnob {4 frame_range l "Input frame range" M {root current custom ""}}
+ frame_range root
+ addUserKnob {1 custom_start l "Custom start"}
+ custom_start "1"
+ addUserKnob {1 custom_end l "Custom end"}
+ custom_end "1"
+ addUserKnob {1 prompt l Prompt}
+ prompt "Describe the edit you want (you can refer to optional inputs as @Image1, @Image2, ...)"
+ addUserKnob {6 keep_audio l "Keep audio" +STARTLINE}
+ keep_audio true
+ addUserKnob {1 shot_type l "Shot type (optional)"}
+ shot_type ""
+ addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}
+ show_success_popup true
+ addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
+ addUserKnob {20 endGroup n -1}
+ addUserKnob {1 python3_cmd l "Python 3 cmd" +INVISIBLE}
+ python3_cmd "py -3"
+ addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
+ helper_path "__INSTALL_ROOT__/nuke/python/fal_kling_o3_v2v_edit_helper.py"
+ addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
+ runner_path "__INSTALL_ROOT__/nuke/python/fal_kling_o3_v2v_edit_runner_v1.py"
+ addUserKnob {1 FAL +INVISIBLE}
+ FAL "insert your secret key here or use env variable FAL_KEY"
+}
+Text {
+ inputs 0
+ message "Connect a video pipe to source_video and press execute.\nSet Input frame range to control how much gets pre-rendered (used when input is not a Read video file).\nOptional: connect up to 4 still image pipes to ref_image_1..4"
+ font C:/Windows/Fonts/arial.ttf
+ yjustify bottom
+ Transform 1
+ box {30 30 1906 1052}
+ center {560 372}
+ name Text1
+ xpos 101
+ ypos 294
+}
+set Nfaleditv1 [stack 0]
+Output {
+ name Output1
+ xpos 101
+ ypos 406
+}
+Input {
+ inputs 0
+ name source_video
+ xpos 0
+ ypos -51
+}
+Input {
+ inputs 0
+ name ref_image_1
+ xpos 188
+ ypos -51
+ number 1
+}
+Input {
+ inputs 0
+ name ref_image_2
+ xpos 376
+ ypos -51
+ number 2
+}
+Input {
+ inputs 0
+ name ref_image_3
+ xpos 564
+ ypos -51
+ number 3
+}
+Input {
+ inputs 0
+ name ref_image_4
+ xpos 752
+ ypos -51
+ number 4
+}
+push $Nfaleditv1
+Viewer {
+ inputs 1
+ frame_range 0-199
+ fps 25
+ input_number 0
+ name Viewer1
+ selected true
+ xpos 281
+ ypos 412
+}
+end_group
+

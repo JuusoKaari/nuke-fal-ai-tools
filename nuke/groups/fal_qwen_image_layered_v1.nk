@@ -1,0 +1,82 @@
+# Purpose:
+# - Nuke Group node that runs Qwen Image Layered (fal.ai) to decompose an image into RGBA layers.
+# - Connects a source image; on execute, sends the current frame as a still to fal-ai/qwen-image-layered
+#   and creates Read nodes for each output layer.
+# - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
+
+set cut_paste_input [stack 0]
+version 11.3 v6
+push $cut_paste_input
+Group {
+ name Qwen_Image_Layered_v1
+ selected true
+ xpos -331
+ ypos 7
+ addUserKnob {20 Settings}
+ addUserKnob {1 prompt l "Prompt (optional)"}
+ prompt ""
+ addUserKnob {1 negative_prompt l "Negative prompt (optional)"}
+ negative_prompt ""
+ addUserKnob {1 num_layers l "Num layers (1-10)"}
+ num_layers "4"
+ addUserKnob {1 num_inference_steps l "Inference steps (1-50)"}
+ num_inference_steps "28"
+ addUserKnob {1 guidance_scale l "Guidance scale (1-20)"}
+ guidance_scale "5"
+ addUserKnob {1 seed l "Seed (optional)"}
+ seed ""
+ addUserKnob {4 output_format l "Output format" M {png webp ""}}
+ output_format png
+ addUserKnob {4 acceleration l "Acceleration" M {none regular high ""}}
+ acceleration regular
+ addUserKnob {6 enable_safety_checker l "Enable safety checker" +STARTLINE}
+ enable_safety_checker true
+ addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}
+ show_success_popup true
+ addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
+ addUserKnob {20 endGroup n -1}
+ addUserKnob {1 python3_cmd l "Python 3 cmd" +INVISIBLE}
+ python3_cmd "py -3"
+ addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
+ helper_path "__INSTALL_ROOT__/nuke/python/fal_qwen_image_layered_helper.py"
+ addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
+ runner_path "__INSTALL_ROOT__/nuke/python/fal_qwen_image_layered_runner_v1.py"
+ addUserKnob {1 FAL +INVISIBLE}
+ FAL "insert your secret key here or use env variable FAL_KEY"
+}
+Text {
+ inputs 0
+ message "Connect a source image and press execute.\\nUses the current frame as a still.\\nOutput: multiple Read nodes, one per RGBA layer."
+ font C:/Windows/Fonts/arial.ttf
+ yjustify bottom
+ Transform 1
+ box {30 30 1906 1052}
+ center {560 372}
+ name Text1
+ xpos 101
+ ypos 294
+}
+set N7f5c6000 [stack 0]
+Output {
+ name Output1
+ xpos 101
+ ypos 406
+}
+Input {
+ inputs 0
+ name source_image
+ xpos 0
+ ypos -51
+}
+push $N7f5c6000
+Viewer {
+ inputs 1
+ frame_range 0-199
+ fps 25
+ input_number 0
+ name Viewer1
+ selected true
+ xpos 281
+ ypos 412
+}
+end_group

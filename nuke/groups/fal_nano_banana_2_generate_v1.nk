@@ -1,0 +1,91 @@
+# Purpose:
+# - Nuke Group node that runs Nano Banana 2 (fal.ai) generation/edit and creates Read node(s).
+# - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
+
+set cut_paste_input [stack 0]
+version 11.3 v6
+push $cut_paste_input
+Group {
+ name Nano_Banana_2_Generate_v1
+ selected true
+ xpos -340
+ ypos 120
+ addUserKnob {20 Settings}
+ addUserKnob {1 prompt l Prompt}
+ prompt "Describe the image/edit you want (or connect a Text node with a message knob to override)"
+ addUserKnob {1 num_images l "Num images (1-4)"}
+ num_images "1"
+ addUserKnob {1 seed l "Seed (optional)"}
+ seed ""
+ addUserKnob {4 aspect_ratio l "Aspect ratio" M {auto 21:9 16:9 3:2 4:3 5:4 1:1 4:5 3:4 2:3 9:16 ""}}
+ aspect_ratio auto
+ addUserKnob {4 resolution l Resolution M {"0.5K" 1K 2K 4K ""}}
+ resolution 1K
+ addUserKnob {4 output_format l "Output format" M {png jpeg webp ""}}
+ output_format png
+ addUserKnob {4 safety_tolerance l "Safety tolerance (1=strict, 6=relaxed)" M {1 2 3 4 5 6 ""}}
+ safety_tolerance 4
+ addUserKnob {6 enable_web_search l "Enable web search" +STARTLINE}
+ enable_web_search false
+ addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}
+ show_success_popup true
+ addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
+ addUserKnob {20 endGroup n -1}
+ addUserKnob {1 python3_cmd l "Python 3 cmd" +INVISIBLE}
+ python3_cmd "py -3"
+ addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
+ helper_path "__INSTALL_ROOT__/nuke/python/fal_nano_banana_2_generate_helper.py"
+ addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
+ runner_path "__INSTALL_ROOT__/nuke/python/fal_nano_banana_2_generate_runner_v1.py"
+ addUserKnob {1 FAL +INVISIBLE}
+ FAL "insert your secret key here or use env variable FAL_KEY"
+}
+Text {
+ inputs 0
+ message "Input 0: optional Text node (has a 'message' knob) to override Prompt.\\nInput 1-2: optional reference images (Read nodes). If any connected, uses Nano Banana 2 EDIT model.\\nThen press execute."
+ font C:/Windows/Fonts/arial.ttf
+ yjustify bottom
+ Transform 1
+ box {30 30 1906 1052}
+ center {560 372}
+ name Text1
+ xpos 96
+ ypos 301
+}
+set N0e5f49c0 [stack 0]
+Output {
+ name Output1
+ xpos 96
+ ypos 409
+}
+Input {
+ inputs 0
+ name prompt_text
+ xpos 0
+ ypos -51
+}
+Input {
+ inputs 0
+ name ref_image_a
+ xpos 120
+ ypos -51
+}
+Input {
+ inputs 0
+ name ref_image_b
+ xpos 240
+ ypos -51
+}
+push $N0e5f49c0
+Viewer {
+ inputs 1
+ frame_range 0-199
+ fps 25
+ input_number 0
+ name Viewer1
+ selected true
+ xpos 276
+ ypos 412
+}
+end_group
+

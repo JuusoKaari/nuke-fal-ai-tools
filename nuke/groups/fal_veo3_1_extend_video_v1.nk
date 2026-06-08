@@ -1,0 +1,81 @@
+# Purpose:
+# - Nuke Group node that extends a video with a text prompt via fal.ai (Veo 3.1 extend-video).
+# - Model: https://fal.ai/models/fal-ai/veo3.1/extend-video
+# - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
+
+set cut_paste_input [stack 0]
+version 11.3 v6
+push $cut_paste_input
+Group {
+ name Veo_3_1_Extend_Video_v1
+ selected true
+ xpos -331
+ ypos 7
+ addUserKnob {20 Settings}
+ addUserKnob {4 frame_range l "Input frame range" M {root current custom ""}}
+ frame_range root
+ addUserKnob {1 custom_start l "Custom start"}
+ custom_start "1"
+ addUserKnob {1 custom_end l "Custom end"}
+ custom_end "1"
+ addUserKnob {1 prompt l Prompt}
+ prompt "Continue the scene naturally, maintaining the same style and motion."
+ addUserKnob {4 aspect_ratio l "Aspect ratio" M {auto 16:9 9:16 ""}}
+ aspect_ratio auto
+ addUserKnob {6 generate_audio l "Generate audio" +STARTLINE}
+ generate_audio true
+ addUserKnob {1 negative_prompt l "Negative prompt"}
+ negative_prompt ""
+ addUserKnob {4 safety_tolerance l "Safety tolerance" M {1 2 3 4 5 6 ""}}
+ safety_tolerance 4
+ addUserKnob {1 seed l Seed}
+ seed ""
+ addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}
+ show_success_popup true
+ addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
+ addUserKnob {20 endGroup n -1}
+ addUserKnob {1 python3_cmd l "Python 3 cmd" +INVISIBLE}
+ python3_cmd "py -3"
+ addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
+ helper_path "__INSTALL_ROOT__/nuke/python/fal_veo3_1_extend_video_helper.py"
+ addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
+ runner_path "__INSTALL_ROOT__/nuke/python/fal_veo3_1_extend_video_runner_v1.py"
+ addUserKnob {1 FAL +INVISIBLE}
+ FAL "insert your secret key here or use env variable FAL_KEY"
+}
+Text {
+ inputs 0
+ message "Connect a video pipe to source_video and press Execute.\nInput: max 8 seconds (last 8s used if longer). Must be 720p/1080p in 16:9 or 9:16.\nOutput extension is fixed at 7s @ 720p (fal API). Billed per second generated."
+ font C:/Windows/Fonts/arial.ttf
+ yjustify bottom
+ Transform 1
+ box {30 30 1906 1052}
+ center {560 372}
+ name Text1
+ xpos 101
+ ypos 294
+}
+set Nfalveo3ext1 [stack 0]
+Output {
+ name Output1
+ xpos 101
+ ypos 406
+}
+Input {
+ inputs 0
+ name source_video
+ xpos 0
+ ypos -51
+}
+push $Nfalveo3ext1
+Viewer {
+ inputs 1
+ frame_range 0-199
+ fps 25
+ input_number 0
+ name Viewer1
+ selected true
+ xpos 281
+ ypos 412
+}
+end_group

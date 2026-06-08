@@ -1,0 +1,71 @@
+# Purpose:
+# - Nuke Group node that runs fal.ai Hunyuan 3D Pro image-to-3D on a single front-view still image.
+# - Downloads GLB (and optionally OBJ) plus a preview thumbnail; spawns a Read for the preview.
+# - Model: https://fal.ai/models/fal-ai/hunyuan-3d/v3.1/pro/image-to-3d
+
+set cut_paste_input [stack 0]
+version 11.3 v6
+push $cut_paste_input
+Group {
+ name Hunyuan_3D_Image_to_3D_v1
+ selected true
+ xpos -331
+ ypos 7
+ addUserKnob {20 Settings}
+ addUserKnob {1 face_count l "Face count (40k-1.5M)"}
+ face_count "100000"
+ addUserKnob {4 generate_type l "Generate type" M {Normal Geometry ""}}
+ generate_type Normal
+ addUserKnob {6 enable_pbr l "Enable PBR materials" +STARTLINE}
+ enable_pbr false
+ addUserKnob {6 download_obj l "Download OBJ/FBX/USDZ" +STARTLINE}
+ download_obj true
+ addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}
+ show_success_popup true
+ addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
+ addUserKnob {20 endGroup n -1}
+ addUserKnob {1 python3_cmd l "Python 3 cmd" +INVISIBLE}
+ python3_cmd "py -3"
+ addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
+ helper_path "__INSTALL_ROOT__/nuke/python/fal_hunyuan_3d_image_to_3d_helper.py"
+ addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
+ runner_path "__INSTALL_ROOT__/nuke/python/fal_hunyuan_3d_image_to_3d_runner_v1.py"
+ addUserKnob {1 FAL +INVISIBLE}
+ FAL "insert your secret key here or use env variable FAL_KEY"
+}
+Text {
+ inputs 0
+ message "Connect a front-view still (single object, simple background) and press Execute.\nOutputs: model.glb, texture PNG, material.mtl (+ optional OBJ) in one folder.\nSpawns Read (texture/preview) and ReadGeo2 (OBJ); texture Read pipes to ReadGeo img.\nView mesh in 3D Viewer (Viewer mode: 3D); wire ReadGeo into your Scene/ScanlineRender."
+ font C:/Windows/Fonts/arial.ttf
+ yjustify bottom
+ Transform 1
+ box {30 30 1906 1052}
+ center {560 372}
+ name Text1
+ xpos 101
+ ypos 294
+}
+set Nhy3d001 [stack 0]
+Output {
+ name Output1
+ xpos 101
+ ypos 406
+}
+Input {
+ inputs 0
+ name source_image
+ xpos 0
+ ypos -51
+}
+push $Nhy3d001
+Viewer {
+ inputs 1
+ frame_range 0-199
+ fps 25
+ input_number 0
+ name Viewer1
+ selected true
+ xpos 281
+ ypos 412
+}
+end_group

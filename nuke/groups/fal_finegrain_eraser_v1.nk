@@ -1,0 +1,74 @@
+# Purpose:
+# - Nuke Group node that runs fal.ai Finegrain Eraser (mask) object removal on a still plate + mask.
+# - Model: https://fal.ai/models/fal-ai/finegrain-eraser/mask
+# - White (high) in the mask = region to erase; black keeps the original plate.
+
+set cut_paste_input [stack 0]
+version 11.3 v6
+push $cut_paste_input
+Group {
+ name Finegrain_Eraser_v1
+ selected true
+ xpos -331
+ ypos 7
+ addUserKnob {20 Settings}
+ addUserKnob {4 mode M {express standard premium ""}}
+ mode standard
+ addUserKnob {1 seed l "Seed (optional, 0-999)"}
+ seed ""
+ addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}
+ show_success_popup true
+ addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
+ addUserKnob {20 endGroup n -1}
+ addUserKnob {1 python3_cmd l "Python 3 cmd" +INVISIBLE}
+ python3_cmd "py -3"
+ addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
+ helper_path "__INSTALL_ROOT__/nuke/python/fal_finegrain_eraser_helper.py"
+ addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
+ runner_path "__INSTALL_ROOT__/nuke/python/fal_finegrain_eraser_runner_v1.py"
+ addUserKnob {1 FAL +INVISIBLE}
+ FAL "insert your secret key here or use env variable FAL_KEY"
+}
+Text {
+ inputs 0
+ message "Connect source_image (input 0) and mask (input 1).\nWhite in mask = erase region. Set mode, then Execute."
+ font C:/Windows/Fonts/arial.ttf
+ yjustify bottom
+ Transform 1
+ box {30 30 1906 1052}
+ center {560 372}
+ name Text1
+ xpos 101
+ ypos 294
+}
+set NfgEraser0 [stack 0]
+Output {
+ name Output1
+ xpos 101
+ ypos 406
+}
+Input {
+ inputs 0
+ name source_image
+ xpos 0
+ ypos -51
+}
+Input {
+ inputs 0
+ name mask
+ xpos 188
+ ypos -51
+ number 1
+}
+push $NfgEraser0
+Viewer {
+ inputs 1
+ frame_range 0-199
+ fps 25
+ input_number 0
+ name Viewer1
+ selected true
+ xpos 281
+ ypos 412
+}
+end_group
