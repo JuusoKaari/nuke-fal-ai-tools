@@ -8,7 +8,7 @@ Setup guide for **nuke-fal-ai-tools**.
 
 | Item | Notes |
 |------|--------|
-| **Foundry Nuke** | Nuke 11+ Group nodes; **embedded Python 2.7 or 3.x** (toolkit auto-detects) |
+| **Foundry Nuke** | Nuke 8.0+ (tested on 11.3v6 and 17.0v2). Group nodes; **embedded Python 2.7 or 3.x** (toolkit auto-detects) |
 | **System Python 3** | Separate from Nuke - runs `*_helper.py` and `fal-client` via subprocess |
 | **`fal-client`** | Installed into system Python 3 (`pip install -r requirements-python3.txt`) |
 | **ffmpeg + ffprobe** | On `PATH` for video prerender, Read frame-range probing, and some video tools (e.g. Veo extend tail-trim). [ffmpeg.org](https://ffmpeg.org/download.html) builds usually include both. |

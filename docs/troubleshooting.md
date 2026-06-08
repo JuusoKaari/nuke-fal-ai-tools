@@ -2,6 +2,8 @@
 
 Common issues when setting up or running **nuke-fal-ai-tools**.
 
+**Supported Nuke versions:** Nuke 8.0+ (tested on 11.3v6 and 17.0v2). Older or untested builds may work but are not verified.
+
 ## Install layout invalid / bootstrap error on startup
 
 **Symptom:** Dialog on Nuke startup mentioning missing `nuke/python`, or traceback from `init.py`.
@@ -29,7 +31,7 @@ Common issues when setting up or running **nuke-fal-ai-tools**.
 
 **Fix:** Use a current clone that includes `_nuke_py_compat.py` and `_nuke_runner_launcher.py`. Group Execute knobs must call `_nuke_runner_launcher.execute_this_node()`, not `execfile()` directly. Re-create nodes from **Nodes → fal.ai** after updating.
 
-**Note:** Py3-Nuke (Nuke 13.2+ / 14) is supported and tested alongside classic Py2.7 Nuke. Report issues with your Nuke version and `sys.version` from the Script Editor.
+**Note:** Py3-Nuke (Nuke 13.2+) is supported alongside classic Py2.7 Nuke. The toolkit targets Nuke 8.0+; primary testing is on 11.3v6 and 17.0v2. Report issues with your Nuke version and `sys.version` from the Script Editor.
 
 ## `Missing runner script` or `Missing helper script`
 
@@ -125,7 +127,7 @@ Video generation and upscaling can take several minutes. Watch the Script Editor
 
 Open a GitHub issue with:
 
-- Nuke version
+- Nuke version (tested: 11.3v6, 17.0v2; minimum stated: 8.0+)
 - Node name
 - Redacted Script Editor log (no API keys)
 - Whether you used the menu or pasted a group node from an old script
