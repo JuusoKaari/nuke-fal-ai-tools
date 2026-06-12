@@ -10,13 +10,14 @@
 
 ## Tools
 
-16 groups under **Nodes → fal.ai**:
+20 groups under **Nodes → fal.ai**:
 
 | Category | Tools |
 |----------|--------|
-| **Image** | Nano Banana 2, Qwen Image Max, GPT Image 2, Qwen Inpaint, Finegrain Eraser, BiRefNet v2, Depth Anything v2, Qwen Layered |
-| **Video** | LTX 2.3, Seedance 2, Pika v2.2, Kling O3, Veo 3.1, ByteDance Upscaler, DreamActor v2 |
+| **Image** | Hunyuan World, Nano Banana 2, Qwen Image Max, GPT Image 2, Qwen Inpaint, Finegrain Eraser, BiRefNet v2 Still, Depth Anything v2, Qwen Layered |
+| **Video** | BiRefNet v2, LTX 2.3, Seedance 2, Pika v2.2, Kling O3, Veo 3.1, ByteDance Upscaler, DreamActor v2 |
 | **3D** | Hunyuan 3D |
+| **Text** | Generate text, Describe image |
 
 ## Quick start
 
@@ -41,7 +42,7 @@ Install details: [docs/INSTALL.md](docs/INSTALL.md) · Issues: [docs/troubleshoo
 Nuke Group  →  runner (in Nuke)  →  helper (system Python 3)  →  fal.ai
 ```
 
-Runners pre-render inputs inside Nuke, call helpers via subprocess, then spawn Read or Geo nodes for results.
+Runners pre-render inputs inside Nuke, call helpers via subprocess, then spawn Read, Geo, or Text nodes for results.
 
 ## Notes
 

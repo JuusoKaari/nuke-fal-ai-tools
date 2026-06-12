@@ -7,6 +7,26 @@ import _install_help
 import _nuke_py_compat
 import nuke_prerender_core_v1 as prerender_core
 
+_batch_execute_active = False
+
+
+def set_batch_execute_active(active):
+    global _batch_execute_active
+    _batch_execute_active = bool(active)
+
+
+def should_show_success_popup(group_node):
+    """Honor show_success_popup on the group; suppress during Execute Selected Nodes."""
+    if _batch_execute_active:
+        return False
+    try:
+        knob = group_node.knob("show_success_popup")
+        if knob is None:
+            return True
+        return bool(knob.value())
+    except Exception:
+        return True
+
 
 def _show_unsaved_script_message(nuke_module, exc):
     action = "running fal.ai nodes"
@@ -69,9 +89,13 @@ def execute_selected_nodes():
         _show_unsaved_script_message(nuke, exc)
         return
 
-    for node in nodes:
-        try:
-            execute_node(node)
-        except Exception as exc:
-            nuke.message("Execute failed on %s:\n%s" % (node.name(), exc))
-            raise
+    set_batch_execute_active(True)
+    try:
+        for node in nodes:
+            try:
+                execute_node(node)
+            except Exception as exc:
+                nuke.message("Execute failed on %s:\n%s" % (node.name(), exc))
+                raise
+    finally:
+        set_batch_execute_active(False)

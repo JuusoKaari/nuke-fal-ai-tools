@@ -1,9 +1,10 @@
 # Purpose:
-# - Python 3 helper for Nuke (Python 2.7) to run fal.ai Finegrain Eraser (mask) object removal on a still image.
-# - Uploads local image and mask to fal storage, calls `fal-ai/finegrain-eraser/mask`, downloads result image.
+# - Python 3 helper for Nuke (Python 2.7) to run fal.ai OpenRouter vision LLM image description.
+# - Uploads a still image, calls `openrouter/router/vision`, writes the response to output.txt,
+#   and prints a JSON summary.
 #
 # Usage (example):
-#   py -3 fal_finegrain_eraser_helper.py --image "C:/in.png" --mask "C:/mask.png" --out-dir "C:/temp/run" --verbose
+#   py -3 fal_openrouter_describe_image_helper.py --image "C:/in.png" --prompt "Describe this image" --model google/gemini-2.5-flash --out-dir "C:/temp/run" --verbose
 #
 # Requirements:
 #   pip install fal-client
@@ -21,46 +22,47 @@ import time
 
 from fal_common import (
     compute_retry_sleep_seconds,
-    download,
     ensure_dir,
     format_fal_error_summary,
     should_retry_fal_error,
 )
 
-_ENDPOINT_ID = "fal-ai/finegrain-eraser/mask"
+_ENDPOINT_ID = "openrouter/router/vision"
+
+
+def _write_output_text(path: str, text: str) -> None:
+    with open(path, "w", encoding="utf-8", errors="replace") as f:
+        f.write(text)
 
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
-        description="Run Finegrain Eraser (mask) object removal on a still image via fal.ai."
+        description="Run OpenRouter vision LLM image description via fal.ai."
     )
     parser.add_argument("--fal-key", default=None, help="fal.ai API key (otherwise uses FAL_KEY env var).")
-    parser.add_argument("--image", required=True, help="Path to local source image (png/jpeg/webp).")
-    parser.add_argument("--mask", required=True, help="Path to local erase mask (white = erase region).")
-    parser.add_argument("--out-dir", required=True, help="Output directory for the downloaded result image.")
+    parser.add_argument("--image", required=True, help="Path to local input still image (png/jpg/webp).")
+    parser.add_argument("--prompt", required=True, help="Prompt describing what to ask about the image.")
+    parser.add_argument("--model", required=True, help="OpenRouter model id (e.g. google/gemini-2.5-flash).")
+    parser.add_argument("--system-prompt", default=None, help="Optional system prompt.")
+    parser.add_argument("--temperature", type=float, default=None, help="Sampling temperature (0-2).")
+    parser.add_argument("--max-tokens", type=int, default=None, help="Max output tokens.")
     parser.add_argument(
-        "--mode",
-        default="standard",
-        choices=["express", "standard", "premium"],
-        help="Erase quality mode. Default: standard.",
+        "--reasoning",
+        action="store_true",
+        help="Request reasoning in the API call (when supported by the model).",
     )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=None,
-        help="Optional random seed for reproducibility (0..999).",
-    )
+    parser.add_argument("--out-dir", required=True, help="Output directory for output.txt.")
     parser.add_argument(
         "--max-retries",
         type=int,
         default=3,
-        help="Max retries for transient fal backend errors. Default: 3.",
+        help="Max retries for transient fal backend errors (5xx/429). Default: 3.",
     )
     parser.add_argument(
         "--retry-base-seconds",
         type=float,
         default=2.0,
-        help="Base backoff seconds for retries. Default: 2.0.",
+        help="Base backoff seconds for retries (exponential with jitter). Default: 2.0.",
     )
     parser.add_argument("--verbose", action="store_true", help="Print more logs.")
     args = parser.parse_args(argv)
@@ -75,16 +77,15 @@ def main(argv: list[str]) -> int:
         print("ERROR: image file not found: %s" % image_path, file=sys.stderr)
         return 2
 
-    mask_path = os.path.abspath(args.mask)
-    if not os.path.isfile(mask_path):
-        print("ERROR: mask file not found: %s" % mask_path, file=sys.stderr)
+    prompt = (args.prompt or "").strip()
+    if not prompt:
+        print("ERROR: prompt is empty.", file=sys.stderr)
         return 2
 
-    if args.seed is not None:
-        seed = int(args.seed)
-        if seed < 0 or seed > 999:
-            print("ERROR: --seed must be in range 0..999", file=sys.stderr)
-            return 2
+    model = (args.model or "").strip()
+    if not model:
+        print("ERROR: model is empty.", file=sys.stderr)
+        return 2
 
     out_dir = os.path.abspath(args.out_dir)
     ensure_dir(out_dir)
@@ -101,25 +102,28 @@ def main(argv: list[str]) -> int:
         FalClientHTTPError = Exception  # type: ignore
 
     client = fal_client.SyncClient(key=fal_key)
-    user_agent = "nuke-fal-finegrain-eraser-helper"
 
     if args.verbose:
         print("Uploading image: %s" % image_path)
     image_url = client.upload_file(image_path)
-    if args.verbose:
-        print("Uploading mask: %s" % mask_path)
-    mask_url = client.upload_file(mask_path)
-
-    if args.verbose:
-        print("Submitting request: %s (mode=%s)" % (_ENDPOINT_ID, args.mode))
 
     arguments: dict = {
-        "image_url": image_url,
-        "mask_url": mask_url,
-        "mode": args.mode,
+        "image_urls": [image_url],
+        "prompt": prompt,
+        "model": model,
     }
-    if args.seed is not None:
-        arguments["seed"] = int(args.seed)
+    system_prompt = (args.system_prompt or "").strip()
+    if system_prompt:
+        arguments["system_prompt"] = system_prompt
+    if args.temperature is not None:
+        arguments["temperature"] = float(args.temperature)
+    if args.max_tokens is not None:
+        arguments["max_tokens"] = int(args.max_tokens)
+    if args.reasoning:
+        arguments["reasoning"] = True
+
+    if args.verbose:
+        print("Submitting request: %s (model=%s)" % (_ENDPOINT_ID, model))
 
     result = None
     last_exc: BaseException | None = None
@@ -149,44 +153,40 @@ def main(argv: list[str]) -> int:
 
     if result is None:
         print(
-            "ERROR: Finegrain Eraser request failed.\n%s"
+            "ERROR: OpenRouter vision request failed.\n%s"
             % (format_fal_error_summary(last_exc) if last_exc else "Unknown error"),
             file=sys.stderr,
         )
         return 5
 
     try:
-        image_obj = result["image"]
-        url = image_obj.get("url")
-        file_name = image_obj.get("file_name")
+        output_text = result.get("output")
+        if output_text is None:
+            output_text = ""
+        else:
+            output_text = str(output_text)
     except Exception:
         print("ERROR: unexpected response shape:\n%s" % json.dumps(result, indent=2), file=sys.stderr)
         return 4
 
-    if not url:
-        print("ERROR: no image URL in response:\n%s" % json.dumps(result, indent=2), file=sys.stderr)
-        return 5
-
-    ext = "jpg"
-    if file_name:
-        _, e = os.path.splitext(file_name)
-        if e:
-            ext = e.lstrip(".").lower() or "jpg"
-    out_name = "erased.%s" % ext
-    out_path = os.path.join(out_dir, out_name)
-
+    out_path = os.path.join(out_dir, "output.txt")
     if args.verbose:
-        print("Downloading result -> %s" % out_path)
-    download(str(url), out_path, user_agent=user_agent)
+        print("Writing output -> %s" % out_path)
+    _write_output_text(out_path, output_text)
+
+    usage = result.get("usage")
+    if not isinstance(usage, dict):
+        usage = None
 
     summary = {
         "ok": True,
         "endpoint": _ENDPOINT_ID,
         "out_dir": out_dir,
-        "downloaded": out_path,
-        "used_seed": result.get("used_seed"),
-        "mode": args.mode,
+        "output_file": out_path,
+        "output_text": output_text,
     }
+    if usage is not None:
+        summary["usage"] = usage
     print(json.dumps(summary))
     return 0
 

@@ -22,6 +22,7 @@ if _THIS_DIR not in sys.path:
 
 import _path_util
 import _install_help
+import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
 import nuke_spawn_read_position_v1 as spawn_pos
@@ -85,7 +86,7 @@ def main():
     ]
 
     # Pass auth via env var (do NOT override env with the placeholder text)
-    env = os.environ.copy()
+    env = prerender.helper_subprocess_env()
     fal_knob = (g.knob("FAL").value() or "").strip()
     if fal_knob and ("insert your secret" not in fal_knob.lower()):
         env.update({"FAL_KEY": fal_knob})
@@ -134,7 +135,8 @@ def main():
     finally:
         nuke.endGroup()
 
-    nuke.message("Depth map output created:\n%s" % out_path_nk)
+    if _nuke_runner_launcher.should_show_success_popup(g):
+        nuke.message("Depth map output created:\n%s" % out_path_nk)
 
 
 if __name__ == "__main__":

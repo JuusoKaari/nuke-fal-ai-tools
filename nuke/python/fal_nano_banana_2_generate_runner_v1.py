@@ -1,7 +1,8 @@
 # Purpose:
 # - Runner script for the Nuke Group node `Nano_Banana_2_Generate_v1` (executes inside Nuke / Python 2.7).
 # - Reads generation settings from the Group knobs; optionally overrides prompt from Input 0 when a Text node
-#   (`message` knob) is connected (wrong node type -> warning and abort). Calls the external Python 3 helper.
+#   (`message` knob) is connected, including through Dot nodes (wrong node type -> warning and abort).
+#   Calls the external Python 3 helper.
 # - Optional reference image inputs can come from any pipe: if a suitable Read node is connected, its file
 #   is used directly (no re-render), otherwise a still is pre-rendered to a temp folder.
 # - Finally creates Read node(s) in the main graph for the downloaded generated image(s).
@@ -23,8 +24,10 @@ if _THIS_DIR not in sys.path:
 
 import _path_util
 import _install_help
+import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
+import nuke_prompt_input_v1 as prompt_input
 import nuke_spawn_read_position_v1 as spawn_pos
 
 
@@ -42,46 +45,6 @@ def _stream_process_output(p):
             print(line.rstrip("\r\n"))
         except Exception:
             pass
-
-
-def _get_prompt_from_input_or_group(nuke_module, g):
-    prompt = (g.knob("prompt").value() or "").strip()
-
-    try:
-        src = g.input(0)
-    except Exception:
-        src = None
-
-    if src is not None:
-        try:
-            k = src.knob("message")
-        except Exception:
-            k = None
-        if k is not None:
-            try:
-                msg = (k.value() or "").strip()
-            except Exception:
-                msg = ""
-            if msg:
-                return msg
-        else:
-            # Something is connected, but it doesn't look like a Text node (no `message` knob).
-            # Usually a mistaken connection (e.g. reference image into prompt input).
-            try:
-                cls = src.Class()
-            except Exception:
-                cls = "<unknown>"
-            try:
-                nuke_module.message(
-                    "Input 0 (prompt_text) is connected, but it's not a Text node (missing 'message' knob).\n\n"
-                    "Connected node class: %s\n\n"
-                    "Disconnect it or plug a Text node here. Execution cancelled." % cls
-                )
-            except Exception:
-                pass
-            raise Exception("prompt_input_not_text_node")
-
-    return prompt
 
 
 def _collect_reference_images(nuke_module, group_node, frame, temp_dir):
@@ -117,7 +80,7 @@ def main():
 
     g = nuke.thisNode()
 
-    prompt = _get_prompt_from_input_or_group(nuke, g)
+    prompt = prompt_input.get_prompt_from_input_or_group(nuke, g)
     if not prompt:
         nuke.message("Prompt is empty (and no input Text node message found).")
         raise Exception("missing prompt")
@@ -187,7 +150,7 @@ def main():
         args += ["--no-enable-web-search"]
 
     # Pass auth via env var (do NOT override env with the placeholder text)
-    env = os.environ.copy()
+    env = prerender.helper_subprocess_env()
     fal_knob = (g.knob("FAL").value() or "").strip()
     if fal_knob and ("insert your secret" not in fal_knob.lower()):
         env.update({"FAL_KEY": fal_knob})
@@ -237,7 +200,7 @@ def main():
         nuke.message("Helper finished, but no output images were found in:\n%s" % out_dir)
         raise Exception("no outputs")
 
-    if bool(g.knob("show_success_popup").value()):
+    if _nuke_runner_launcher.should_show_success_popup(g):
         nuke.message("Nano Banana 2 output created:\n" + "\n".join(created))
 
 

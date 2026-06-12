@@ -18,6 +18,7 @@ if _THIS_DIR not in sys.path:
 
 import _path_util
 import _install_help
+import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
 import nuke_spawn_read_position_v1 as spawn_pos
@@ -148,7 +149,7 @@ def main():
     else:
         args += ["--no-enable-safety-checker"]
 
-    env = os.environ.copy()
+    env = prerender.helper_subprocess_env()
     fal_knob = (g.knob("FAL").value() or "").strip()
     if fal_knob and ("insert your secret" not in fal_knob.lower()):
         env.update({"FAL_KEY": fal_knob})
@@ -201,7 +202,7 @@ def main():
         nuke.message("Helper finished, but no output images were found in:\n%s" % out_dir)
         raise Exception("no outputs")
 
-    if bool(g.knob("show_success_popup").value()):
+    if _nuke_runner_launcher.should_show_success_popup(g):
         nuke.message("Qwen Image Edit inpaint output created:\n" + "\n".join(created))
 
 

@@ -28,7 +28,6 @@ from fal_common import (
     download,
     ensure_dir,
     format_fal_error_summary,
-    print_queue_logs,
     should_retry_fal_error,
 )
 
@@ -173,9 +172,6 @@ def main(argv: list[str]) -> int:
     if args.verbose:
         print("Submitting request: %s" % endpoint_id)
 
-    def on_queue_update(update) -> None:
-        print_queue_logs(update)
-
     output_format = _normalize_output_format(args.output_format)
     arguments: dict = {
         "prompt": prompt,
@@ -205,8 +201,6 @@ def main(argv: list[str]) -> int:
             result = client.subscribe(
                 endpoint_id,
                 arguments=arguments,
-                with_logs=True,
-                on_queue_update=on_queue_update,
             )
             last_exc = None
             break

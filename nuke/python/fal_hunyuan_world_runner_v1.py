@@ -1,15 +1,19 @@
 # Purpose:
-# - Runner script for the Nuke Group node `Finegrain_Eraser_v1` (executes inside Nuke / Python 2.7).
-# - Input 0: source plate; input 1: mask (white = region to erase). Pre-renders stills if needed.
-# - Calls `fal_finegrain_eraser_helper.py` (Python 3), then spawns a Read node for the downloaded output.
+# - Runner script for the Nuke Group node `Hunyuan_World_v1` (executes inside Nuke / Python 2.7).
+# - Accepts any upstream image input; if it's a suitable Read node, uses its file directly (no re-render),
+#   otherwise pre-renders a still to a temp folder.
+# - Calls the external Python 3 helper `fal_hunyuan_world_helper.py` via subprocess, then creates
+#   a Read node in the main graph for the downloaded panorama image.
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
+# - Network/API calls run in the external helper (Python 3), not inside Nuke.
 
 from __future__ import print_function
 
 import os
 import subprocess
+
 import sys
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -41,38 +45,32 @@ def _stream_process_output(p):
 
 
 def main():
-    import nuke
+    import nuke  # imported inside for Nuke environment
 
     g = nuke.thisNode()
 
     frame = int(nuke.frame())
     src_node = g.input(0)
     if not src_node:
-        nuke.message("Input 0 (source_image) is not connected.")
+        nuke.message("Input 0 is not connected.")
         raise Exception("missing input 0")
 
-    mask_node = g.input(1)
-    if not mask_node:
-        nuke.message("Input 1 (mask) is not connected.\nWhite in the mask = area to erase.")
-        raise Exception("missing input 1")
-
-    mode = (g.knob("mode").value() or "standard").strip().lower()
-    seed_s = (g.knob("seed").value() or "").strip()
+    prompt = (g.knob("prompt").value() or "").strip()
+    if not prompt:
+        nuke.message("Prompt is empty.")
+        raise Exception("missing prompt")
 
     temp_dir, out_dir, ts = prerender.make_run_dirs(
         nuke_module=nuke,
-        prefix="finegrain_eraser",
+        prefix="hunyuan_world",
     )
 
     try:
         image_path = prerender.prepare_still_input_path(
             nuke_module=nuke, src_node=src_node, frame=frame, run_dir=temp_dir, base_name="source"
         )
-        mask_path = prerender.prepare_still_input_path(
-            nuke_module=nuke, src_node=mask_node, frame=frame, run_dir=temp_dir, base_name="mask"
-        )
     except Exception as e:
-        nuke.message("Failed to prepare image or mask:\n%s" % str(e))
+        nuke.message("Failed to prepare input image:\n%s" % str(e))
         raise
 
     python3_cmd = (g.knob("python3_cmd").value() or "").strip() or "py -3"
@@ -87,20 +85,12 @@ def main():
         helper_path,
         "--image",
         image_path,
-        "--mask",
-        mask_path,
+        "--prompt",
+        prompt,
         "--out-dir",
         out_dir,
-        "--mode",
-        mode,
         "--verbose",
     ]
-
-    if seed_s:
-        try:
-            args += ["--seed", str(int(seed_s))]
-        except Exception:
-            pass
 
     env = prerender.helper_subprocess_env()
     fal_knob = (g.knob("FAL").value() or "").strip()
@@ -113,20 +103,20 @@ def main():
 
     if p.returncode != 0:
         nuke.message(
-            "Finegrain Eraser helper failed (exit %d). Check the Script Editor output for details." % p.returncode
+            "Hunyuan World helper failed (exit %d). Check the Script Editor output for details." % p.returncode
         )
-        raise Exception("Finegrain Eraser helper failed")
+        raise Exception("Hunyuan World helper failed")
 
     xpos = int(g.xpos())
     ypos = int(g.ypos())
 
-    out_path = os.path.join(out_dir, "erased.jpg")
+    out_path = os.path.join(out_dir, "panorama.png")
     if not os.path.isfile(out_path):
-        out_path = os.path.join(out_dir, "erased.png")
+        out_path = os.path.join(out_dir, "panorama.jpg")
     if not os.path.isfile(out_path):
-        out_path = os.path.join(out_dir, "erased.webp")
+        out_path = os.path.join(out_dir, "panorama.webp")
     if not os.path.isfile(out_path):
-        nuke.message("Helper finished, but no output image found in:\n%s" % out_dir)
+        nuke.message("Helper finished, but no output panorama found in:\n%s" % out_dir)
         raise Exception("no output")
 
     out_path_nk = prerender.norm_slashes(out_path)
@@ -140,7 +130,7 @@ def main():
         except Exception:
             pass
         try:
-            r.knob("label").setValue("Finegrain Eraser\n%s" % out_path_nk)
+            r.knob("label").setValue("Hunyuan World\n%s" % out_path_nk)
         except Exception:
             pass
         r.setXpos(fx)
@@ -149,7 +139,7 @@ def main():
         nuke.endGroup()
 
     if _nuke_runner_launcher.should_show_success_popup(g):
-        nuke.message("Finegrain Eraser output created:\n%s" % out_path_nk)
+        nuke.message("Hunyuan World panorama created:\n%s" % out_path_nk)
 
 
 if __name__ == "__main__":

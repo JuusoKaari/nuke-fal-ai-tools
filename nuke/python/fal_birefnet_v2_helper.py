@@ -155,19 +155,6 @@ def main(argv: list[str]) -> int:
 
         image_url = client.upload_file(in_path)
 
-        def on_queue_update(update) -> None:
-            logs = getattr(update, "logs", None)
-            if not logs:
-                return
-            for entry in logs:
-                msg = None
-                try:
-                    msg = entry.get("message")
-                except Exception:
-                    msg = None
-                if msg:
-                    print(msg)
-
         if args.verbose:
             print("Frame %d: submit %s" % (frame, _ENDPOINT_ID))
 
@@ -181,8 +168,6 @@ def main(argv: list[str]) -> int:
                 "refine_foreground": bool(args.refine_foreground),
                 "output_format": args.output_format,
             },
-            with_logs=True,
-            on_queue_update=on_queue_update,
         )
 
         try:

@@ -20,6 +20,7 @@ if _THIS_DIR not in sys.path:
 
 import _path_util
 import _install_help
+import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
 import nuke_spawn_read_position_v1 as spawn_pos
@@ -123,7 +124,7 @@ def main():
     else:
         args += ["--no-download-obj"]
 
-    env = os.environ.copy()
+    env = prerender.helper_subprocess_env()
     fal_knob = (g.knob("FAL").value() or "").strip()
     if fal_knob and ("insert your secret" not in fal_knob.lower()):
         env.update({"FAL_KEY": fal_knob})
@@ -248,7 +249,7 @@ def main():
     msg_lines.append("")
     msg_lines.append("View in Nuke 3D (Viewer set to 3D) or import GLB in another DCC.")
 
-    if bool(g.knob("show_success_popup").value()):
+    if _nuke_runner_launcher.should_show_success_popup(g):
         nuke.message("\n".join(msg_lines))
 
 

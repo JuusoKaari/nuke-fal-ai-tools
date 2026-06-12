@@ -12,6 +12,7 @@ from __future__ import print_function
 
 from nuke_prerender_core_v1 import (
     ensure_dir,
+    helper_subprocess_env,
     is_read_node,
     looks_like_sequence_pattern,
     make_run_dir,

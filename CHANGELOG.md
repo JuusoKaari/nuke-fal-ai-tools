@@ -2,14 +2,28 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Added
+
+**Still / image**
+
+- BiRefNet v2 Still (`fal_birefnet_v2_still_v1.nk`) - single-image background removal via `fal-ai/birefnet/v2`
+
+**Text**
+
+- Describe image (`fal_openrouter_describe_image_v1.nk`) - OpenRouter vision LLM image captioning/analysis via `openrouter/router/vision`
+- Generate text (`fal_openrouter_generate_text_v1.nk`) - OpenRouter LLM text generation via `openrouter/router`
+
 ## [1.0.1] - 2026-06-08
 
 Initial public release - fal.ai toolbox for Foundry Nuke.
 
-### Included nodes (16)
+### Included nodes (17)
 
 **Still / image**
 
+- Hunyuan World (`fal_hunyuan_world_v1.nk`)
 - Nano Banana 2 Generate (`fal_nano_banana_2_generate_v1.nk`)
 - Qwen Image Max Edit (`fal_qwen_image_max_edit_v1.nk`)
 - GPT Image 2 Edit (`fal_gpt_image_2_edit_v1.nk`)

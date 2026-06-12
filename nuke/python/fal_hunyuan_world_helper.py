@@ -1,15 +1,18 @@
 # Purpose:
-# - Python 3 helper for Nuke (Python 2.7) to run fal.ai Finegrain Eraser (mask) object removal on a still image.
-# - Uploads local image and mask to fal storage, calls `fal-ai/finegrain-eraser/mask`, downloads result image.
+# - Python 3 helper for Nuke (Python 2.7) to run fal.ai Hunyuan World on a still image.
+# - Uploads a local image to fal storage, calls `fal-ai/hunyuan_world`, downloads the panorama image
+#   into a specified output directory. With --verbose, prints upload/submit/download status only.
 #
 # Usage (example):
-#   py -3 fal_finegrain_eraser_helper.py --image "C:/in.png" --mask "C:/mask.png" --out-dir "C:/temp/run" --verbose
+#   py -3 fal_hunyuan_world_helper.py --image "C:/in.png" --prompt "A skyland of wonders" --out-dir "C:/temp/run" --verbose
 #
 # Requirements:
 #   pip install fal-client
 #
 # Auth:
 # - Provide `--fal-key` or set environment variable `FAL_KEY`.
+#
+# Model: https://fal.ai/models/fal-ai/hunyuan_world
 
 from __future__ import annotations
 
@@ -27,40 +30,28 @@ from fal_common import (
     should_retry_fal_error,
 )
 
-_ENDPOINT_ID = "fal-ai/finegrain-eraser/mask"
+_ENDPOINT_ID = "fal-ai/hunyuan_world"
 
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
-        description="Run Finegrain Eraser (mask) object removal on a still image via fal.ai."
+        description="Run Hunyuan World image-to-panorama via fal.ai and download the result."
     )
     parser.add_argument("--fal-key", default=None, help="fal.ai API key (otherwise uses FAL_KEY env var).")
-    parser.add_argument("--image", required=True, help="Path to local source image (png/jpeg/webp).")
-    parser.add_argument("--mask", required=True, help="Path to local erase mask (white = erase region).")
-    parser.add_argument("--out-dir", required=True, help="Output directory for the downloaded result image.")
-    parser.add_argument(
-        "--mode",
-        default="standard",
-        choices=["express", "standard", "premium"],
-        help="Erase quality mode. Default: standard.",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=None,
-        help="Optional random seed for reproducibility (0..999).",
-    )
+    parser.add_argument("--image", required=True, help="Path to local input still image (png/jpg/webp).")
+    parser.add_argument("--prompt", required=True, help="Text prompt for panorama generation.")
+    parser.add_argument("--out-dir", required=True, help="Output directory for the downloaded panorama image.")
     parser.add_argument(
         "--max-retries",
         type=int,
         default=3,
-        help="Max retries for transient fal backend errors. Default: 3.",
+        help="Max retries for transient fal backend errors (5xx/429). Default: 3.",
     )
     parser.add_argument(
         "--retry-base-seconds",
         type=float,
         default=2.0,
-        help="Base backoff seconds for retries. Default: 2.0.",
+        help="Base backoff seconds for retries (exponential with jitter). Default: 2.0.",
     )
     parser.add_argument("--verbose", action="store_true", help="Print more logs.")
     args = parser.parse_args(argv)
@@ -75,16 +66,10 @@ def main(argv: list[str]) -> int:
         print("ERROR: image file not found: %s" % image_path, file=sys.stderr)
         return 2
 
-    mask_path = os.path.abspath(args.mask)
-    if not os.path.isfile(mask_path):
-        print("ERROR: mask file not found: %s" % mask_path, file=sys.stderr)
+    prompt = (args.prompt or "").strip()
+    if not prompt:
+        print("ERROR: prompt is empty.", file=sys.stderr)
         return 2
-
-    if args.seed is not None:
-        seed = int(args.seed)
-        if seed < 0 or seed > 999:
-            print("ERROR: --seed must be in range 0..999", file=sys.stderr)
-            return 2
 
     out_dir = os.path.abspath(args.out_dir)
     ensure_dir(out_dir)
@@ -101,25 +86,14 @@ def main(argv: list[str]) -> int:
         FalClientHTTPError = Exception  # type: ignore
 
     client = fal_client.SyncClient(key=fal_key)
-    user_agent = "nuke-fal-finegrain-eraser-helper"
+    user_agent = "nuke-fal-hunyuan-world-helper"
 
     if args.verbose:
         print("Uploading image: %s" % image_path)
     image_url = client.upload_file(image_path)
-    if args.verbose:
-        print("Uploading mask: %s" % mask_path)
-    mask_url = client.upload_file(mask_path)
 
     if args.verbose:
-        print("Submitting request: %s (mode=%s)" % (_ENDPOINT_ID, args.mode))
-
-    arguments: dict = {
-        "image_url": image_url,
-        "mask_url": mask_url,
-        "mode": args.mode,
-    }
-    if args.seed is not None:
-        arguments["seed"] = int(args.seed)
+        print("Submitting request: %s" % _ENDPOINT_ID)
 
     result = None
     last_exc: BaseException | None = None
@@ -128,7 +102,10 @@ def main(argv: list[str]) -> int:
         try:
             result = client.subscribe(
                 _ENDPOINT_ID,
-                arguments=arguments,
+                arguments={
+                    "image_url": image_url,
+                    "prompt": prompt,
+                },
             )
             last_exc = None
             break
@@ -149,7 +126,7 @@ def main(argv: list[str]) -> int:
 
     if result is None:
         print(
-            "ERROR: Finegrain Eraser request failed.\n%s"
+            "ERROR: Hunyuan World request failed.\n%s"
             % (format_fal_error_summary(last_exc) if last_exc else "Unknown error"),
             file=sys.stderr,
         )
@@ -167,16 +144,16 @@ def main(argv: list[str]) -> int:
         print("ERROR: no image URL in response:\n%s" % json.dumps(result, indent=2), file=sys.stderr)
         return 5
 
-    ext = "jpg"
+    ext = "png"
     if file_name:
         _, e = os.path.splitext(file_name)
         if e:
-            ext = e.lstrip(".").lower() or "jpg"
-    out_name = "erased.%s" % ext
+            ext = e.lstrip(".").lower() or "png"
+    out_name = "panorama.%s" % ext
     out_path = os.path.join(out_dir, out_name)
 
     if args.verbose:
-        print("Downloading result -> %s" % out_path)
+        print("Downloading panorama -> %s" % out_path)
     download(str(url), out_path, user_agent=user_agent)
 
     summary = {
@@ -184,8 +161,6 @@ def main(argv: list[str]) -> int:
         "endpoint": _ENDPOINT_ID,
         "out_dir": out_dir,
         "downloaded": out_path,
-        "used_seed": result.get("used_seed"),
-        "mode": args.mode,
     }
     print(json.dumps(summary))
     return 0

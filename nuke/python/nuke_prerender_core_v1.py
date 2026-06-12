@@ -335,3 +335,16 @@ def prepare_sequence_input_pattern(nuke_module, src_node, default_first, default
     pattern = os.path.join(run_dir, ("%s_%%0%dd.png" % (base_name, int(pad))))
     return render_sequence_from_node(nuke_module, src_node, pattern, first, last), first, last
 
+
+def helper_subprocess_env(base_env=None):
+    """
+    Environment for spawning Python 3 fal helpers from Nuke.
+    On Windows, default console encoding (cp1252) cannot print tqdm/fal Unicode progress bars.
+    """
+    env = (base_env or os.environ).copy()
+    if "PYTHONUTF8" not in env:
+        env["PYTHONUTF8"] = "1"
+    if "PYTHONIOENCODING" not in env:
+        env["PYTHONIOENCODING"] = "utf-8:replace"
+    return env
+

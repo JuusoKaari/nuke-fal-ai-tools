@@ -24,7 +24,6 @@ from fal_common import (
     download,
     ensure_dir,
     format_fal_error_summary,
-    print_queue_logs,
     should_retry_fal_error,
 )
 
@@ -133,9 +132,6 @@ def main(argv: list[str]) -> int:
     if args.verbose:
         print("Submitting request: %s" % _ENDPOINT_ID)
 
-    def on_queue_update(update) -> None:
-        print_queue_logs(update)
-
     arguments: dict = {
         "image_url": image_url,
         "prompt": args.prompt,
@@ -156,8 +152,6 @@ def main(argv: list[str]) -> int:
             result = client.subscribe(
                 _ENDPOINT_ID,
                 arguments=arguments,
-                with_logs=True,
-                on_queue_update=on_queue_update,
             )
             last_exc = None
             break

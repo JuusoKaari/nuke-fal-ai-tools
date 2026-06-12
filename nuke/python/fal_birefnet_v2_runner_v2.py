@@ -24,6 +24,7 @@ if _THIS_DIR not in sys.path:
 
 import _path_util
 import _install_help
+import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
 import nuke_spawn_read_position_v1 as spawn_pos
@@ -66,6 +67,37 @@ def _split_cmd(cmd):
         return cmd.split()
 
 
+def _get_frame_range_from_knobs(group_node, nuke_module):
+    try:
+        mode = (group_node.knob("frame_range").value() or "root").strip().lower()
+    except Exception:
+        mode = "root"
+
+    if mode == "current":
+        f = int(nuke_module.frame())
+        return f, f
+
+    if mode == "custom":
+        try:
+            start = int(float((group_node.knob("custom_start").value() or "1").strip()))
+            end = int(float((group_node.knob("custom_end").value() or "1").strip()))
+            if end < start:
+                start, end = end, start
+            return start, end
+        except Exception:
+            pass
+
+    try:
+        start = int(nuke_module.root().firstFrame())
+        end = int(nuke_module.root().lastFrame())
+    except Exception:
+        start = 1
+        end = 1
+    if end < start:
+        start, end = end, start
+    return start, end
+
+
 def _stream_process_output(p):
     while True:
         line = p.stdout.readline()
@@ -87,12 +119,7 @@ def main():
 
     g = nuke.thisNode()
 
-    try:
-        default_first = int(nuke.root().firstFrame())
-        default_last = int(nuke.root().lastFrame())
-    except Exception:
-        default_first = 1
-        default_last = 1
+    default_first, default_last = _get_frame_range_from_knobs(g, nuke)
 
     src_node = g.input(0)
     if not src_node:
@@ -160,7 +187,7 @@ def main():
         args += ["--no-refine-foreground"]
 
     # Pass auth via env var (do NOT override env with the placeholder text)
-    env = os.environ.copy()
+    env = prerender.helper_subprocess_env()
     fal_knob = (g.knob("FAL").value() or "").strip()
     if fal_knob and ("insert your secret" not in fal_knob.lower()):
         env.update({"FAL_KEY": fal_knob})
@@ -202,7 +229,8 @@ def main():
     finally:
         nuke.endGroup()
 
-    nuke.message("BiRefNet v2 output created:\n%s" % out_pattern_nk)
+    if _nuke_runner_launcher.should_show_success_popup(g):
+        nuke.message("BiRefNet v2 output created:\n%s" % out_pattern_nk)
 
 
 if __name__ == "__main__":

@@ -25,7 +25,6 @@ from fal_common import (
     compute_retry_sleep_seconds,
     download,
     format_fal_error_summary,
-    print_queue_logs,
     should_retry_fal_error,
 )
 
@@ -98,10 +97,6 @@ def main(argv: list[str]) -> int:
         print("Uploaded image_url=%s" % image_url)
         print("Uploaded video_url=%s" % video_url)
 
-    def on_queue_update(update) -> None:
-        # `update` is typically one of: Queued, InProgress, Completed.
-        print_queue_logs(update)
-
     if args.verbose:
         print("Submitting DreamActor v2 request...")
 
@@ -117,8 +112,6 @@ def main(argv: list[str]) -> int:
                     "video_url": video_url,
                     "trim_first_second": bool(args.trim_first_second),
                 },
-                with_logs=True,
-                on_queue_update=on_queue_update,
             )
             last_exc = None
             break

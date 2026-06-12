@@ -24,6 +24,7 @@ if _THIS_DIR not in sys.path:
 
 import _path_util
 import _install_help
+import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
 import nuke_read_video_frames_v1 as video_frames
@@ -234,12 +235,6 @@ def main():
             nuke.message("Seed must be an integer (or leave empty).")
             raise Exception("invalid seed")
 
-    show_popup = True
-    try:
-        show_popup = bool(g.knob("show_success_popup").value())
-    except Exception:
-        pass
-
     default_first, default_last = _get_frame_range_from_knobs(g, nuke)
     try:
         fps = float(nuke.root().fps())
@@ -328,7 +323,7 @@ def main():
     if seed_val is not None:
         args += ["--seed", str(seed_val)]
 
-    env = os.environ.copy()
+    env = prerender.helper_subprocess_env()
     fal_knob = (g.knob("FAL").value() or "").strip()
     if fal_knob and ("insert your secret" not in fal_knob.lower()):
         env.update({"FAL_KEY": fal_knob})
@@ -369,7 +364,7 @@ def main():
     finally:
         nuke.endGroup()
 
-    if show_popup:
+    if _nuke_runner_launcher.should_show_success_popup(g):
         extra = ("\n\n%s" % trim_msg) if trim_msg else ""
         nuke.message("Veo 3.1 extend-video output created:\n%s%s" % (out_path_nk, extra))
 
