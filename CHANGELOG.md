@@ -8,6 +8,7 @@ All notable changes to this project are documented here.
 
 **Still / image**
 
+- In-group output preview for Nano Banana 2 Generate (`fal_nano_banana_2_generate_v1.nk`): baked preview graph in the group `.nk`, viewer modes (Guide, Source input, AI input, Generated, grids), `preview_index` browse, optional `spawn_reads_in_graph` (default off). Accumulated generated outputs across Execute runs with `generated_output_count` and **Clear generated outputs**. Shared helper: `nuke_group_output_preview_v1.py`.
 - BiRefNet v2 Still (`fal_birefnet_v2_still_v1.nk`) - single-image background removal via `fal-ai/birefnet/v2`
 
 **Text**

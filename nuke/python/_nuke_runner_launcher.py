@@ -64,6 +64,8 @@ def execute_this_node():
         _run_runner_for_node(nuke.thisNode())
     except prerender_core.UnsavedNukeScriptError as exc:
         _show_unsaved_script_message(nuke, exc)
+    except prerender_core.ScriptOutputDirError:
+        pass
 
 
 def execute_node(node):
@@ -94,6 +96,8 @@ def execute_selected_nodes():
         for node in nodes:
             try:
                 execute_node(node)
+            except prerender_core.ScriptOutputDirError:
+                return
             except Exception as exc:
                 nuke.message("Execute failed on %s:\n%s" % (node.name(), exc))
                 raise

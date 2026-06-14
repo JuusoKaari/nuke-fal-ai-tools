@@ -5,6 +5,7 @@
 # - Otherwise, pre-renders a still image or image sequence to a writable temp folder (`nuke_fal_temp`) and returns that path/pattern.
 # - `make_run_dirs()` also creates a paired output folder (`nuke_fal_output`) for FAL API results.
 # - `require_saved_nuke_script()` blocks runners when the script has no saved path on disk.
+# - Temp/output folders are always created next to the saved .nk script; no home/temp fallbacks.
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -32,22 +33,122 @@ class UnsavedNukeScriptError(Exception):
     """Raised when fal.ai runners need a saved .nk path on disk."""
 
 
+class ScriptOutputDirError(Exception):
+    """Raised when temp/output folders cannot be created next to the saved .nk script."""
+
+    def __init__(self, script_dir, leaf_dir_name):
+        self.script_dir = script_dir
+        self.leaf_dir_name = leaf_dir_name
+        Exception.__init__(self, script_output_dir_not_writable_message(script_dir, leaf_dir_name))
+
+
 def unsaved_nuke_script_message(action="running fal.ai nodes"):
     return (
         "This Nuke script is not saved yet.\n\n"
         "Please save the script before %s.\n"
-        "Otherwise Nuke may try to write temporary outputs into a non-writable folder."
+        "fal.ai temp and output folders are created next to the saved .nk file."
         % action
     )
 
 
-def is_nuke_script_saved(nuke_module):
-    """True when the root script has a saved path that exists on disk."""
+def script_output_dir_not_writable_message(script_dir, leaf_dir_name):
+    target = os.path.join(script_dir, leaf_dir_name)
+    return (
+        "Could not create the fal.ai folder next to this Nuke script.\n\n"
+        "Script folder:\n%s\n\n"
+        "Expected folder:\n%s\n\n"
+        "Check that the drive is available and you have write permission, then try again."
+        % (script_dir, target)
+    )
+
+
+def _clean_nuke_path(path):
+    p = (path or "").strip()
+    if p.lower().startswith("file://"):
+        p = p[7:]
+    return p.strip()
+
+
+def _path_to_existing_dir(path):
+    """
+    Normalize a Nuke script path or directory path to an absolute existing directory.
+    Returns an empty string when the path cannot be resolved.
+    """
+    p = _clean_nuke_path(path)
+    if not p:
+        return ""
     try:
-        root_name = (nuke_module.root().name() or "").strip()
+        if os.path.isfile(p):
+            return os.path.dirname(os.path.abspath(p))
+        if os.path.isdir(p):
+            return os.path.abspath(p)
+    except Exception:
+        return ""
+    return ""
+
+
+def _nuke_script_path_candidates(nuke_module):
+    """Return saved script file paths from Nuke APIs, in preference order."""
+    paths = []
+
+    try:
+        root_name = _clean_nuke_path(nuke_module.root().name())
     except Exception:
         root_name = ""
-    return bool(root_name) and os.path.isfile(root_name)
+    if root_name:
+        paths.append(root_name)
+
+    try:
+        script_name = _clean_nuke_path(nuke_module.scriptName())
+    except Exception:
+        script_name = ""
+    if script_name and script_name not in paths:
+        paths.append(script_name)
+
+    return paths
+
+
+def _nuke_script_dir_candidates(nuke_module):
+    """
+    Return absolute script directories from Nuke APIs, in preference order.
+    `root().name()` is preferred over `script_directory()` because the latter can be empty
+    or occasionally return the `.nk` file path instead of its parent folder.
+    """
+    dirs = []
+    seen = set()
+
+    def _add_dir(path):
+        d = _path_to_existing_dir(path)
+        if not d:
+            return
+        key = os.path.normcase(d)
+        if key in seen:
+            return
+        seen.add(key)
+        dirs.append(d)
+
+    for script_path in _nuke_script_path_candidates(nuke_module):
+        _add_dir(script_path)
+
+    try:
+        sd = _clean_nuke_path(nuke_module.script_directory())
+    except Exception:
+        sd = ""
+    if sd:
+        _add_dir(sd)
+
+    return dirs
+
+
+def is_nuke_script_saved(nuke_module):
+    """True when the root script has a saved path that exists on disk."""
+    for script_path in _nuke_script_path_candidates(nuke_module):
+        try:
+            if os.path.isfile(script_path):
+                return True
+        except Exception:
+            pass
+    return False
 
 
 def require_saved_nuke_script(nuke_module, action="running fal.ai nodes"):
@@ -106,7 +207,7 @@ def _can_write_dir(path):
         test_path = os.path.join(path, ".__nuke_ai_gen_write_test")
         f = open(test_path, "wb")
         try:
-            f.write("x")
+            f.write(b"x")
         finally:
             try:
                 f.close()
@@ -121,45 +222,33 @@ def _can_write_dir(path):
         return False
 
 
-def pick_writable_temp_dir(nuke_module, leaf_dir_name, env_subdir_name):
-    """
-    Prefer `<script_dir>/<leaf_dir_name>` when the script is saved; otherwise fall back to a user-writable temp.
-    """
-    cands = []
-
+def _show_nuke_message(nuke_module, message):
     try:
-        sd = (nuke_module.script_directory() or "").strip()
-    except Exception:
-        sd = ""
-    if sd:
-        cands.append(os.path.join(sd, leaf_dir_name))
-
-    try:
-        root_name = (nuke_module.root().name() or "").strip()
-    except Exception:
-        root_name = ""
-    if root_name and os.path.isfile(root_name):
-        cands.append(os.path.join(os.path.dirname(root_name), leaf_dir_name))
-
-    for k in ("TEMP", "TMP"):
-        v = (os.environ.get(k) or "").strip()
-        if v:
-            cands.append(os.path.join(v, env_subdir_name))
-
-    home = (os.path.expanduser("~") or "").strip()
-    if home and home != "~":
-        cands.append(os.path.join(home, env_subdir_name))
-
-    try:
-        cands.append(os.path.join(os.getcwd(), leaf_dir_name))
+        nuke_module.message(message)
     except Exception:
         pass
 
-    for d in cands:
-        if _can_write_dir(d):
-            return d
 
-    return os.path.join(os.path.expanduser("~") or ".", env_subdir_name)
+def pick_writable_temp_dir(nuke_module, leaf_dir_name, env_subdir_name=None):
+    """
+    Return `<script_dir>/<leaf_dir_name>` for the saved Nuke script.
+    Raises UnsavedNukeScriptError or ScriptOutputDirError when the folder cannot be used.
+    """
+    del env_subdir_name  # kept for backward compatibility; no alternate locations are used.
+
+    script_dirs = _nuke_script_dir_candidates(nuke_module)
+    if not script_dirs:
+        _show_nuke_message(nuke_module, unsaved_nuke_script_message())
+        raise UnsavedNukeScriptError("running fal.ai nodes")
+
+    for sd in script_dirs:
+        target = os.path.join(sd, leaf_dir_name)
+        if _can_write_dir(target):
+            return target
+
+    exc = ScriptOutputDirError(script_dirs[0], leaf_dir_name)
+    _show_nuke_message(nuke_module, str(exc))
+    raise exc
 
 
 def make_run_dir(nuke_module, prefix, leaf_dir_name="nuke_fal_temp", env_subdir_name="nuke_fal_temp"):
@@ -214,6 +303,7 @@ def resolve_read_file_at_frame(nuke_module, read_node, frame):
 def render_still_from_node(nuke_module, src_node, out_path, frame):
     """
     Render a single frame from any node to `out_path` by creating a temporary Write node.
+    The source node must live on the root graph (use render_still_inside_group for in-group nodes).
     """
     out_path = os.path.abspath(out_path)
     ensure_dir(os.path.dirname(out_path))
@@ -245,6 +335,43 @@ def render_still_from_node(nuke_module, src_node, out_path, frame):
         except Exception:
             pass
         nuke_module.endGroup()
+
+    return out_path
+
+
+def render_still_inside_group(nuke_module, group, src_node, out_path, frame):
+    """
+    Render a single frame from a node inside a Group via a temporary internal Write.
+    Caller must already be inside group.begin().
+    """
+    out_path = os.path.abspath(out_path)
+    ensure_dir(os.path.dirname(out_path))
+
+    w = None
+    try:
+        w = nuke_module.nodes.Write()
+        w.setInput(0, src_node)
+        try:
+            w["file"].setValue(norm_slashes(out_path))
+        except Exception:
+            w.knob("file").setValue(norm_slashes(out_path))
+        try:
+            if "file_type" in w.knobs():
+                w["file_type"].setValue(os.path.splitext(out_path)[1].lstrip(".").lower() or "png")
+        except Exception:
+            pass
+        try:
+            if "channels" in w.knobs():
+                w["channels"].setValue("rgb")
+        except Exception:
+            pass
+        nuke_module.execute(w, int(frame), int(frame))
+    finally:
+        try:
+            if w is not None:
+                nuke_module.delete(w)
+        except Exception:
+            pass
 
     return out_path
 

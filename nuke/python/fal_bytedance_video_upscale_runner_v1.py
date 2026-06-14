@@ -10,7 +10,6 @@
 from __future__ import print_function
 
 import os
-import subprocess
 import sys
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -40,22 +39,6 @@ def _split_cmd(cmd):
         return shlex.split(cmd)
     except Exception:
         return cmd.split()
-
-
-def _stream_process_output(p):
-    while True:
-        line = p.stdout.readline()
-        if not line:
-            break
-        try:
-            if isinstance(line, bytes):
-                try:
-                    line = line.decode("utf-8", "replace")
-                except Exception:
-                    line = str(line)
-            print(line.rstrip("\r\n"))
-        except Exception:
-            pass
 
 
 def _get_frame_range_from_knobs(group_node, nuke_module):
@@ -165,14 +148,20 @@ def main():
     if fal_knob and ("insert your secret" not in fal_knob.lower()):
         env.update({"FAL_KEY": fal_knob})
 
-    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=False, env=env)
-    _stream_process_output(p)
-    p.wait()
+    try:
+        returncode, _stdout_lines = prerender.run_helper_subprocess(
+            args,
+            env=env,
+            title="ByteDance Video Upscale",
+        )
+    except prerender.FalProgressCancelled:
+        nuke.message("ByteDance Video Upscale request cancelled.")
+        raise Exception("cancelled")
 
-    if p.returncode != 0:
+    if returncode != 0:
         nuke.message(
-            "Bytedance video upscale helper failed (exit %d). Check the Script Editor output for details."
-            % p.returncode
+            "ByteDance video upscale helper failed (exit %d). Check the Script Editor output for details."
+            % returncode
         )
         raise Exception("Bytedance upscale helper failed")
 

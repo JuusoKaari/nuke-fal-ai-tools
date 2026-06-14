@@ -12,7 +12,6 @@ from __future__ import print_function
 
 import json
 import os
-import subprocess
 import sys
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -130,29 +129,20 @@ def main():
     if fal_knob and ("insert your secret" not in fal_knob.lower()):
         env.update({"FAL_KEY": fal_knob})
 
-    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=False, env=env)
-    stdout_lines = []
-    while True:
-        line = p.stdout.readline()
-        if not line:
-            break
-        try:
-            if isinstance(line, bytes):
-                try:
-                    line = line.decode("utf-8", "replace")
-                except Exception:
-                    line = str(line)
-            line = line.rstrip("\r\n")
-            stdout_lines.append(line)
-            print(line)
-        except Exception:
-            pass
-    p.wait()
+    try:
+        returncode, stdout_lines = prerender.run_helper_subprocess(
+            args,
+            env=env,
+            title="OpenRouter Generate Text",
+        )
+    except prerender.FalProgressCancelled:
+        nuke.message("OpenRouter Generate Text request cancelled.")
+        raise Exception("cancelled")
 
-    if p.returncode != 0:
+    if returncode != 0:
         nuke.message(
             "Generate text helper failed (exit %d). Check the Script Editor output for details."
-            % p.returncode
+            % returncode
         )
         raise Exception("Generate text helper failed")
 

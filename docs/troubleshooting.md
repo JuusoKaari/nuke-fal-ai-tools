@@ -123,6 +123,35 @@ ffprobe -version
 
 Video generation and upscaling can take several minutes. Watch the Script Editor for helper stdout. If fal.ai queues the job, wait for completion; interrupting Nuke may leave partial temp files under the script directory.
 
+## In-group output preview (Nano Banana 2 pilot)
+
+**Symptom:** Group output is black before Execute, or generated results only appear as separate Read nodes below the Group.
+
+**Expected (Nano Banana 2 Generate):**
+
+- Before Execute, **Viewer mode = Guide** shows a dimmed reference plate (when connected) with centered setup text, not a blank frame.
+- After Execute, **Viewer mode = Generated** shows the latest result on the Group output and postage stamp.
+- Use **Preview index** to browse multiple outputs without re-running.
+- **Spawn reads in graph** is off by default; enable it if you want the old behavior of creating root-level Read nodes below the Group.
+
+**Viewer modes:**
+
+| Mode | What you see |
+|------|----------------|
+| Guide | Dimmed input plate + guide text overlay |
+| Source input | Clean connected reference, no overlay |
+| AI input | Prepared upload image (with A/B labels when **Mark AI inputs** is on) |
+| AI input grid / Generated grid | Contact sheet of all prepared inputs or outputs |
+| Generated | Selected generated image |
+
+**Checks:**
+
+- Re-create the node from **Nodes -> fal.ai** after updating the plugin (older nodes may lack preview knobs or use the wrong callback style).
+- Preview switching uses Nuke expressions on internal Switch nodes (`parent.viewer_mode`, etc.), like other dynamic Group tools. The preview graph is **baked into** `fal_nano_banana_2_generate_v1.nk` (no Python graph build on create).
+- Older nodes created before the baked graph may still rely on `ensure_group_preview_graph()`; re-create from the menu for the full graph.
+- Inside the group you should see nodes such as `viewer_mode_switch`, `guide_merge`, and `generated_read_01` immediately after create.
+- If internal Read paths break after moving a script to another machine, re-execute or relink like any other Read node.
+
 ## Still stuck?
 
 Open a GitHub issue with:

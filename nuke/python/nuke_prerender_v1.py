@@ -3,6 +3,7 @@
 # - Keeps the public API stable while implementation is split into smaller modules:
 #   - `nuke_prerender_core_v1.py` (temp/output dirs, still/sequence prerender, Read fast-paths)
 #   - `nuke_prerender_video_v1.py` (video prerender with ffmpeg fallback)
+#   - `nuke_fal_progress_v1.py` (global fal.ai progress dialog for helper subprocesses)
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -23,12 +24,15 @@ from nuke_prerender_core_v1 import (
     prepare_still_input_path,
     render_sequence_from_node,
     render_still_from_node,
+    render_still_inside_group,
     resolve_read_file_at_frame,
     split_cmd,
     _is_valid_video_extension,
 )
 
 from nuke_prerender_video_v1 import render_video_from_node
+
+from nuke_fal_progress_v1 import FalProgressCancelled, run_helper_subprocess
 
 
 def prepare_video_input_path(nuke_module, src_node, frame, default_first, default_last, run_dir, base_name):

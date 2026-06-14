@@ -9,7 +9,6 @@
 from __future__ import print_function
 
 import os
-import subprocess
 import sys
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -22,22 +21,6 @@ import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
 import nuke_spawn_read_position_v1 as spawn_pos
-
-
-def _stream_process_output(p):
-    while True:
-        line = p.stdout.readline()
-        if not line:
-            break
-        try:
-            if isinstance(line, bytes):
-                try:
-                    line = line.decode("utf-8", "replace")
-                except Exception:
-                    line = str(line)
-            print(line.rstrip("\r\n"))
-        except Exception:
-            pass
 
 
 def main():
@@ -107,13 +90,19 @@ def main():
     if fal_knob and ("insert your secret" not in fal_knob.lower()):
         env.update({"FAL_KEY": fal_knob})
 
-    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=False, env=env)
-    _stream_process_output(p)
-    p.wait()
+    try:
+        returncode, _stdout_lines = prerender.run_helper_subprocess(
+            args,
+            env=env,
+            title="Finegrain Eraser",
+        )
+    except prerender.FalProgressCancelled:
+        nuke.message("Finegrain Eraser request cancelled.")
+        raise Exception("cancelled")
 
-    if p.returncode != 0:
+    if returncode != 0:
         nuke.message(
-            "Finegrain Eraser helper failed (exit %d). Check the Script Editor output for details." % p.returncode
+            "Finegrain Eraser helper failed (exit %d). Check the Script Editor output for details." % returncode
         )
         raise Exception("Finegrain Eraser helper failed")
 

@@ -1,36 +1,55 @@
 # Purpose:
-# - Nuke Group node that runs Nano Banana 2 (fal.ai) generation/edit and creates Read node(s).
+# - Nuke Group node that runs Nano Banana 2 (fal.ai) generation/edit with in-group output preview.
+# - Preview graph is baked in this .nk; switches use parent knob expressions.
 # - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
 
 set cut_paste_input [stack 0]
 version 11.3 v6
 push $cut_paste_input
 Group {
+ inputs 3
  name Nano_Banana_2_Generate_v1
+ knobChanged "\nimport nuke_group_output_preview_v1 as _gop\n_gop.on_knob_changed_ui()\n"
  selected true
- xpos -340
- ypos 120
- addUserKnob {20 Settings}
  addUserKnob {1 prompt l Prompt}
- prompt "Describe the image/edit you want (or connect a Text node with a message knob to override)"
+ prompt "Describe the image/edit you want (or connect a Text node)"
  addUserKnob {1 num_images l "Num images (1-4)"}
- num_images "1"
- addUserKnob {1 seed l "Seed (optional)"}
- seed ""
- addUserKnob {4 aspect_ratio l "Aspect ratio" M {auto 21:9 16:9 3:2 4:3 5:4 1:1 4:5 3:4 2:3 9:16 ""}}
- aspect_ratio auto
+ num_images 1
  addUserKnob {4 resolution l Resolution M {"0.5K" 1K 2K 4K ""}}
  resolution 1K
  addUserKnob {4 output_format l "Output format" M {png jpeg webp ""}}
  output_format png
+ addUserKnob {26 preview_separator l "" +STARTLINE}
+ addUserKnob {4 viewer_mode l "Viewer mode" M {Input Generated "Generated grid" ""}}
+ viewer_mode Input
+ addUserKnob {6 show_guide l "Show guide" +STARTLINE}
+ show_guide true
+ addUserKnob {7 preview_index l "preview index" R 1 2.999}
+ preview_index 1
+ addUserKnob {6 mark_ai_inputs l "Mark AI inputs" +STARTLINE}
+ mark_ai_inputs false
+ addUserKnob {6 spawn_reads_in_graph l "Spawn reads in graph" +STARTLINE}
+ spawn_reads_in_graph false
+ addUserKnob {6 has_generated_output -STARTLINE +DISABLED +INVISIBLE}
+ has_generated_output false
+ addUserKnob {1 generated_output_count l "Generated outputs" +DISABLED}
+ generated_output_count "0"
+ addUserKnob {1 generated_output_paths l "generated output paths" +INVISIBLE}
+ generated_output_paths ""
+ addUserKnob {22 clear_generated_outputs T "import nuke_group_output_preview_v1 as _gop\n_gop.clear_generated_outputs_ui()\n" +STARTLINE}
+ addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
+ addUserKnob {20 Advanced l Advanced +CLOSED}
+ addUserKnob {1 seed l "Seed (optional)"}
+ seed ""
+ addUserKnob {4 aspect_ratio l "Aspect ratio" M {auto 21:9 16:9 3:2 4:3 5:4 1:1 4:5 3:4 2:3 9:16 ""}}
+ aspect_ratio auto
  addUserKnob {4 safety_tolerance l "Safety tolerance (1=strict, 6=relaxed)" M {1 2 3 4 5 6 ""}}
  safety_tolerance 4
  addUserKnob {6 enable_web_search l "Enable web search" +STARTLINE}
  enable_web_search false
  addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}
  show_success_popup true
- addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
- addUserKnob {20 endGroup n -1}
+ addUserKnob {20 endAdvanced n -1}
  addUserKnob {1 python3_cmd l "Python 3 cmd" +INVISIBLE}
  python3_cmd "py -3"
  addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
@@ -40,52 +59,338 @@ Group {
  addUserKnob {1 FAL +INVISIBLE}
  FAL "insert your secret key here or use env variable FAL_KEY"
 }
-Text {
- inputs 0
- message "Input 0: optional Text node (has a 'message' knob) to override Prompt.\\nInput 1-2: optional reference images (Read nodes). If any connected, uses Nano Banana 2 EDIT model.\\nThen press execute."
- font C:/Windows/Fonts/arial.ttf
- yjustify bottom
- Transform 1
- box {30 30 1906 1052}
- center {560 372}
- name Text1
- xpos 96
- ypos 301
-}
-set N0e5f49c0 [stack 0]
-Output {
- name Output1
- xpos 96
- ypos 409
-}
-Input {
- inputs 0
- name prompt_text
- xpos 0
- ypos -51
-}
-Input {
- inputs 0
- name ref_image_a
- xpos 120
- ypos -51
-}
-Input {
- inputs 0
- name ref_image_b
- xpos 240
- ypos -51
-}
-push $N0e5f49c0
-Viewer {
- inputs 1
- frame_range 0-199
- fps 25
- input_number 0
- name Viewer1
- selected true
- xpos 276
- ypos 412
-}
+ Read {
+  inputs 0
+  file_type png
+  file ""
+  format "1408 768 0 0 1408 768 1 "
+  origset true
+  name generated_read_01
+  label "F: \[value first]-\[value last] \[python \{\}] \nDUR: \[python \{nuke.thisNode()\['last'].value()-nuke.thisNode()\['first'].value()+1\}] \n|\[python \{nuke.thisNode()\['file'].value()\[0].upper()\}]|"
+  xpos 1732
+  ypos -261
+ }
+set N85c2da80 [stack 0]
+ Read {
+  inputs 0
+  file_type png
+  file ""
+  format "1408 768 0 0 1408 768 1 "
+  origset true
+  name generated_read_02
+  label "F: \[value first]-\[value last] \[python \{\}] \nDUR: \[python \{nuke.thisNode()\['last'].value()-nuke.thisNode()\['first'].value()+1\}] \n|\[python \{nuke.thisNode()\['file'].value()\[0].upper()\}]|"
+  xpos 1842
+  ypos -261
+ }
+set N85c2bf80 [stack 0]
+ Read {
+  inputs 0
+  file_type png
+  file ""
+  format "1408 768 0 0 1408 768 1 "
+  origset true
+  name generated_read_03
+  label "F: \[value first]-\[value last] \[python \{\}] \nDUR: \[python \{nuke.thisNode()\['last'].value()-nuke.thisNode()\['first'].value()+1\}] \n|\[python \{nuke.thisNode()\['file'].value()\[0].upper()\}]|"
+  xpos 1952
+  ypos -261
+ }
+set N85c2d180 [stack 0]
+ Read {
+  inputs 0
+  file_type png
+  file ""
+  format "1408 768 0 0 1408 768 1 "
+  origset true
+  name generated_read_04
+  label "F: \[value first]-\[value last] \[python \{\}] \nDUR: \[python \{nuke.thisNode()\['last'].value()-nuke.thisNode()\['first'].value()+1\}] \n|\[python \{nuke.thisNode()\['file'].value()\[0].upper()\}]|"
+  xpos 2062
+  ypos -261
+ }
+set N85c2c880 [stack 0]
+push $N85c2c880
+push $N85c2d180
+push $N85c2bf80
+push $N85c2da80
+ ContactSheet {
+  inputs 4
+  width 2048
+  height 1024
+  rows 2
+  columns 2
+  name generated_contactsheet
+  xpos 2101
+  ypos 173
+ }
+set Ndb7c100 [stack 0]
+push $N85c2c880
+push $N85c2d180
+push $N85c2bf80
+push $N85c2da80
+ Switch {
+  inputs 4
+  which {{"parent.preview_index - 1"}}
+  name generated_switch
+  xpos 1642
+  ypos 183
+ }
+set Ndb7c200 [stack 0]
+ Reformat {
+  inputs 0
+  format "1024 1024 0 0 1024 1024 1 square_1K"
+  name Reformat3
+  xpos 1177
+  ypos 5
+ }
+ Text {
+  message " B"
+  font C:/Windows/Fonts/arial.ttf
+  size 205.6
+  yjustify bottom
+  Transform 1
+  box {0 0 2048 2048}
+  center {2304 1582}
+  name input_mark_text_B
+  xpos 1177
+  ypos 43
+ }
+ Reformat {
+  type "to box"
+  box_width {{format_checker_3.width}}
+  box_height {{format_checker_3.height}}
+  box_fixed true
+  resize fit
+  center false
+  name reformat_to_match2
+  xpos 1177
+  ypos 69
+ }
+ Input {
+  inputs 0
+  name image_b
+  xpos 519
+  ypos -672
+  number 1
+ }
+ NoOp {
+  name preview_source_02
+  xpos 519
+  ypos -297
+ }
+set N16c8480 [stack 0]
+ Dot {
+  name Dot11
+  xpos 988
+  ypos 18
+ }
+set N4cf6ff80 [stack 0]
+ Dot {
+  name Dot2
+  xpos 1075
+  ypos 18
+ }
+ NoOp {
+  name format_checker_3
+  xpos 1041
+  ypos 69
+ }
+ Merge {
+  inputs 2
+  mix 0.25
+  name guide_merge2
+  xpos 1041
+  ypos 145
+ }
+set Nb1c82f00 [stack 0]
+push $N4cf6ff80
+ Switch {
+  inputs 2
+  which {{parent.mark_ai_inputs}}
+  name ai_mark_select_02
+  xpos 954
+  ypos 207
+ }
+set Nef487200 [stack 0]
+ Reformat {
+  inputs 0
+  format "1024 1024 0 0 1024 1024 1 square_1K"
+  name Reformat2
+  xpos 558
+  ypos -3
+ }
+ Text {
+  message " A"
+  font C:/Windows/Fonts/arial.ttf
+  size 205.6
+  yjustify bottom
+  Transform 1
+  box {0 0 2048 2048}
+  center {2304 1582}
+  name input_mark_text_A
+  xpos 558
+  ypos 35
+ }
+ Reformat {
+  type "to box"
+  box_width {{format_checker_2.width}}
+  box_height {{format_checker_2.height}}
+  box_fixed true
+  resize fit
+  center false
+  name reformat_to_match1
+  xpos 558
+  ypos 61
+ }
+ Input {
+  inputs 0
+  name image_a
+  xpos 77
+  ypos -667
+  number 0
+ }
+ NoOp {
+  name preview_source_01
+  xpos 77
+  ypos -292
+ }
+set N16c9200 [stack 0]
+ Dot {
+  name Dot10
+  xpos 358
+  ypos 31
+ }
+set N4cf6fb00 [stack 0]
+ Dot {
+  name Dot1
+  xpos 456
+  ypos 31
+ }
+ NoOp {
+  name format_checker_2
+  xpos 422
+  ypos 61
+ }
+ Merge {
+  inputs 2
+  mix 0.25
+  name guide_merge1
+  xpos 422
+  ypos 137
+ }
+push $N4cf6fb00
+ Switch {
+  inputs 2
+  which {{parent.mark_ai_inputs}}
+  name ai_mark_select_01
+  xpos 324
+  ypos 210
+ }
+set Nf9824500 [stack 0]
+push $Nef487200
+push $Nf9824500
+ Switch {
+  inputs 2
+  which {{"parent.preview_index - 1"}}
+  name ai_input_switch
+  xpos 538
+  ypos 386
+ }
+set Ndb7c300 [stack 0]
+ Reformat {
+  inputs 0
+  format "2048 2048 0 0 2048 2048 1 square_2K"
+  name Reformat1
+  xpos -663
+  ypos 153
+ }
+ Text {
+  message "Nano Banana 2\nText-to-image or image edit.\n\nImage inputs: Connect main image to image_a and optional reference to image_b.\nPrompt: Write on the node, or connect separate Text node to prompt_text input.\nPress Execute, then use Viewer mode to preview outputs."
+  font C:/Windows/Fonts/arial.ttf
+  size 50
+  xjustify center
+  yjustify center
+  Transform 1
+  box {0 0 2048 2048}
+  center {2304 1582}
+  name Text1
+  xpos -663
+  ypos 191
+ }
+ Reformat {
+  type "to box"
+  box_width {{format_checker_1.width}}
+  box_height {{format_checker_1.height}}
+  box_fixed true
+  resize fit
+  name reformat_to_match
+  xpos -663
+  ypos 217
+ }
+push $Ndb7c300
+ Multiply {
+  value 0.4
+  name guide_dim
+  xpos -799
+  ypos 90
+ }
+ NoOp {
+  name format_checker_1
+  xpos -799
+  ypos 217
+ }
+ Merge {
+  inputs 2
+  name guide_merge
+  xpos -799
+  ypos 293
+ }
+ NoOp {
+  name guide_preview
+  xpos -799
+  ypos 364
+ }
+set Ndb7c400 [stack 0]
+push $Ndb7c400
+push $Ndb7c300
+ Switch {
+  inputs 2
+  which {{parent.show_guide}}
+  name input_preview_switch
+  xpos 538
+  ypos 520
+ }
+set Ndb7c350 [stack 0]
+push $Ndb7c100
+push $Ndb7c200
+push $Ndb7c350
+ Switch {
+  inputs 3
+  which {{parent.viewer_mode}}
+  name viewer_mode_switch
+  xpos 858
+  ypos 1020
+ }
+set Nf9827200 [stack 0]
+ Output {
+  name Output1
+  xpos 858
+  ypos 1285
+ }
+ Input {
+  inputs 0
+  name prompt_text
+  xpos 1052
+  ypos -678
+  number 2
+ }
+push $Nb1c82f00
+push $Nf9827200
+ Viewer {
+  inputs 1
+  frame_range 0-199
+  fps 25
+  input_number 0
+  name Viewer1
+  xpos -646
+  ypos 1786
+ }
 end_group
-

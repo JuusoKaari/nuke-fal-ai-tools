@@ -1,11 +1,11 @@
 # Purpose:
 # - Runner script for the Nuke Group node `Nano_Banana_2_Generate_v1` (executes inside Nuke / Python 2.7).
-# - Reads generation settings from the Group knobs; optionally overrides prompt from Input 0 when a Text node
+# - Reads generation settings from the Group knobs; optionally overrides prompt from Input 2 when a Text node
 #   (`message` knob) is connected, including through Dot nodes (wrong node type -> warning and abort).
 #   Calls the external Python 3 helper.
 # - Optional reference image inputs can come from any pipe: if a suitable Read node is connected, its file
 #   is used directly (no re-render), otherwise a still is pre-rendered to a temp folder.
-# - Finally creates Read node(s) in the main graph for the downloaded generated image(s).
+# - Wires downloaded image(s) to in-group preview reads; optionally spawns root Read node(s).
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -14,7 +14,6 @@
 from __future__ import print_function
 
 import os
-import subprocess
 
 import sys
 
@@ -26,53 +25,10 @@ import _path_util
 import _install_help
 import _nuke_runner_launcher
 
+import nuke_group_output_preview_v1 as preview
 import nuke_prerender_v1 as prerender
 import nuke_prompt_input_v1 as prompt_input
 import nuke_spawn_read_position_v1 as spawn_pos
-
-
-def _stream_process_output(p):
-    while True:
-        line = p.stdout.readline()
-        if not line:
-            break
-        try:
-            if isinstance(line, bytes):
-                try:
-                    line = line.decode("utf-8", "replace")
-                except Exception:
-                    line = str(line)
-            print(line.rstrip("\r\n"))
-        except Exception:
-            pass
-
-
-def _collect_reference_images(nuke_module, group_node, frame, temp_dir):
-    """
-    Collect 0..2 reference image paths from external inputs 1 and 2.
-    If the input is a suitable Read, use its resolved file directly; otherwise pre-render a still.
-    """
-    images = []
-    for idx in (1, 2):
-        try:
-            n = group_node.input(idx)
-        except Exception:
-            n = None
-        if n is None:
-            continue
-        try:
-            images.append(
-                prerender.prepare_still_input_path(
-                    nuke_module=nuke_module,
-                    src_node=n,
-                    frame=frame,
-                    run_dir=temp_dir,
-                    base_name="ref_image_%d" % idx,
-                )
-            )
-        except Exception as e:
-            raise Exception("Reference image input %d error: %s" % (idx, str(e)))
-    return images
 
 
 def main():
@@ -80,7 +36,7 @@ def main():
 
     g = nuke.thisNode()
 
-    prompt = prompt_input.get_prompt_from_input_or_group(nuke, g)
+    prompt = prompt_input.get_prompt_from_input_or_group(nuke, g, input_index=2)
     if not prompt:
         nuke.message("Prompt is empty (and no input Text node message found).")
         raise Exception("missing prompt")
@@ -101,12 +57,17 @@ def main():
         num_images = 1
     num_images = max(1, min(4, int(num_images)))
 
+    preview_config = preview.get_config_for_group(g)
+
     temp_dir, out_dir, ts = prerender.make_run_dirs(
         nuke_module=nuke,
         prefix="nano_banana_2",
     )
 
-    ref_images = _collect_reference_images(nuke, g, frame=frame, temp_dir=temp_dir)
+    if preview_config is not None:
+        ref_images = [path for _, path in preview.prepare_ai_inputs(g, preview_config, frame, temp_dir)]
+    else:
+        ref_images = []
 
     python3_cmd = (g.knob("python3_cmd").value() or "").strip() or "py -3"
     helper_path = _install_help.require_helper_path(
@@ -155,50 +116,71 @@ def main():
     if fal_knob and ("insert your secret" not in fal_knob.lower()):
         env.update({"FAL_KEY": fal_knob})
 
-    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=False, env=env)
-    _stream_process_output(p)
-    p.wait()
+    try:
+        returncode, _stdout_lines = prerender.run_helper_subprocess(
+            args,
+            env=env,
+            title="Nano Banana 2",
+        )
+    except prerender.FalProgressCancelled:
+        nuke.message("Nano Banana 2 request cancelled.")
+        raise Exception("cancelled")
 
-    if p.returncode != 0:
-        nuke.message("Nano Banana 2 helper failed (exit %d). Check the Script Editor output for details." % p.returncode)
+    if returncode != 0:
+        nuke.message("Nano Banana 2 helper failed (exit %d). Check the Script Editor output for details." % returncode)
         raise Exception("Nano Banana 2 helper failed")
 
-    xpos = int(g.xpos())
-    ypos = int(g.ypos())
-
     created = []
-    placed = []
     for i in range(1, int(num_images) + 1):
         out_name = "image_%03d.%s" % (i, output_format)
         out_path = os.path.join(out_dir, out_name)
         if not os.path.isfile(out_path):
             continue
-        out_path_nk = prerender.norm_slashes(out_path)
-
-        nuke.root().begin()
-        try:
-            bx = xpos + (i - 1) * 120
-            by = ypos + 140
-            fx, fy = spawn_pos.resolve_spawn_xy(nuke, bx, by, exclude_nodes=placed)
-            r = nuke.nodes.Read(file=out_path_nk)
-            try:
-                r.setName("%s_%s_%02d" % (g.name(), ts, i), unique=True)
-            except Exception:
-                pass
-            try:
-                r.knob("label").setValue("Nano Banana 2\n%s" % out_path_nk)
-            except Exception:
-                pass
-            r.setXpos(fx)
-            r.setYpos(fy)
-            placed.append(r)
-            created.append(out_path_nk)
-        finally:
-            nuke.endGroup()
+        created.append(prerender.norm_slashes(out_path))
 
     if not created:
         nuke.message("Helper finished, but no output images were found in:\n%s" % out_dir)
         raise Exception("no outputs")
+
+    if preview_config is not None:
+        try:
+            preview.wire_group_outputs(g, created)
+        except Exception as e:
+            nuke.message("Failed to wire in-group preview outputs:\n%s" % str(e))
+            raise
+
+    spawn_reads = False
+    try:
+        sk = g.knob("spawn_reads_in_graph")
+        if sk is not None:
+            spawn_reads = bool(sk.value())
+    except Exception:
+        spawn_reads = False
+
+    if spawn_reads:
+        xpos = int(g.xpos())
+        ypos = int(g.ypos())
+        placed = []
+        for i, out_path_nk in enumerate(created, start=1):
+            nuke.root().begin()
+            try:
+                bx = xpos + (i - 1) * 120
+                by = ypos + 140
+                fx, fy = spawn_pos.resolve_spawn_xy(nuke, bx, by, exclude_nodes=placed)
+                r = nuke.nodes.Read(file=out_path_nk)
+                try:
+                    r.setName("%s_%s_%02d" % (g.name(), ts, i), unique=True)
+                except Exception:
+                    pass
+                try:
+                    r.knob("label").setValue("Nano Banana 2\n%s" % out_path_nk)
+                except Exception:
+                    pass
+                r.setXpos(fx)
+                r.setYpos(fy)
+                placed.append(r)
+            finally:
+                nuke.endGroup()
 
     if _nuke_runner_launcher.should_show_success_popup(g):
         nuke.message("Nano Banana 2 output created:\n" + "\n".join(created))

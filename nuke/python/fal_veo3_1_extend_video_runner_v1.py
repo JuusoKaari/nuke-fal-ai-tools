@@ -66,26 +66,6 @@ def _split_cmd(cmd):
         return cmd.split()
 
 
-def _stream_process_output(p):
-    lines = []
-    while True:
-        line = p.stdout.readline()
-        if not line:
-            break
-        try:
-            if isinstance(line, bytes):
-                try:
-                    line = line.decode("utf-8", "replace")
-                except Exception:
-                    line = str(line)
-            text = line.rstrip("\r\n")
-            lines.append(text)
-            print(text)
-        except Exception:
-            pass
-    return lines
-
-
 def _cap_frame_range_to_max_seconds(first, last, fps, max_seconds):
     try:
         max_frames = max(1, int(round(float(max_seconds) * float(fps))))
@@ -328,15 +308,21 @@ def main():
     if fal_knob and ("insert your secret" not in fal_knob.lower()):
         env.update({"FAL_KEY": fal_knob})
 
-    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=False, env=env)
-    helper_lines = _stream_process_output(p)
-    p.wait()
+    try:
+        returncode, helper_lines = prerender.run_helper_subprocess(
+            args,
+            env=env,
+            title="Veo 3.1 Extend Video",
+        )
+    except prerender.FalProgressCancelled:
+        nuke.message("Veo 3.1 Extend Video request cancelled.")
+        raise Exception("cancelled")
 
-    if p.returncode != 0:
+    if returncode != 0:
         summary = _summarize_helper_failure(helper_lines)
         nuke.message(
             "Veo 3.1 extend-video helper failed (exit %d).\n\n%s"
-            % (p.returncode, summary)
+            % (returncode, summary)
         )
         raise Exception("Veo 3.1 extend-video helper failed")
 
