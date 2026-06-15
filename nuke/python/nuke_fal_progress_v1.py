@@ -8,6 +8,14 @@ from __future__ import print_function
 import json
 import re
 import subprocess
+import threading
+
+try:
+    import Queue as _queue_mod
+except ImportError:
+    import queue as _queue_mod
+
+_POLL_TIMEOUT_SEC = 0.1
 
 _DOWNLOAD_RE = re.compile(r"Downloading\s+(\d+)\s*/\s*(\d+)", re.I)
 _UPLOAD_RE = re.compile(r"Uploading", re.I)
@@ -55,7 +63,7 @@ def is_progress_noise(text):
 
 def progress_update_from_line(text, state):
     """
-    Update `state` (dict with progress/message keys) from one helper stdout line.
+    Update `state` (dict with message/phase keys) from one helper stdout line.
     Returns True when the dialog should refresh.
     """
     text = (text or "").strip()
@@ -67,27 +75,21 @@ def progress_update_from_line(text, state):
         return True
 
     if _RETRY_RE.search(text):
-        state["progress"] = max(int(state.get("progress", 0)), 30)
         state["message"] = "Retrying fal.ai request..."
         return True
 
     match = _DOWNLOAD_RE.search(text)
     if match:
-        current = int(match.group(1))
-        total = max(1, int(match.group(2)))
-        state["progress"] = min(95, 75 + int(20 * current / total))
         state["message"] = text[:160]
         state["phase"] = "download"
         return True
 
     if _UPLOAD_RE.search(text):
-        state["progress"] = max(int(state.get("progress", 0)), 15)
         state["message"] = text[:160]
         state["phase"] = "upload"
         return True
 
     if _SUBMIT_RE.search(text):
-        state["progress"] = max(int(state.get("progress", 0)), 25)
         state["message"] = text[:160]
         state["phase"] = "waiting"
         return True
@@ -96,7 +98,6 @@ def progress_update_from_line(text, state):
         try:
             obj = json.loads(text)
             if isinstance(obj, dict) and obj.get("ok"):
-                state["progress"] = 100
                 state["message"] = "Done"
                 state["phase"] = "done"
                 return True
@@ -105,7 +106,6 @@ def progress_update_from_line(text, state):
 
     if state.get("phase") == "waiting":
         if len(text) <= 200 and not text.startswith("WARNING:"):
-            state["progress"] = max(int(state.get("progress", 25)), 40)
             state["message"] = text[:160]
             return True
 
@@ -126,10 +126,8 @@ def _terminate_process(process):
 
 
 def _refresh_progress_task(task, state, nuke_module):
-    try:
-        task.setProgress(int(state.get("progress", 0)))
-    except Exception:
-        pass
+    # Only setMessage: setProgress drives Nuke's time-remaining estimate, which
+    # is misleading for long unpredictable fal.ai queue waits.
     try:
         task.setMessage(str(state.get("message", "Running fal.ai...")))
     except Exception:
@@ -140,7 +138,24 @@ def _refresh_progress_task(task, state, nuke_module):
         pass
 
 
-def run_helper_subprocess(args, env=None, title="fal.ai", initial_message="Starting fal.ai request..."):
+def _start_stdout_reader(process, line_queue):
+    def _reader():
+        try:
+            while True:
+                line = process.stdout.readline()
+                if not line:
+                    break
+                line_queue.put(line)
+        finally:
+            line_queue.put(None)
+
+    thread = threading.Thread(target=_reader)
+    thread.daemon = True
+    thread.start()
+    return thread
+
+
+def run_helper_subprocess(args, env=None, title="fal.ai", initial_message="Running fal.ai request..."):
     """
     Run a Python 3 helper subprocess with a global Nuke progress dialog.
 
@@ -150,7 +165,6 @@ def run_helper_subprocess(args, env=None, title="fal.ai", initial_message="Start
     import nuke
 
     state = {
-        "progress": 0,
         "message": initial_message,
         "phase": "start",
     }
@@ -171,17 +185,27 @@ def run_helper_subprocess(args, env=None, title="fal.ai", initial_message="Start
             env=env,
         )
 
+        line_queue = _queue_mod.Queue()
+        reader_thread = _start_stdout_reader(process, line_queue)
+
         while True:
             if task.isCancelled():
                 _terminate_process(process)
                 raise FalProgressCancelled()
 
-            line = process.stdout.readline()
-            if not line:
-                if process.poll() is not None:
+            try:
+                line = line_queue.get(timeout=_POLL_TIMEOUT_SEC)
+            except _queue_mod.Empty:
+                if process.poll() is not None and line_queue.empty():
                     break
+                if state.get("phase") == "start":
+                    state["phase"] = "running"
+                    state["message"] = initial_message
                 _refresh_progress_task(task, state, nuke)
                 continue
+
+            if line is None:
+                break
 
             text = decode_subprocess_line(line).rstrip("\r\n")
             stdout_lines.append(text)
@@ -193,9 +217,13 @@ def run_helper_subprocess(args, env=None, title="fal.ai", initial_message="Start
             if progress_update_from_line(text, state):
                 _refresh_progress_task(task, state, nuke)
 
+        try:
+            reader_thread.join(timeout=1.0)
+        except Exception:
+            pass
+
         returncode = int(process.wait())
         if returncode == 0:
-            state["progress"] = 100
             state["message"] = "Done"
             _refresh_progress_task(task, state, nuke)
         return returncode, stdout_lines

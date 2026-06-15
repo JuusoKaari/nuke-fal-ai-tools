@@ -23,23 +23,22 @@ class TestFalProgressLogic(unittest.TestCase):
         self.assertTrue(fal_progress.is_progress_noise("100%|##########| 1/1 [00:01<00:00,  1.00s/it]"))
 
     def test_submit_sets_waiting_phase(self):
-        state = {"progress": 0, "message": "x", "phase": "start"}
+        state = {"message": "x", "phase": "start"}
         changed = fal_progress.progress_update_from_line("Submitting request: fal-ai/nano-banana-2", state)
         self.assertTrue(changed)
         self.assertEqual(state["phase"], "waiting")
-        self.assertGreaterEqual(state["progress"], 25)
+        self.assertIn("Submitting request", state["message"])
 
     def test_download_progress(self):
-        state = {"progress": 0, "message": "x", "phase": "waiting"}
+        state = {"message": "x", "phase": "waiting"}
         fal_progress.progress_update_from_line("Downloading 2/4 -> C:/tmp/image.png", state)
         self.assertEqual(state["phase"], "download")
-        self.assertGreater(state["progress"], 80)
+        self.assertIn("Downloading 2/4", state["message"])
 
     def test_json_ok_completes(self):
-        state = {"progress": 50, "message": "x", "phase": "waiting"}
+        state = {"message": "x", "phase": "waiting"}
         changed = fal_progress.progress_update_from_line('{"ok": true, "downloaded": []}', state)
         self.assertTrue(changed)
-        self.assertEqual(state["progress"], 100)
         self.assertEqual(state["message"], "Done")
 
 

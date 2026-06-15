@@ -8,6 +8,8 @@ import _nuke_py_compat
 import nuke_prerender_core_v1 as prerender_core
 
 _batch_execute_active = False
+EXECUTE_NODE_GLOBAL = "_fal_execute_group_node"
+_active_execute_group_node = None
 
 
 def set_batch_execute_active(active):
@@ -41,10 +43,34 @@ def _show_unsaved_script_message(nuke_module, exc):
         pass
 
 
+def get_execute_group_node(nuke_module, caller_globals=None):
+    """
+    Return the Group node whose Execute knob launched the current runner.
+    Resolution order:
+    1. Launcher module stash (set for the duration of exec_script).
+    2. EXECUTE_NODE_GLOBAL injected into the runner exec globals dict.
+    3. nuke.thisNode() (last resort; unreliable after a prior execute).
+    """
+    global _active_execute_group_node
+    if _active_execute_group_node is not None:
+        return _active_execute_group_node
+    if caller_globals is not None:
+        try:
+            node = caller_globals.get(EXECUTE_NODE_GLOBAL)
+            if node is not None:
+                return node
+        except Exception:
+            pass
+    return nuke_module.thisNode()
+
+
 def _run_runner_for_node(node):
     import nuke
 
+    global _active_execute_group_node
+
     prerender_core.require_saved_nuke_script(nuke)
+    prerender_core.reset_to_root_graph(nuke)
 
     raw_runner = ""
     try:
@@ -53,7 +79,19 @@ def _run_runner_for_node(node):
         pass
 
     runner = _install_help.require_runner_path(nuke, raw_runner)
-    _nuke_py_compat.exec_script(runner, {"__file__": runner, "__name__": "__main__"})
+    _active_execute_group_node = node
+    try:
+        _nuke_py_compat.exec_script(
+            runner,
+            {
+                "__file__": runner,
+                "__name__": "__main__",
+                EXECUTE_NODE_GLOBAL: node,
+            },
+        )
+    finally:
+        _active_execute_group_node = None
+        prerender_core.reset_to_root_graph(nuke)
 
 
 def execute_this_node():
@@ -66,6 +104,12 @@ def execute_this_node():
         _show_unsaved_script_message(nuke, exc)
     except prerender_core.ScriptOutputDirError:
         pass
+    except Exception as exc:
+        try:
+            nuke.message("Execute failed:\n%s" % str(exc))
+        except Exception:
+            pass
+        raise
 
 
 def execute_node(node):

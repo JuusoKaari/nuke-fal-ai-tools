@@ -12,7 +12,9 @@
 from __future__ import print_function
 
 from nuke_prerender_core_v1 import (
+    current_group_context,
     ensure_dir,
+    group_scope,
     helper_subprocess_env,
     is_read_node,
     looks_like_sequence_pattern,
@@ -20,11 +22,14 @@ from nuke_prerender_core_v1 import (
     make_run_dirs,
     norm_slashes,
     pick_writable_temp_dir,
+    reset_to_root_graph,
     prepare_sequence_input_pattern,
     prepare_still_input_path,
     render_sequence_from_node,
     render_still_from_node,
     render_still_inside_group,
+    render_still_inside_group_with_crop,
+    require_rendered_file,
     resolve_read_file_at_frame,
     split_cmd,
     _is_valid_video_extension,

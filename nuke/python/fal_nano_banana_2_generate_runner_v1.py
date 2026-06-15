@@ -34,7 +34,9 @@ import nuke_spawn_read_position_v1 as spawn_pos
 def main():
     import nuke  # imported inside for Nuke environment
 
-    g = nuke.thisNode()
+    g = _nuke_runner_launcher.get_execute_group_node(
+        nuke, caller_globals=globals()
+    )
 
     prompt = prompt_input.get_prompt_from_input_or_group(nuke, g, input_index=2)
     if not prompt:
@@ -62,10 +64,21 @@ def main():
     temp_dir, out_dir, ts = prerender.make_run_dirs(
         nuke_module=nuke,
         prefix="nano_banana_2",
+        group_node=g,
     )
 
     if preview_config is not None:
-        ref_images = [path for _, path in preview.prepare_ai_inputs(g, preview_config, frame, temp_dir)]
+        try:
+            ref_images = [
+                path for _, path in preview.prepare_ai_inputs(
+                    g, preview_config, frame, temp_dir
+                )
+            ]
+        except preview.AiInputExportError:
+            raise
+        except Exception as exc:
+            nuke.message("Failed to prepare AI input images:\n%s" % str(exc))
+            raise
     else:
         ref_images = []
 

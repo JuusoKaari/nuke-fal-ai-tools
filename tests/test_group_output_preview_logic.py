@@ -65,9 +65,6 @@ class TestLabels(unittest.TestCase):
     def test_preview_index_labels(self):
         self.assertEqual(preview.preview_index_labels(3), ["1", "2", "3"])
 
-    def test_ai_input_letters(self):
-        self.assertEqual(preview.ai_input_letter_labels(3), ["A", "B", "C"])
-
 
 class TestGridMode(unittest.TestCase):
     def test_single_item_hides_grid(self):
@@ -84,7 +81,74 @@ class TestToolConfig(unittest.TestCase):
         self.assertIsNotNone(cfg)
         self.assertIn("image_a", cfg["preview_inputs"])
         self.assertEqual(cfg["max_outputs"], 4)
+        self.assertTrue(cfg.get("supports_roi"))
         self.assertTrue(cfg.get("accumulate_outputs"))
+
+
+class TestToolIdResolution(unittest.TestCase):
+    def test_resolve_from_fal_tool_id_knob(self):
+        tool_id = preview.resolve_tool_id(
+            tool_id_knob_value="Nano_Banana_2_Generate_v1",
+            runner_path="",
+            display_name="Nano_Banana_2_Generate_v3",
+        )
+        self.assertEqual(tool_id, "Nano_Banana_2_Generate_v1")
+
+    def test_resolve_from_runner_path_when_renamed(self):
+        tool_id = preview.resolve_tool_id(
+            tool_id_knob_value="",
+            runner_path="__INSTALL_ROOT__/nuke/python/fal_nano_banana_2_generate_runner_v1.py",
+            display_name="Nano_Banana_2_Generate_v3",
+        )
+        self.assertEqual(tool_id, "Nano_Banana_2_Generate_v1")
+
+    def test_legacy_display_name_fallback(self):
+        tool_id = preview.resolve_tool_id(
+            tool_id_knob_value="",
+            runner_path="",
+            display_name="Nano_Banana_2_Generate_v1",
+        )
+        self.assertEqual(tool_id, "Nano_Banana_2_Generate_v1")
+
+    def test_unknown_tool_returns_none(self):
+        self.assertIsNone(
+            preview.resolve_tool_id(
+                tool_id_knob_value="",
+                runner_path="",
+                display_name="Some_Other_Node_v9",
+            )
+        )
+
+    def test_get_config_for_group_uses_runner_path_not_display_name(self):
+        class _Knob(object):
+            def __init__(self, value):
+                self._value = value
+
+            def value(self):
+                return self._value
+
+        class _Group(object):
+            def __init__(self, name, knobs):
+                self._name = name
+                self._knobs = knobs
+
+            def name(self):
+                return self._name
+
+            def knob(self, key):
+                return self._knobs.get(key)
+
+        group = _Group(
+            "Nano_Banana_2_Generate_v3",
+            {
+                preview.RUNNER_PATH_KNOB: _Knob(
+                    "C:/plugins/nuke/python/fal_nano_banana_2_generate_runner_v1.py"
+                ),
+            },
+        )
+        cfg = preview.get_config_for_group(group)
+        self.assertIsNotNone(cfg)
+        self.assertIn("image_a", cfg["preview_inputs"])
 
 
 class TestOutputRegistry(unittest.TestCase):
@@ -123,6 +187,22 @@ class TestOutputRegistry(unittest.TestCase):
         self.assertEqual(preview.generated_read_node_name(1), "generated_read_01")
         self.assertEqual(preview.generated_read_node_name(99), "generated_read_99")
         self.assertEqual(preview.generated_read_node_name(100), "generated_read_100")
+
+
+class TestRoiBboxValidation(unittest.TestCase):
+    def test_valid_bbox(self):
+        ok, err = preview.validate_roi_bbox((10, 20, 100, 200))
+        self.assertTrue(ok)
+        self.assertEqual(err, "")
+
+    def test_invalid_empty_bbox(self):
+        ok, err = preview.validate_roi_bbox((100, 200, 100, 300))
+        self.assertFalse(ok)
+        self.assertIn("invalid", err.lower())
+
+    def test_none_bbox(self):
+        ok, err = preview.validate_roi_bbox(None)
+        self.assertFalse(ok)
 
 
 if __name__ == "__main__":

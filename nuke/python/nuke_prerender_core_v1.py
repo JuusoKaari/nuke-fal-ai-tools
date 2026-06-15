@@ -6,6 +6,7 @@
 # - `make_run_dirs()` also creates a paired output folder (`nuke_fal_output`) for FAL API results.
 # - `require_saved_nuke_script()` blocks runners when the script has no saved path on disk.
 # - Temp/output folders are always created next to the saved .nk script; no home/temp fallbacks.
+# - `group_scope()` resets to root, enters a Group, and always returns to root afterward.
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -15,6 +16,11 @@ from __future__ import print_function
 
 import os
 import time
+
+try:
+    from contextlib import contextmanager
+except ImportError:
+    contextmanager = None
 
 
 def ensure_dir(path):
@@ -27,6 +33,92 @@ def ensure_dir(path):
 
 def norm_slashes(p):
     return (p or "").replace("\\", "/")
+
+
+def current_group_context(nuke_module):
+    """Return the Group node for the active DAG context, or None at root."""
+    try:
+        return nuke_module.thisGroup()
+    except Exception:
+        return None
+
+
+def reset_to_root_graph(nuke_module):
+    """Return to the root DAG after accidental nested group.begin() leaks."""
+    for _ in range(64):
+        if current_group_context(nuke_module) is None:
+            break
+        try:
+            nuke_module.endGroup()
+        except Exception:
+            break
+
+
+if contextmanager is not None:
+
+    @contextmanager
+    def group_scope(nuke_module, group):
+        """
+        Enter a Group DAG context from root and always return to root afterward.
+        Use for any in-group node lookup or temporary in-group writes.
+        """
+        reset_to_root_graph(nuke_module)
+        group.begin()
+        try:
+            yield group
+        finally:
+            try:
+                group.end()
+            except Exception:
+                pass
+            reset_to_root_graph(nuke_module)
+
+else:
+
+    class group_scope(object):
+        """Py2 fallback when contextlib is unavailable."""
+
+        def __init__(self, nuke_module, group):
+            self._nuke = nuke_module
+            self._group = group
+
+        def __enter__(self):
+            reset_to_root_graph(self._nuke)
+            self._group.begin()
+            return self._group
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            try:
+                self._group.end()
+            except Exception:
+                pass
+            reset_to_root_graph(self._nuke)
+            return False
+
+
+def require_rendered_file(out_path, context="Render"):
+    """
+    Raise if `out_path` was not written or is empty.
+    Nuke execute() can succeed while a broken graph writes nothing.
+    """
+    out_path = os.path.abspath(out_path)
+    if not os.path.isfile(out_path):
+        raise Exception(
+            "%s failed: output file was not created:\n%s"
+            % (context, norm_slashes(out_path))
+        )
+    try:
+        if os.path.getsize(out_path) <= 0:
+            raise Exception(
+                "%s failed: output file is empty:\n%s"
+                % (context, norm_slashes(out_path))
+            )
+    except OSError as exc:
+        raise Exception(
+            "%s failed: could not read output file:\n%s\n(%s)"
+            % (context, norm_slashes(out_path), exc)
+        )
+    return out_path
 
 
 class UnsavedNukeScriptError(Exception):
@@ -267,14 +359,28 @@ def make_run_dirs(
     temp_env_subdir_name="nuke_fal_temp",
     output_leaf_dir_name="nuke_fal_output",
     output_env_subdir_name="nuke_fal_output",
+    group_node=None,
 ):
     """
     Create paired run folders sharing the same timestamp suffix:
     - temp_dir under nuke_fal_temp (prerenders / scratch)
     - out_dir under nuke_fal_output (FAL API downloads / final outputs)
+
+    When group_node is given, its name is included so parallel executes on
+    multiple Group instances do not share the same folder.
     """
     ts = time.strftime("%Y%m%d_%H%M%S") + ("_%03d" % (int(time.time() * 1000) % 1000))
-    sub = "%s_%s" % (prefix, ts)
+    group_token = ""
+    if group_node is not None:
+        try:
+            safe_name = "".join(
+                (c if (c.isalnum() or c in ("_", "-")) else "_")
+                for c in (group_node.name() or "group")
+            )
+            group_token = "_%s_%d" % (safe_name[:40], id(group_node) % 10000)
+        except Exception:
+            group_token = "_group_%d" % (id(group_node) % 10000)
+    sub = "%s%s_%s" % (prefix, group_token, ts)
     temp_base = pick_writable_temp_dir(
         nuke_module, leaf_dir_name=temp_leaf_dir_name, env_subdir_name=temp_env_subdir_name
     )
@@ -336,7 +442,7 @@ def render_still_from_node(nuke_module, src_node, out_path, frame):
             pass
         nuke_module.endGroup()
 
-    return out_path
+    return require_rendered_file(out_path, "Render still")
 
 
 def render_still_inside_group(nuke_module, group, src_node, out_path, frame):
@@ -373,7 +479,63 @@ def render_still_inside_group(nuke_module, group, src_node, out_path, frame):
         except Exception:
             pass
 
-    return out_path
+    return require_rendered_file(out_path, "Render still (in group)")
+
+
+def render_still_inside_group_with_crop(nuke_module, src_node, out_path, frame, box):
+    """
+    Render a single frame from `src_node` cropped to `box` (x, y, r, t).
+    Creates temporary in-group Crop and Write nodes, then deletes them.
+    Caller must already be inside group.begin().
+    """
+    out_path = os.path.abspath(out_path)
+    ensure_dir(os.path.dirname(out_path))
+
+    crop = None
+    w = None
+    try:
+        crop = nuke_module.nodes.Crop()
+        crop.setInput(0, src_node)
+        try:
+            crop["box"].setValue(float(box[0]), float(box[1]), float(box[2]), float(box[3]))
+        except Exception:
+            crop.knob("box").setValue(
+                [float(box[0]), float(box[1]), float(box[2]), float(box[3])]
+            )
+        try:
+            crop["reformat"].setValue(True)
+        except Exception:
+            pass
+        w = nuke_module.nodes.Write()
+        w.setInput(0, crop)
+        try:
+            w["file"].setValue(norm_slashes(out_path))
+        except Exception:
+            w.knob("file").setValue(norm_slashes(out_path))
+        try:
+            if "file_type" in w.knobs():
+                w["file_type"].setValue(os.path.splitext(out_path)[1].lstrip(".").lower() or "png")
+        except Exception:
+            pass
+        try:
+            if "channels" in w.knobs():
+                w["channels"].setValue("rgb")
+        except Exception:
+            pass
+        nuke_module.execute(w, int(frame), int(frame))
+    finally:
+        try:
+            if w is not None:
+                nuke_module.delete(w)
+        except Exception:
+            pass
+        try:
+            if crop is not None:
+                nuke_module.delete(crop)
+        except Exception:
+            pass
+
+    return require_rendered_file(out_path, "Render still (ROI crop)")
 
 
 def render_sequence_from_node(nuke_module, src_node, out_pattern, first, last):

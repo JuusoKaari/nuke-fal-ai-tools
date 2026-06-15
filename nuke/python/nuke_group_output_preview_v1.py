@@ -3,7 +3,10 @@
 # - Nano Banana 2 ships a baked preview graph in its .nk; this module wires outputs after Execute
 #   and handles UI polish (preview_index disable in grid modes, generated output count).
 # - Accumulated outputs are stored on a hidden registry knob; Read nodes and switches grow as needed.
+# - Optional match_input_resolution reformats the selected generated preview to image_a size.
+# - Optional ROI: image_a through ROI_rectangle for preview; crop on export; merge-back preview.
 # - ensure_group_preview_graph() remains for migrating older nodes that lack a baked graph.
+# - Preview config is keyed by stable fal_tool_id / runner_path, not the display name.
 # - Switch.which knobs use parent expressions (e.g. parent.viewer_mode), not Python updates.
 #
 # Notes:
@@ -29,7 +32,22 @@ VIEWER_MODES = [
 
 OUTPUT_PATHS_REGISTRY_KNOB = "generated_output_paths"
 OUTPUT_COUNT_KNOB = "generated_output_count"
+MATCH_INPUT_RESOLUTION_KNOB = "match_input_resolution"
+USE_ROI_KNOB = "use_roi"
+ROI_AREA_KNOB = "roi_area"
+TOOL_ID_KNOB = "fal_tool_id"
+RUNNER_PATH_KNOB = "runner_path"
+PREVIEW_EXCLUDED_INTERNAL_INPUTS = frozenset(["prompt_text"])
 DEFAULT_MAX_STORED_OUTPUTS = 128
+
+# Maps runner script basename -> TOOL_PREVIEW_CONFIG key (stable across display renames).
+RUNNER_BASENAME_TO_TOOL_ID = {
+    "fal_nano_banana_2_generate_runner_v1.py": "Nano_Banana_2_Generate_v1",
+}
+
+
+class AiInputExportError(Exception):
+    """Raised when in-group AI input prerender fails (dialog already shown)."""
 
 TOOL_PREVIEW_CONFIG = {
     "Nano_Banana_2_Generate_v1": {
@@ -39,9 +57,7 @@ TOOL_PREVIEW_CONFIG = {
         "max_stored_outputs": DEFAULT_MAX_STORED_OUTPUTS,
         "supports_ai_input_grid": False,
         "supports_generated_grid": True,
-        "supports_roi": False,
-        "supports_ai_input_labels": True,
-        "roi_merge_back": False,
+        "supports_roi": True,
         "accumulate_outputs": True,
     },
 }
@@ -79,15 +95,25 @@ def preview_index_labels(count, prefix="Output"):
     return [str(i + 1) for i in range(count)]
 
 
-def ai_input_letter_labels(count):
-    """Return A, B, C, ... labels for AI input preview."""
-    count = max(0, int(count))
-    return [chr(ord("A") + i) for i in range(count)]
-
-
 def should_show_grid_mode(item_count):
     """Grid viewer modes are only useful when more than one item exists."""
     return int(item_count) > 1
+
+
+def validate_roi_bbox(box):
+    """Return (ok, error_message) for a roi_area bbox tuple (x, y, r, t)."""
+    if box is None:
+        return False, "roi_area knob is missing or unreadable."
+    try:
+        x, y, r, t = [float(v) for v in box]
+    except Exception:
+        return False, "roi_area values are invalid."
+    if r <= x or t <= y:
+        return (
+            False,
+            "roi_area is empty or invalid (right must be > left, top must be > bottom).",
+        )
+    return True, ""
 
 
 def parse_output_paths_registry(raw):
@@ -150,18 +176,70 @@ def filter_existing_output_paths(paths):
     return result
 
 
-def get_config_for_group(group):
-    """Return TOOL_PREVIEW_CONFIG entry for a Group node, or None."""
-    try:
-        name = (group.name() or "").strip()
-    except Exception:
-        name = ""
+def normalize_runner_basename(runner_path):
+    """Return the runner script filename from a knob path or placeholder."""
+    path = prerender.norm_slashes((runner_path or "").strip())
+    if not path:
+        return ""
+    return os.path.basename(path)
+
+
+def resolve_tool_id_from_runner_path(runner_path):
+    """Map runner_path knob value to a TOOL_PREVIEW_CONFIG key, or None."""
+    return RUNNER_BASENAME_TO_TOOL_ID.get(normalize_runner_basename(runner_path))
+
+
+def resolve_tool_id(tool_id_knob_value=None, runner_path=None, display_name=None):
+    """
+    Resolve the stable tool id for TOOL_PREVIEW_CONFIG lookup.
+    Priority: fal_tool_id knob, runner_path basename, legacy display name.
+    """
+    tool_id = (tool_id_knob_value or "").strip()
+    if tool_id:
+        return tool_id
+
+    tool_id = resolve_tool_id_from_runner_path(runner_path)
+    if tool_id:
+        return tool_id
+
+    name = (display_name or "").strip()
     if name in TOOL_PREVIEW_CONFIG:
-        return TOOL_PREVIEW_CONFIG[name]
+        return name
     base = name.rstrip("0123456789")
     if base in TOOL_PREVIEW_CONFIG:
-        return TOOL_PREVIEW_CONFIG[base]
+        return base
     return None
+
+
+def get_config_for_group(group):
+    """Return TOOL_PREVIEW_CONFIG entry for a Group node, or None."""
+    tool_id_knob_value = None
+    runner_path = None
+    display_name = None
+
+    try:
+        knob = group.knob(TOOL_ID_KNOB)
+        if knob is not None:
+            tool_id_knob_value = knob.value()
+    except Exception:
+        pass
+
+    try:
+        knob = group.knob(RUNNER_PATH_KNOB)
+        if knob is not None:
+            runner_path = knob.value()
+    except Exception:
+        pass
+
+    try:
+        display_name = group.name()
+    except Exception:
+        pass
+
+    tool_id = resolve_tool_id(tool_id_knob_value, runner_path, display_name)
+    if tool_id is None:
+        return None
+    return TOOL_PREVIEW_CONFIG.get(tool_id)
 
 
 def _is_integer_like(value):
@@ -210,16 +288,6 @@ def _read_preview_index(group):
         return 1
 
 
-def _read_mark_ai_inputs(group):
-    try:
-        mk = group.knob("mark_ai_inputs")
-        if mk is not None:
-            return bool(mk.value())
-    except Exception:
-        pass
-    return False
-
-
 def _set_viewer_mode(group, mode):
     """Set viewer_mode enum by label (falls back to index)."""
     try:
@@ -239,34 +307,47 @@ def _gather_preview_connection_state(group, config):
     Inspect Group external inputs. Must be called outside group.begin().
     Returns (name_to_idx, connected_input_names).
     """
-    group.begin()
-    try:
+    import nuke
+
+    with prerender.group_scope(nuke, group):
         name_to_idx = _group_input_name_to_index(group)
-    finally:
-        group.end()
+        for slot, logical_name in enumerate(config.get("preview_inputs") or [], start=1):
+            inside = _find_preview_input_node(logical_name, slot)
+            if inside is None:
+                continue
+            try:
+                name_to_idx[logical_name] = int(inside.knob("number").value())
+            except Exception:
+                name_to_idx.setdefault(logical_name, int(slot) - 1)
 
     connected = set()
     for input_name in config.get("preview_inputs") or []:
-        if input_name not in name_to_idx:
+        ext_idx = name_to_idx.get(input_name)
+        if ext_idx is None:
             continue
-        ext_idx = name_to_idx[input_name]
-        try:
-            if group.input(ext_idx) is not None:
-                connected.add(input_name)
-        except Exception:
-            pass
+        if _group_external_input_connected(group, ext_idx):
+            connected.add(input_name)
     return name_to_idx, connected
+
+
+def _group_external_input_source(group, ext_idx):
+    """Return upstream node on a Group input index (call outside group.begin())."""
+    try:
+        return group.input(int(ext_idx))
+    except Exception:
+        return None
+
+
+def _group_external_input_connected(group, ext_idx):
+    return _group_external_input_source(group, ext_idx) is not None
 
 
 def _has_baked_preview_graph(group):
     """Return True when the Group already contains a baked preview graph."""
     import nuke
 
-    group.begin()
-    try:
+    with prerender.group_scope(nuke, group):
         return nuke.toNode("viewer_mode_switch") is not None
-    finally:
-        group.end()
 
 
 def setup_preview_for_node(group):
@@ -310,6 +391,65 @@ def _safe_set_knob(node, knob_name, value):
             k.setValue(value)
     except Exception:
         pass
+
+
+def _find_node_in_group_by_name(name):
+    """
+    Find a node by name in the current Group DAG context.
+    Must be called while inside group.begin() on the target Group.
+    """
+    import nuke
+
+    name = (name or "").strip()
+    if not name:
+        return None
+    try:
+        n = nuke.toNode(name)
+        if n is not None:
+            return n
+    except Exception:
+        pass
+    for n in nuke.allNodes():
+        try:
+            if n.name() == name:
+                return n
+        except Exception:
+            pass
+    return None
+
+
+def _find_preview_input_node(logical_name, slot):
+    """
+    Find an internal Input node for a configured preview input.
+    Tolerates renamed nodes (e.g. image_a1) by falling back to Input.number.
+    Must be called while inside group.begin() on the target Group.
+    """
+    import nuke
+
+    inside = _find_node_in_group_by_name(logical_name)
+    if inside is not None:
+        return inside
+    target_number = int(slot) - 1
+    for n in nuke.allNodes("Input"):
+        try:
+            if n.name() in PREVIEW_EXCLUDED_INTERNAL_INPUTS:
+                continue
+            if int(n.knob("number").value()) == target_number:
+                return n
+        except Exception:
+            pass
+    return None
+
+
+def _preview_inputs_have_external_connection(group, config, name_to_idx):
+    """Return True when any configured preview input has an upstream pipe on this Group."""
+    for input_name in config.get("preview_inputs") or []:
+        ext_idx = name_to_idx.get(input_name)
+        if ext_idx is None:
+            continue
+        if _group_external_input_connected(group, ext_idx):
+            return True
+    return False
 
 
 def _node_inside_group(group, name, class_name=None):
@@ -358,6 +498,8 @@ def _group_input_name_to_index(group):
             pass
 
     for n in inputs:
+        if n.name() in PREVIEW_EXCLUDED_INTERNAL_INPUTS:
+            continue
         try:
             num_k = n.knob("number")
             if num_k is not None:
@@ -365,7 +507,10 @@ def _group_input_name_to_index(group):
         except Exception:
             pass
 
-    unmapped = [n for n in inputs if n.name() not in mapping]
+    unmapped = [
+        n for n in inputs
+        if n.name() not in mapping and n.name() not in PREVIEW_EXCLUDED_INTERNAL_INPUTS
+    ]
     unmapped.sort(key=lambda n: int(n.xpos()))
     used = set(mapping.values())
     next_idx = 0
@@ -380,29 +525,36 @@ def _group_input_name_to_index(group):
 
 
 def _connected_preview_sources(group, config, name_to_idx=None, connected_names=None):
-    """Return list of (input_name, input_node_inside_group, external_src) for connected preview inputs."""
+    """
+    Return list of (slot, input_name, input_node_inside_group, external_src).
+    External connections are resolved outside group.begin(); internal nodes inside.
+    """
     import nuke
 
     if name_to_idx is None or connected_names is None:
         name_to_idx, connected_names = _gather_preview_connection_state(group, config)
     preview_inputs = config.get("preview_inputs") or []
     result = []
-    for input_name in preview_inputs:
+
+    pending = []
+    for slot, input_name in enumerate(preview_inputs, start=1):
         if input_name not in connected_names:
             continue
         ext_idx = name_to_idx.get(input_name)
-        if ext_idx is None:
-            continue
-        try:
-            ext_src = group.input(ext_idx)
-        except Exception:
-            ext_src = None
+        ext_src = _group_external_input_source(group, ext_idx)
         if ext_src is None:
             continue
-        inside = nuke.toNode(input_name)
-        if inside is None:
-            continue
-        result.append((input_name, inside, ext_src))
+        pending.append((slot, input_name, ext_src))
+
+    if not pending:
+        return result
+
+    with prerender.group_scope(nuke, group):
+        for slot, input_name, ext_src in pending:
+            inside = _find_preview_input_node(input_name, slot)
+            if inside is None:
+                continue
+            result.append((slot, input_name, inside, ext_src))
     return result
 
 
@@ -413,14 +565,6 @@ def _ensure_group_knobs(group, config):
         k = nuke.Enumeration_Knob("viewer_mode", "Viewer mode", VIEWER_MODES)
         try:
             k.setValue("Input")
-        except Exception:
-            pass
-        group.addKnob(k)
-
-    if group.knob("show_guide") is None:
-        k = nuke.Boolean_Knob("show_guide", "Show guide")
-        try:
-            k.setValue(True)
         except Exception:
             pass
         group.addKnob(k)
@@ -473,39 +617,49 @@ def _ensure_group_knobs(group, config):
             pass
         group.addKnob(k)
 
-    if config.get("accumulate_outputs") and group.knob("clear_generated_outputs") is None:
-        k = nuke.PyScript_Knob("clear_generated_outputs", "Clear generated outputs")
+    if group.knob(MATCH_INPUT_RESOLUTION_KNOB) is None:
+        k = nuke.Boolean_Knob(MATCH_INPUT_RESOLUTION_KNOB, "Match input resolution")
         try:
-            k.setValue(
-                "import nuke_group_output_preview_v1 as _gop\n"
-                "_gop.clear_generated_outputs_ui()\n"
-            )
+            k.setValue(True)
         except Exception:
             pass
         group.addKnob(k)
 
-    if config.get("supports_ai_input_labels") and group.knob("mark_ai_inputs") is None:
-        k = nuke.Boolean_Knob("mark_ai_inputs", "Mark AI inputs")
-        try:
-            k.setValue(False)
-        except Exception:
-            pass
-        group.addKnob(k)
+    if config and config.get("supports_roi"):
+        if group.knob(USE_ROI_KNOB) is None:
+            k = nuke.Boolean_Knob(USE_ROI_KNOB, "Use ROI")
+            try:
+                k.setValue(False)
+            except Exception:
+                pass
+            group.addKnob(k)
+        if group.knob(ROI_AREA_KNOB) is None:
+            k = nuke.BBox_Knob(ROI_AREA_KNOB, "Area")
+            try:
+                k.setValue(0, 0, 100, 100)
+            except Exception:
+                pass
+            group.addKnob(k)
 
 
-def _apply_text1_layout(text1, format_source):
-    """Apply resolution-aware Text1 layout driven by format_source input."""
-    if text1 is None:
-        return
-    _safe_set_input(text1, 0, format_source)
-    for knob_name, value in (
-        ("xjustify", "center"),
-        ("yjustify", "center"),
-        ("box", "{0 0 {input.width} {input.height}}"),
-        ("center", "{{input.width/2} {input.height/2}}"),
-        ("size", "{max(14, input.height*0.022)}"),
-    ):
-        _safe_set_knob(text1, knob_name, value)
+def _read_bool_knob(group, name, default=False):
+    try:
+        return bool(group.knob(name).value())
+    except Exception:
+        return default
+
+
+def _generated_preview_tail_node(group, generated_switch, format_ref_name):
+    """Return the node wired to viewer_mode_switch for single generated preview."""
+    import nuke
+
+    roi_switch = nuke.toNode("ROI_switch")
+    if roi_switch is not None:
+        _ensure_generated_output_reformat(group, generated_switch, format_ref_name)
+        return roi_switch
+    return _ensure_generated_output_reformat(
+        group, generated_switch, format_ref_name
+    )
 
 
 def _build_fallback_branch(group):
@@ -531,33 +685,6 @@ def _build_fallback_branch(group):
     fallback = _get_or_create_node(group, "preview_fallback", "NoOp")
     _safe_set_input(fallback, 0, reform)
     return fallback
-
-
-def _build_ref_mark_branch(group, slot, letter, preview_source):
-    """Merge letter Text over preview_source -> ref_mark_NN."""
-    import nuke
-
-    name = "ref_mark_%02d" % int(slot)
-    text_name = "ref_mark_text_%02d" % int(slot)
-    text = _get_or_create_node(group, text_name, "Text")
-    if text is not None:
-        _safe_set_input(text, 0, preview_source)
-        _safe_set_knob(text, "message", letter)
-        _safe_set_knob(text, "xjustify", "center")
-        _safe_set_knob(text, "yjustify", "bottom")
-        _safe_set_knob(text, "box", "{0 0 {input.width} {input.height}}")
-        _safe_set_knob(text, "center", "{{input.width/2} {input.height*0.95}}")
-        _safe_set_knob(text, "size", "{max(24, input.height*0.06)}")
-
-    merge = _get_or_create_node(group, name, "Merge")
-    if merge is not None:
-        _safe_set_input(merge, 0, preview_source)
-        _safe_set_input(merge, 1, text)
-        try:
-            merge["mix"].setValue(1.0)
-        except Exception:
-            pass
-    return merge
 
 
 def _build_preview_source_switch(group, preview_source, fallback):
@@ -629,20 +756,129 @@ def _wire_switch_inputs(sw, sources):
         _safe_set_input(sw, i, None)
 
 
+def _generated_format_reference_name(group):
+    """Return in-group node name used as image_a resolution reference."""
+    return "preview_source_01"
+
+
+def _apply_match_input_reformat_settings(reformat, format_ref_name):
+    """Configure a Reformat to fit generated output to image_a dimensions."""
+    if reformat is None:
+        return
+    _safe_set_knob(reformat, "type", "to box")
+    _safe_set_knob(reformat, "box_fixed", True)
+    _safe_set_knob(reformat, "resize", "fit")
+    _safe_set_knob(reformat, "center", False)
+    try:
+        reformat["box_width"].setExpression("%s.width" % format_ref_name)
+        reformat["box_height"].setExpression("%s.height" % format_ref_name)
+    except Exception:
+        _safe_set_knob(reformat, "box_width", "{%s.width}" % format_ref_name)
+        _safe_set_knob(reformat, "box_height", "{%s.height}" % format_ref_name)
+
+
+def _set_disable_expression(node, expression):
+    if node is None:
+        return
+    try:
+        node.knob("disable").setExpression(expression)
+    except Exception:
+        pass
+
+
+def _link_roi_rectangle_area(group):
+    """Drive ROI_rectangle.area from the Group roi_area BBox knob (per component)."""
+    import nuke
+
+    rect = nuke.toNode("ROI_rectangle")
+    if rect is None:
+        return
+    area_knob = rect.knob("area")
+    if area_knob is None:
+        return
+    for index, comp in enumerate(("x", "y", "r", "t")):
+        expr = "parent.%s.%s" % (ROI_AREA_KNOB, comp)
+        try:
+            area_knob.setExpression(expr, index)
+        except Exception:
+            try:
+                area_knob.setExpression(expr, comp)
+            except Exception:
+                pass
+
+
+def _ensure_generated_output_reformat(group, generated_switch, format_ref_name):
+    """Reformat after generated_switch; disabled when match_input_resolution is off."""
+    reform = _get_or_create_node(group, "generated_output_reformat", "Reformat")
+    _safe_set_input(reform, 0, generated_switch)
+    _apply_match_input_reformat_settings(reform, format_ref_name)
+    _set_disable_expression(
+        reform,
+        "1-parent.%s" % MATCH_INPUT_RESOLUTION_KNOB,
+    )
+    return reform
+
+
+def _ensure_generated_resolution_wiring(group, read_nodes):
+    """Wire generated_switch, contactsheet from reads, and single reformat branch."""
+    import nuke
+
+    format_ref_name = _generated_format_reference_name(group)
+    generated_switch = nuke.toNode("generated_switch")
+    if generated_switch is None:
+        generated_switch = _get_or_create_node(group, "generated_switch", "Switch")
+    _wire_switch_inputs(generated_switch, read_nodes)
+    generated_single = _generated_preview_tail_node(
+        group, generated_switch, format_ref_name
+    )
+    generated_contactsheet = _wire_contactsheet(
+        group,
+        "generated_contactsheet",
+        read_nodes,
+        len(read_nodes),
+    )
+    if generated_contactsheet is not None and len(read_nodes) <= 1:
+        _safe_set_input(
+            generated_contactsheet,
+            0,
+            read_nodes[0] if read_nodes else None,
+        )
+    viewer_mode_switch = nuke.toNode("viewer_mode_switch")
+    if viewer_mode_switch is not None:
+        ai_input_switch = nuke.toNode("ai_input_switch")
+        branches = [
+            ai_input_switch,
+            generated_single if generated_single is not None else generated_switch,
+            generated_contactsheet,
+        ]
+        for i, branch in enumerate(branches):
+            _safe_set_input(viewer_mode_switch, i, branch)
+    return generated_single
+
+
 def _apply_preview_switch_expressions(group, config):
     """Link preview switches to Group knobs via expressions."""
     import nuke
 
     _set_switch_expression(nuke.toNode("viewer_mode_switch"), "parent.viewer_mode")
-    _set_switch_expression(nuke.toNode("input_preview_switch"), "parent.show_guide")
     _set_switch_expression(nuke.toNode("ai_input_switch"), "parent.preview_index - 1")
     _set_switch_expression(nuke.toNode("generated_switch"), "parent.preview_index - 1")
-    max_ai = int(config.get("max_ai_inputs") or 2)
-    for slot in range(1, max_ai + 1):
-        _set_switch_expression(
-            nuke.toNode("ai_mark_select_%02d" % slot),
-            "parent.mark_ai_inputs",
-        )
+    _set_switch_expression(
+        nuke.toNode("ROI_switch"),
+        "parent.use_roi ? 1 : 0",
+    )
+    _set_disable_expression(
+        nuke.toNode("generated_output_reformat"),
+        "1-parent.%s" % MATCH_INPUT_RESOLUTION_KNOB,
+    )
+    _set_disable_expression(nuke.toNode("generated_reformat_to_ROI"), "!parent.use_roi")
+    _set_disable_expression(
+        nuke.toNode("generated_reposition_to_ROI"),
+        "!parent.use_roi",
+    )
+    _set_disable_expression(nuke.toNode("merge_roi"), "!parent.use_roi")
+    _set_disable_expression(nuke.toNode("ROI_rectangle"), "!parent.use_roi")
+    _link_roi_rectangle_area(group)
 
 
 def _update_viewer_mode_in_group(group, config, connected_names):
@@ -661,8 +897,7 @@ def ensure_group_preview_graph(group, config):
 
     name_to_idx, connected_names = _gather_preview_connection_state(group, config)
 
-    group.begin()
-    try:
+    with prerender.group_scope(nuke, group):
         _ensure_group_knobs(group, config)
 
         fallback = _build_fallback_branch(group)
@@ -688,51 +923,8 @@ def ensure_group_preview_graph(group, config):
             tap = _build_preview_source_switch(group, ps, fallback)
             active_taps.append(tap)
 
-        primary_format = active_taps[0] if active_taps else fallback
-        text1 = nuke.toNode("Text1")
-        _apply_text1_layout(text1, primary_format)
-
-        ref_mark_outputs = []
-        letters = ai_input_letter_labels(max_ai)
-        for slot, tap in enumerate(active_taps, start=1):
-            letter = letters[slot - 1] if slot - 1 < len(letters) else str(slot)
-            ref_mark = _build_ref_mark_branch(group, slot, letter, tap)
-            ref_mark_outputs.append(ref_mark if ref_mark is not None else tap)
-
-        ai_mark_selects = []
-        for slot, tap in enumerate(active_taps, start=1):
-            ref_mark = ref_mark_outputs[slot - 1]
-            sel = _get_or_create_node(group, "ai_mark_select_%02d" % slot, "Switch")
-            _safe_set_input(sel, 0, tap)
-            _safe_set_input(sel, 1, ref_mark)
-            ai_mark_selects.append(sel)
-
         ai_input_switch = _get_or_create_node(group, "ai_input_switch", "Switch")
-        _wire_switch_inputs(ai_input_switch, ai_mark_selects)
-
-        guide_dim = _get_or_create_node(group, "guide_dim", "Multiply")
-        if guide_dim is not None:
-            _safe_set_input(guide_dim, 0, ai_input_switch)
-            try:
-                guide_dim["value"].setValue(0.4)
-            except Exception:
-                pass
-
-        guide_merge = _get_or_create_node(group, "guide_merge", "Merge")
-        if guide_merge is not None:
-            _safe_set_input(guide_merge, 0, guide_dim)
-            _safe_set_input(guide_merge, 1, text1)
-            try:
-                guide_merge["mix"].setValue(0.85)
-            except Exception:
-                pass
-
-        guide_preview = _get_or_create_node(group, "guide_preview", "NoOp")
-        _safe_set_input(guide_preview, 0, guide_merge)
-
-        input_preview_switch = _get_or_create_node(group, "input_preview_switch", "Switch")
-        _safe_set_input(input_preview_switch, 0, ai_input_switch)
-        _safe_set_input(input_preview_switch, 1, guide_preview)
+        _wire_switch_inputs(ai_input_switch, active_taps)
 
         generated_reads = []
         for i in range(1, max_outputs + 1):
@@ -741,24 +933,13 @@ def ensure_group_preview_graph(group, config):
             if r is not None:
                 generated_reads.append(r)
 
-        generated_switch = _get_or_create_node(group, "generated_switch", "Switch")
-        _wire_switch_inputs(generated_switch, generated_reads)
+        _ensure_generated_resolution_wiring(group, generated_reads)
 
-        generated_contactsheet = _wire_contactsheet(
-            group,
-            "generated_contactsheet",
-            generated_reads,
-            len(generated_reads),
-        )
-
-        viewer_mode_switch = _get_or_create_node(group, "viewer_mode_switch", "Switch")
-        branches = [
-            input_preview_switch,
-            generated_switch,
-            generated_contactsheet,
-        ]
-        for i, branch in enumerate(branches):
-            _safe_set_input(viewer_mode_switch, i, branch)
+        viewer_mode_switch = nuke.toNode("viewer_mode_switch")
+        if viewer_mode_switch is None:
+            viewer_mode_switch = _get_or_create_node(
+                group, "viewer_mode_switch", "Switch"
+            )
 
         output1 = nuke.toNode("Output1")
         _safe_set_input(output1, 0, viewer_mode_switch)
@@ -773,8 +954,6 @@ def ensure_group_preview_graph(group, config):
 
         _apply_preview_switch_expressions(group, config)
         _update_viewer_mode_in_group(group, config, connected_names)
-    finally:
-        group.end()
 
     try:
         group.knob("tile_color").setFlag(0)
@@ -788,24 +967,89 @@ def ensure_group_preview_graph(group, config):
         pass
 
 
-def _ai_input_export_node(slot):
-    """Return the in-group node sent to fal (ai_mark_select obeys mark_ai_inputs)."""
-    import nuke
+def _read_roi_bbox(group):
+    """Return (x, y, r, t) from the Group roi_area knob, or None."""
+    try:
+        k = group.knob(ROI_AREA_KNOB)
+        if k is None:
+            return None
+        return (
+            float(k.value(0)),
+            float(k.value(1)),
+            float(k.value(2)),
+            float(k.value(3)),
+        )
+    except Exception:
+        return None
 
-    for name in (
-        "ai_mark_select_%02d" % int(slot),
-        "ref_mark_%02d" % int(slot),
-    ):
-        n = nuke.toNode(name)
-        if n is not None:
-            return n
-    return None
+
+def _node_has_input(node, index=0):
+    if node is None:
+        return False
+    try:
+        return node.input(int(index)) is not None
+    except Exception:
+        return False
+
+
+def _fail_ai_input_export(message):
+    """Show a Nuke dialog and abort AI input export."""
+    try:
+        import nuke
+
+        nuke.message(message)
+    except Exception:
+        pass
+    raise AiInputExportError(message)
+
+
+def _validate_ai_export_node(export_node, input_name, slot):
+    """Raise if the in-group export tap is missing or unwired."""
+    node_name = "preview_source_%02d" % int(slot)
+    if export_node is None:
+        _fail_ai_input_export(
+            "AI input export failed for %s.\n\n"
+            "Missing in-group node '%s'.\n"
+            "The preview graph inside the group may be broken; "
+            "try re-inserting the node from the fal.ai menu."
+            % (input_name, node_name)
+        )
+    if not _node_has_input(export_node):
+        _fail_ai_input_export(
+            "AI input export failed for %s.\n\n"
+            "In-group node '%s' has no input.\n"
+            "Wire %s to '%s' inside the group."
+            % (input_name, node_name, input_name, node_name)
+        )
+
+
+def _ai_input_export_node(group, slot):
+    """Return the in-group preview source node sent to fal for a 1-based slot."""
+    return _find_node_in_group_by_name("preview_source_%02d" % int(slot))
+
+
+def _render_ai_input_still(nuke, group, export_node, out_path, frame, slot, input_name):
+    """Prerender one AI input; crops to roi_area on the fly when use_roi is enabled."""
+    _validate_ai_export_node(export_node, input_name, slot)
+    if int(slot) == 1 and _read_bool_knob(group, USE_ROI_KNOB):
+        box = _read_roi_bbox(group)
+        ok, err = validate_roi_bbox(box)
+        if not ok:
+            _fail_ai_input_export(
+                "AI input export failed for %s.\n\n%s" % (input_name, err)
+            )
+        prerender.render_still_inside_group_with_crop(
+            nuke, export_node, out_path, frame, box
+        )
+        return
+    prerender.render_still_inside_group(nuke, group, export_node, out_path, frame)
 
 
 def prepare_ai_inputs(group, config, frame, temp_dir):
     """
     Build PNG paths for fal upload under temp_dir (always prerendered for debugging).
-    Renders from ai_mark_select_NN inside the Group so mark_ai_inputs is respected.
+    Renders from preview_source_NN inside the Group; image_a is cropped to roi_area
+    on the fly when use_roi is enabled.
     Returns list of (1-based_index, path).
     """
     import nuke
@@ -815,32 +1059,65 @@ def prepare_ai_inputs(group, config, frame, temp_dir):
 
     prerender.ensure_dir(temp_dir)
     name_to_idx, connected_names = _gather_preview_connection_state(group, config)
+    connected = _connected_preview_sources(
+        group, config, name_to_idx, connected_names
+    )
+    if not connected:
+        if _preview_inputs_have_external_connection(group, config, name_to_idx):
+            _fail_ai_input_export(
+                "AI input export failed for %s.\n\n"
+                "Image input(s) are connected on this node, but in-group export "
+                "nodes could not be resolved.\n"
+                "Check that preview_source_01/02 are wired inside the group, "
+                "or re-insert the node from the fal.ai menu.\n\n"
+                "Temp folder:\n%s"
+                % (group.name(), prerender.norm_slashes(temp_dir))
+            )
+        return []
+
     results = []
-    group.begin()
-    try:
-        connected = _connected_preview_sources(
-            group, config, name_to_idx, connected_names
-        )
-        if not connected:
-            return []
-        for i, (input_name, inside_input, ext_src) in enumerate(connected, start=1):
-            base_name = "ai_input_%d" % i
+    expected = len(connected)
+    with prerender.group_scope(nuke, group):
+        for slot, input_name, inside_input, ext_src in connected:
+            base_name = "ai_input_%d" % int(slot)
             out_path = os.path.join(temp_dir, "%s.png" % base_name)
             try:
-                export_node = _ai_input_export_node(i)
+                export_node = _ai_input_export_node(group, slot)
                 if export_node is not None:
-                    prerender.render_still_inside_group(
-                        nuke, group, export_node, out_path, frame
+                    _render_ai_input_still(
+                        nuke, group, export_node, out_path, frame, slot, input_name
                     )
                 else:
+                    if ext_src is None:
+                        _fail_ai_input_export(
+                            "AI input export failed for %s.\n\n"
+                            "No upstream node is connected to the group input."
+                            % input_name
+                        )
                     prerender.render_still_from_node(
                         nuke, ext_src, out_path, frame
                     )
-                results.append((i, prerender.norm_slashes(out_path)))
+                prerender.require_rendered_file(
+                    out_path,
+                    "AI input export (%s)" % input_name,
+                )
+                results.append((slot, prerender.norm_slashes(out_path)))
+            except AiInputExportError:
+                raise
             except Exception as e:
-                raise Exception("AI input %s error: %s" % (input_name, str(e)))
-    finally:
-        group.end()
+                msg = "AI input export failed for %s.\n\n%s\n\nTemp folder:\n%s" % (
+                    input_name,
+                    str(e),
+                    prerender.norm_slashes(temp_dir),
+                )
+                _fail_ai_input_export(msg)
+        if len(results) != expected:
+            _fail_ai_input_export(
+                "AI input export incomplete.\n\n"
+                "Expected %d image(s) in:\n%s\n"
+                "but only exported %d."
+                % (expected, prerender.norm_slashes(temp_dir), len(results))
+            )
 
     return results
 
@@ -873,14 +1150,8 @@ def _max_stored_outputs_for_config(config):
 
 def _update_generated_output_count_ui(group, count):
     count = max(0, int(count))
-    if count == 1:
-        label = "1 output"
-    elif count > 1:
-        label = "%d outputs" % count
-    else:
-        label = "0"
     try:
-        group.knob(OUTPUT_COUNT_KNOB).setValue(label)
+        group.knob(OUTPUT_COUNT_KNOB).setValue(str(count))
     except Exception:
         pass
 
@@ -915,8 +1186,7 @@ def _sync_generated_preview_wiring(group, config, paths):
     paths = filter_existing_output_paths(paths)
     count = len(paths)
 
-    group.begin()
-    try:
+    with prerender.group_scope(nuke, group):
         read_nodes = _ensure_generated_read_nodes(group, max(count, 1))
         active_reads = []
         for i, r in enumerate(read_nodes, start=1):
@@ -927,18 +1197,10 @@ def _sync_generated_preview_wiring(group, config, paths):
                 _safe_set_knob(r, "file", "")
 
         generated_switch = nuke.toNode("generated_switch")
-        _wire_switch_inputs(generated_switch, active_reads)
+        if generated_switch is None:
+            generated_switch = _get_or_create_node(group, "generated_switch", "Switch")
 
-        generated_contactsheet = _wire_contactsheet(
-            group,
-            "generated_contactsheet",
-            active_reads,
-            len(active_reads),
-        )
-        if generated_contactsheet is not None and len(active_reads) <= 1:
-            _safe_set_input(generated_contactsheet, 0, active_reads[0] if active_reads else None)
-    finally:
-        group.end()
+        _ensure_generated_resolution_wiring(group, active_reads)
 
     _update_generated_output_count_ui(group, count)
     _update_preview_index_range(group, max(count, 1))
@@ -963,10 +1225,6 @@ def clear_generated_outputs(group):
     except Exception:
         pass
     _set_viewer_mode(group, "Input")
-    try:
-        group["show_guide"].setValue(True)
-    except Exception:
-        pass
 
 
 def clear_generated_outputs_ui():
@@ -996,11 +1254,8 @@ def wire_group_outputs(group, paths, preview_index=None, append=None):
     if append is None:
         append = bool(config.get("accumulate_outputs"))
 
-    group.begin()
-    try:
+    with prerender.group_scope(nuke, group):
         viewer_missing = nuke.toNode("viewer_mode_switch") is None
-    finally:
-        group.end()
 
     if viewer_missing:
         ensure_group_preview_graph(group, config)
@@ -1048,7 +1303,11 @@ def on_knob_changed_ui():
         k = nuke.thisKnob()
         if k is None:
             return
-        if k.name() not in ("viewer_mode", "preview_index", "mark_ai_inputs", "show_guide"):
+        if k.name() not in (
+            "viewer_mode",
+            "preview_index",
+            USE_ROI_KNOB,
+        ):
             return
 
         if get_config_for_group(g) is None:
@@ -1065,6 +1324,14 @@ def on_knob_changed_ui():
                     pk.setVisible(not is_grid)
                 except Exception:
                     pass
+
+        use_roi = _read_bool_knob(g, USE_ROI_KNOB)
+        area_k = g.knob(ROI_AREA_KNOB)
+        if area_k is not None:
+            try:
+                area_k.setEnabled(use_roi)
+            except Exception:
+                pass
     except Exception:
         traceback.print_exc()
 
