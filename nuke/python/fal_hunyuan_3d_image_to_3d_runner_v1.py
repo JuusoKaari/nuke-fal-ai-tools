@@ -43,7 +43,9 @@ def _parse_helper_summary(stdout_lines):
 def main():
     import nuke
 
-    g = nuke.thisNode()
+    g = _nuke_runner_launcher.get_execute_group_node(
+        nuke, caller_globals=globals()
+    )
 
     frame = int(nuke.frame())
     src_node = g.input(0)

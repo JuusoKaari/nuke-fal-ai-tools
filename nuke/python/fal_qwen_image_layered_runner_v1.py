@@ -59,7 +59,9 @@ def _layer_output_path(layer_dir, output_format):
 def main():
     import nuke  # imported inside for Nuke environment
 
-    g = nuke.thisNode()
+    g = _nuke_runner_launcher.get_execute_group_node(
+        nuke, caller_globals=globals()
+    )
 
     frame = int(nuke.frame())
     src_node = g.input(0)

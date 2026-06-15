@@ -59,7 +59,9 @@ def _collect_reference_images(nuke_module, group_node, frame, temp_dir):
 def main():
     import nuke  # imported inside for Nuke environment
 
-    g = nuke.thisNode()
+    g = _nuke_runner_launcher.get_execute_group_node(
+        nuke, caller_globals=globals()
+    )
 
     prompt = prompt_input.get_prompt_from_input_or_group(nuke, g)
     if not prompt:

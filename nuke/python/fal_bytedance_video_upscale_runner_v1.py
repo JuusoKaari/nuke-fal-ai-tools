@@ -75,7 +75,9 @@ def _get_frame_range_from_knobs(group_node, nuke_module):
 def main():
     import nuke
 
-    g = nuke.thisNode()
+    g = _nuke_runner_launcher.get_execute_group_node(
+        nuke, caller_globals=globals()
+    )
     frame = int(nuke.frame())
 
     src_video_node = g.input(0)

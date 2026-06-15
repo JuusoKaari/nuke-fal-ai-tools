@@ -49,7 +49,9 @@ def _split_cmd(cmd):
 def main():
     import nuke  # imported inside for Nuke environment
 
-    g = nuke.thisNode()
+    g = _nuke_runner_launcher.get_execute_group_node(
+        nuke, caller_globals=globals()
+    )
 
     motion_node = g.input(0)
     style_node = g.input(1)
