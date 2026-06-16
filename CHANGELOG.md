@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-06-16
+
 ### Added
 
 **Still / image**
@@ -15,6 +17,15 @@ All notable changes to this project are documented here.
 
 - Describe image (`fal_openrouter_describe_image_v1.nk`) - OpenRouter vision LLM image captioning/analysis via `openrouter/router/vision`
 - Generate text (`fal_openrouter_generate_text_v1.nk`) - OpenRouter LLM text generation via `openrouter/router`
+
+### Changed
+
+- Nano Banana 2 Generate: default ROI area is `0,0` to `512,512` (was dev-scene coordinates).
+- Release zip no longer includes the `tests/` folder.
+
+### Included nodes (20)
+
+Same categories as v1.0.1, plus BiRefNet v2 Still, Describe image, and Generate text. See tool list in [README.md](README.md).
 
 ## [1.0.1] - 2026-06-08
 

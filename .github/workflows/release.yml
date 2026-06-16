@@ -30,6 +30,7 @@ jobs:
             --exclude='__pycache__' \
             --exclude='*.py[cod]' \
             --exclude='planning' \
+            --exclude='tests' \
             --exclude='dist' \
             ./ "dist/${STAGING}/"
           (cd dist && zip -rq "${ARCHIVE}" "${STAGING}")

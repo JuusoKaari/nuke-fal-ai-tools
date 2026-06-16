@@ -35,7 +35,7 @@ Group {
  addUserKnob {6 use_roi l "Use ROI" +STARTLINE}
  use_roi false
  addUserKnob {15 roi_area l "ROI area"}
- roi_area {488 750 2262 2166}
+ roi_area {0 0 512 512}
  addUserKnob {6 has_generated_output -STARTLINE +DISABLED +INVISIBLE}
  has_generated_output false
  addUserKnob {26 generated_output_count l "Generated outputs:" T "0"}

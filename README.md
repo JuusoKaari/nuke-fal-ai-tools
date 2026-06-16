@@ -6,7 +6,7 @@
   <img src="docs/demo.gif" alt="nuke-fal-ai-tools demo (click to watch on YouTube)" width="960">
 </a>
 
-**v1.0.1** early release. APIs and models may change. Full tool list: [CHANGELOG.md](CHANGELOG.md).
+**v1.0.2** early release. APIs and models may change. Full tool list: [CHANGELOG.md](CHANGELOG.md).
 
 ## Tools
 
