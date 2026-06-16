@@ -19,7 +19,6 @@ Group {
  custom_end "1"
  addUserKnob {1 prompt}
  prompt "write your prompt here"
- addUserKnob {4 model M {"Dreamactor v2" "Another model" "Another model" ""}}
  addUserKnob {6 trim_first_second l "Trim first second" +STARTLINE}
  trim_first_second true
  addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}

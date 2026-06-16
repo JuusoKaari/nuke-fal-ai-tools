@@ -7,9 +7,32 @@ import _install_help
 import _nuke_py_compat
 import nuke_prerender_core_v1 as prerender_core
 
+# Bound in _refresh_prerender_core(); used in except clauses so stale sys.modules
+# entries cannot break error handling after a toolkit update in a live Nuke session.
+UnsavedNukeScriptError = None
+ScriptOutputDirError = None
+
 _batch_execute_active = False
 EXECUTE_NODE_GLOBAL = "_fal_execute_group_node"
 _active_execute_group_node = None
+
+
+def _refresh_prerender_core():
+    """
+    Reload nuke_prerender_core_v1 when Nuke already cached an older copy.
+    Runners reload their own imports; the launcher must do the same for shared errors.
+    """
+    global prerender_core, UnsavedNukeScriptError, ScriptOutputDirError
+    import sys
+
+    mod = sys.modules.get("nuke_prerender_core_v1")
+    if mod is not None:
+        prerender_core = _nuke_py_compat.reload_module(mod)
+    UnsavedNukeScriptError = prerender_core.UnsavedNukeScriptError
+    ScriptOutputDirError = prerender_core.ScriptOutputDirError
+
+
+_refresh_prerender_core()
 
 
 def set_batch_execute_active(active):
@@ -98,11 +121,12 @@ def execute_this_node():
     """Called from each group's Execute knob."""
     import nuke
 
+    _refresh_prerender_core()
     try:
         _run_runner_for_node(nuke.thisNode())
-    except prerender_core.UnsavedNukeScriptError as exc:
+    except UnsavedNukeScriptError as exc:
         _show_unsaved_script_message(nuke, exc)
-    except prerender_core.ScriptOutputDirError:
+    except ScriptOutputDirError:
         pass
     except Exception as exc:
         try:
@@ -124,6 +148,7 @@ def execute_selected_nodes():
     """Execute all selected fal.ai group nodes, in selection order."""
     import nuke
 
+    _refresh_prerender_core()
     nodes = [n for n in nuke.selectedNodes() if n.knob("runner_path") is not None]
     if not nodes:
         nuke.message("No fal.ai nodes selected.")
@@ -131,7 +156,7 @@ def execute_selected_nodes():
 
     try:
         prerender_core.require_saved_nuke_script(nuke)
-    except prerender_core.UnsavedNukeScriptError as exc:
+    except UnsavedNukeScriptError as exc:
         _show_unsaved_script_message(nuke, exc)
         return
 
@@ -140,7 +165,7 @@ def execute_selected_nodes():
         for node in nodes:
             try:
                 execute_node(node)
-            except prerender_core.ScriptOutputDirError:
+            except ScriptOutputDirError:
                 return
             except Exception as exc:
                 nuke.message("Execute failed on %s:\n%s" % (node.name(), exc))

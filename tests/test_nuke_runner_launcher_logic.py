@@ -48,6 +48,13 @@ class _FakeNuke(object):
         self._active_group = None
 
 
+class TestRefreshPrerenderCore(unittest.TestCase):
+    def test_binds_exception_types(self):
+        launcher._refresh_prerender_core()
+        self.assertIs(launcher.UnsavedNukeScriptError, prerender_core.UnsavedNukeScriptError)
+        self.assertIs(launcher.ScriptOutputDirError, prerender_core.ScriptOutputDirError)
+
+
 class TestGetExecuteGroupNode(unittest.TestCase):
     def setUp(self):
         launcher._active_execute_group_node = None
