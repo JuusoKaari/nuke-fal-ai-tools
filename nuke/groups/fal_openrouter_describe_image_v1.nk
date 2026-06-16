@@ -1,0 +1,76 @@
+# Purpose:
+# - Nuke Group node that runs OpenRouter vision LLM image description (fal.ai) and creates a Text node with the response.
+# - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
+#
+# API: https://fal.ai/models/openrouter/router/vision
+
+set cut_paste_input [stack 0]
+version 11.3 v6
+push $cut_paste_input
+Group {
+ name OpenRouter_Describe_Image_v1
+ selected true
+ xpos -331
+ ypos 7
+ addUserKnob {20 Settings}
+ addUserKnob {1 prompt l Prompt}
+ prompt "Caption this image for a text-to-image model with as much detail as possible."
+ addUserKnob {4 model l Model M {"google/gemini-2.5-flash" "anthropic/claude-sonnet-4.6" "anthropic/claude-sonnet-4.5" "openai/gpt-4o" "moonshotai/kimi-k2.5" "qwen/qwen3-vl-235b-a22b-instruct" "x-ai/grok-4-fast" ""}}
+ model "google/gemini-2.5-flash"
+ addUserKnob {1 system_prompt l "System prompt"}
+ system_prompt ""
+ addUserKnob {1 temperature l Temperature}
+ temperature "1"
+ addUserKnob {1 max_tokens l "Max tokens (optional)"}
+ max_tokens ""
+ addUserKnob {6 reasoning l "Include reasoning in output" +STARTLINE}
+ reasoning false
+ addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}
+ show_success_popup true
+ addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
+ addUserKnob {20 endGroup n -1}
+ addUserKnob {1 python3_cmd l "Python 3 cmd" +INVISIBLE}
+ python3_cmd "py -3"
+ addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
+ helper_path "__INSTALL_ROOT__/nuke/python/fal_openrouter_describe_image_helper.py"
+ addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
+ runner_path "__INSTALL_ROOT__/nuke/python/fal_openrouter_describe_image_runner_v1.py"
+ addUserKnob {1 FAL +INVISIBLE}
+ FAL "insert your secret key here or use env variable FAL_KEY"
+}
+Text {
+ inputs 0
+ message "Connect a Read (still image) and press execute."
+ font C:/Windows/Fonts/arial.ttf
+ yjustify bottom
+ Transform 1
+ box {30 30 1906 1052}
+ center {560 372}
+ name Text1
+ xpos 101
+ ypos 294
+}
+set N0desc001 [stack 0]
+Output {
+ name Output1
+ xpos 101
+ ypos 406
+}
+Input {
+ inputs 0
+ name source_image
+ xpos 0
+ ypos -51
+}
+push $N0desc001
+Viewer {
+ inputs 1
+ frame_range 0-199
+ fps 25
+ input_number 0
+ name Viewer1
+ selected true
+ xpos 281
+ ypos 412
+}
+end_group

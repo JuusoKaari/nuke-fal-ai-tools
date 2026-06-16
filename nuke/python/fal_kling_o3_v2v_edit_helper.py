@@ -22,7 +22,6 @@ from fal_common import (
     download,
     ensure_dir,
     format_fal_error_summary,
-    print_queue_logs,
     should_retry_fal_error,
 )
 
@@ -137,9 +136,6 @@ def main(argv: list[str]) -> int:
         if image_urls:
             print("Uploaded %d image_urls." % len(image_urls))
 
-    def on_queue_update(update) -> None:
-        print_queue_logs(update)
-
     arguments: dict = {
         "prompt": prompt,
         "video_url": video_url,
@@ -160,8 +156,6 @@ def main(argv: list[str]) -> int:
             result = client.subscribe(
                 _ENDPOINT_ID,
                 arguments=arguments,
-                with_logs=True,
-                on_queue_update=on_queue_update,
             )
             last_exc = None
             break

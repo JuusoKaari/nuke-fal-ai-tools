@@ -1,22 +1,17 @@
 # Purpose:
-# - Nuke Group node that runs BiRefNet v2 background removal on a frame sequence via fal.ai.
+# - Nuke Group node that runs BiRefNet v2 background removal on a still image via fal.ai.
+# - Model: https://fal.ai/models/fal-ai/birefnet/v2
 # - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
 
 set cut_paste_input [stack 0]
 version 11.3 v6
 push $cut_paste_input
 Group {
- name BiRefNet_v2
+ name BiRefNet_v2_Still_v1
  selected true
  xpos -331
  ypos 7
  addUserKnob {20 Settings}
- addUserKnob {4 frame_range l "Input frame range" M {root current custom ""}}
- frame_range root
- addUserKnob {1 custom_start l "Custom start"}
- custom_start "1"
- addUserKnob {1 custom_end l "Custom end"}
- custom_end "1"
  addUserKnob {4 model M {"General Use (Light)" "General Use (Light 2K)" "General Use (Heavy)" Matting Portrait "General Use (Dynamic)" ""}}
  model "General Use (Light)"
  addUserKnob {4 operating_resolution l "Operating resolution" M {"1024x1024" "2048x2048" "2304x2304" ""}}
@@ -34,15 +29,15 @@ Group {
  addUserKnob {1 python3_cmd l "Python 3 cmd" +INVISIBLE}
  python3_cmd "py -3"
  addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
- helper_path "__INSTALL_ROOT__/nuke/python/fal_birefnet_v2_helper.py"
+ helper_path "__INSTALL_ROOT__/nuke/python/fal_birefnet_v2_still_helper.py"
  addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
- runner_path "__INSTALL_ROOT__/nuke/python/fal_birefnet_v2_runner_v2.py"
+ runner_path "__INSTALL_ROOT__/nuke/python/fal_birefnet_v2_still_runner_v1.py"
  addUserKnob {1 FAL +INVISIBLE}
  FAL "insert your secret key here or use env variable FAL_KEY"
 }
 Text {
  inputs 0
- message "Connect a Read (sequence) or pipe and press execute.\nSet Input frame range to control how much gets pre-rendered (used when input is not a Read image sequence)."
+ message "Connect a Read (still image) or pipe and press execute"
  font C:/Windows/Fonts/arial.ttf
  yjustify bottom
  Transform 1
@@ -52,7 +47,7 @@ Text {
  xpos 101
  ypos 294
 }
-set N7f5c6000 [stack 0]
+set NbirefStill0 [stack 0]
 Output {
  name Output1
  xpos 101
@@ -60,11 +55,11 @@ Output {
 }
 Input {
  inputs 0
- name source_image_seq
+ name source_image
  xpos 0
  ypos -51
 }
-push $N7f5c6000
+push $NbirefStill0
 Viewer {
  inputs 1
  frame_range 0-199
@@ -76,4 +71,3 @@ Viewer {
  ypos 412
 }
 end_group
-

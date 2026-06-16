@@ -112,19 +112,6 @@ def main(argv: list[str]) -> int:
 
     image_url = client.upload_file(in_path)
 
-    def on_queue_update(update) -> None:
-        logs = getattr(update, "logs", None)
-        if not logs:
-            return
-        for entry in logs:
-            msg = None
-            try:
-                msg = entry.get("message")
-            except Exception:
-                msg = None
-            if msg:
-                print(msg)
-
     if args.verbose:
         print("Submit %s" % _ENDPOINT_ID)
 
@@ -148,8 +135,6 @@ def main(argv: list[str]) -> int:
     result = client.subscribe(
         _ENDPOINT_ID,
         arguments=api_args,
-        with_logs=True,
-        on_queue_update=on_queue_update,
     )
 
     try:

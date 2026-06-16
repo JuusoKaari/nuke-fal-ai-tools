@@ -13,7 +13,6 @@
 from __future__ import print_function
 
 import os
-import subprocess
 import time
 
 import sys
@@ -24,6 +23,7 @@ if _THIS_DIR not in sys.path:
 
 import _path_util
 import _install_help
+import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
 import nuke_read_video_frames_v1 as video_frames
@@ -46,26 +46,12 @@ def _split_cmd(cmd):
         return cmd.split()
 
 
-def _stream_process_output(p):
-    while True:
-        line = p.stdout.readline()
-        if not line:
-            break
-        try:
-            if isinstance(line, bytes):
-                try:
-                    line = line.decode("utf-8", "replace")
-                except Exception:
-                    line = str(line)
-            print(line.rstrip("\r\n"))
-        except Exception:
-            pass
-
-
 def main():
     import nuke  # imported inside for Nuke environment
 
-    g = nuke.thisNode()
+    g = _nuke_runner_launcher.get_execute_group_node(
+        nuke, caller_globals=globals()
+    )
 
     motion_node = g.input(0)
     style_node = g.input(1)
@@ -163,17 +149,23 @@ def main():
         args += ["--trim-first-second"]
 
     # Pass auth via env var (do NOT override env with the placeholder text)
-    env = os.environ.copy()
+    env = prerender.helper_subprocess_env()
     fal_knob = (g.knob("FAL").value() or "").strip()
     if fal_knob and ("insert your secret" not in fal_knob.lower()):
         env.update({"FAL_KEY": fal_knob})
 
-    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=False, env=env)
-    _stream_process_output(p)
-    p.wait()
+    try:
+        returncode, _stdout_lines = prerender.run_helper_subprocess(
+            args,
+            env=env,
+            title="DreamActor v2",
+        )
+    except prerender.FalProgressCancelled:
+        nuke.message("DreamActor v2 request cancelled.")
+        raise Exception("cancelled")
 
-    if p.returncode != 0:
-        nuke.message("DreamActor helper failed (exit %d). Check the Script Editor output for details." % p.returncode)
+    if returncode != 0:
+        nuke.message("DreamActor helper failed (exit %d). Check the Script Editor output for details." % returncode)
         raise Exception("DreamActor helper failed")
 
     # Create a new Read node in the main node graph (not inside the group)
@@ -201,7 +193,8 @@ def main():
     finally:
         nuke.endGroup()
 
-    nuke.message("DreamActor v2 output created:\n%s" % out_path_nk)
+    if _nuke_runner_launcher.should_show_success_popup(g):
+        nuke.message("DreamActor v2 output created:\n%s" % out_path_nk)
 
 
 if __name__ == "__main__":

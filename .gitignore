@@ -1,7 +1,13 @@
 # Local planning notes (not shipped)
 planning/
 
+# Local agent guidance (not shipped)
+AGENTS.md
+
 # Python bytecode
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Cursor
+.cursorignore

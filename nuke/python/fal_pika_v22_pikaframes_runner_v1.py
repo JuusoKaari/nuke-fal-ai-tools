@@ -12,7 +12,6 @@
 from __future__ import print_function
 
 import os
-import subprocess
 import sys
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -21,6 +20,7 @@ if _THIS_DIR not in sys.path:
 
 import _path_util
 import _install_help
+import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
 import nuke_read_video_frames_v1 as video_frames
@@ -28,22 +28,6 @@ import nuke_spawn_read_position_v1 as spawn_pos
 
 _MAX_KEYFRAMES = 5
 _MAX_TOTAL_TRANSITION_SECONDS = 25
-
-
-def _stream_process_output(p):
-    while True:
-        line = p.stdout.readline()
-        if not line:
-            break
-        try:
-            if isinstance(line, bytes):
-                try:
-                    line = line.decode("utf-8", "replace")
-                except Exception:
-                    line = str(line)
-            print(line.rstrip("\r\n"))
-        except Exception:
-            pass
 
 
 def _read_transition_duration(g):
@@ -60,7 +44,9 @@ def _read_transition_duration(g):
 def main():
     import nuke  # imported inside for Nuke environment
 
-    g = nuke.thisNode()
+    g = _nuke_runner_launcher.get_execute_group_node(
+        nuke, caller_globals=globals()
+    )
 
     frame = int(nuke.frame())
     try:
@@ -149,19 +135,25 @@ def main():
             nuke.message("Invalid seed value.")
             raise Exception("invalid seed")
 
-    env = os.environ.copy()
+    env = prerender.helper_subprocess_env()
     fal_knob = (g.knob("FAL").value() or "").strip()
     if fal_knob and ("insert your secret" not in fal_knob.lower()):
         env.update({"FAL_KEY": fal_knob})
 
-    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=False, env=env)
-    _stream_process_output(p)
-    p.wait()
+    try:
+        returncode, _stdout_lines = prerender.run_helper_subprocess(
+            args,
+            env=env,
+            title="Pika 2.2 Pikaframes",
+        )
+    except prerender.FalProgressCancelled:
+        nuke.message("Pika 2.2 Pikaframes request cancelled.")
+        raise Exception("cancelled")
 
-    if p.returncode != 0:
+    if returncode != 0:
         nuke.message(
             "Pika 2.2 Pikaframes helper failed (exit %d). Check the Script Editor output for details."
-            % p.returncode
+            % returncode
         )
         raise Exception("Pika 2.2 Pikaframes helper failed")
 
@@ -193,7 +185,7 @@ def main():
     finally:
         nuke.endGroup()
 
-    if bool(g.knob("show_success_popup").value()):
+    if _nuke_runner_launcher.should_show_success_popup(g):
         nuke.message("Pika 2.2 Pikaframes output created:\n%s" % out_path_nk)
 
 

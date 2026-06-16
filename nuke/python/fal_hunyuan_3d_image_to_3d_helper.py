@@ -27,7 +27,6 @@ from fal_common import (
     download,
     ensure_dir,
     format_fal_error_summary,
-    print_queue_logs,
     should_retry_fal_error,
 )
 
@@ -195,9 +194,6 @@ def main(argv: list[str]) -> int:
         print("Submitting request: %s" % _ENDPOINT_ID)
         print("Arguments: %s" % json.dumps({k: v for k, v in arguments.items() if k != "input_image_url"}))
 
-    def on_queue_update(update) -> None:
-        print_queue_logs(update)
-
     result = None
     last_exc: BaseException | None = None
     max_attempts = max(1, int(args.max_retries) + 1)
@@ -206,8 +202,6 @@ def main(argv: list[str]) -> int:
             result = client.subscribe(
                 _ENDPOINT_ID,
                 arguments=arguments,
-                with_logs=True,
-                on_queue_update=on_queue_update,
             )
             last_exc = None
             break

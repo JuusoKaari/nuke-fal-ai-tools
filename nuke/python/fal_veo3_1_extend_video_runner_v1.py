@@ -24,6 +24,7 @@ if _THIS_DIR not in sys.path:
 
 import _path_util
 import _install_help
+import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
 import nuke_read_video_frames_v1 as video_frames
@@ -63,26 +64,6 @@ def _split_cmd(cmd):
         return shlex.split(cmd)
     except Exception:
         return cmd.split()
-
-
-def _stream_process_output(p):
-    lines = []
-    while True:
-        line = p.stdout.readline()
-        if not line:
-            break
-        try:
-            if isinstance(line, bytes):
-                try:
-                    line = line.decode("utf-8", "replace")
-                except Exception:
-                    line = str(line)
-            text = line.rstrip("\r\n")
-            lines.append(text)
-            print(text)
-        except Exception:
-            pass
-    return lines
 
 
 def _cap_frame_range_to_max_seconds(first, last, fps, max_seconds):
@@ -177,7 +158,9 @@ def _summarize_helper_failure(lines):
 def main():
     import nuke  # imported inside for Nuke environment
 
-    g = nuke.thisNode()
+    g = _nuke_runner_launcher.get_execute_group_node(
+        nuke, caller_globals=globals()
+    )
     frame = int(nuke.frame())
 
     src_video_node = g.input(0)
@@ -233,12 +216,6 @@ def main():
         except Exception:
             nuke.message("Seed must be an integer (or leave empty).")
             raise Exception("invalid seed")
-
-    show_popup = True
-    try:
-        show_popup = bool(g.knob("show_success_popup").value())
-    except Exception:
-        pass
 
     default_first, default_last = _get_frame_range_from_knobs(g, nuke)
     try:
@@ -328,20 +305,26 @@ def main():
     if seed_val is not None:
         args += ["--seed", str(seed_val)]
 
-    env = os.environ.copy()
+    env = prerender.helper_subprocess_env()
     fal_knob = (g.knob("FAL").value() or "").strip()
     if fal_knob and ("insert your secret" not in fal_knob.lower()):
         env.update({"FAL_KEY": fal_knob})
 
-    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=False, env=env)
-    helper_lines = _stream_process_output(p)
-    p.wait()
+    try:
+        returncode, helper_lines = prerender.run_helper_subprocess(
+            args,
+            env=env,
+            title="Veo 3.1 Extend Video",
+        )
+    except prerender.FalProgressCancelled:
+        nuke.message("Veo 3.1 Extend Video request cancelled.")
+        raise Exception("cancelled")
 
-    if p.returncode != 0:
+    if returncode != 0:
         summary = _summarize_helper_failure(helper_lines)
         nuke.message(
             "Veo 3.1 extend-video helper failed (exit %d).\n\n%s"
-            % (p.returncode, summary)
+            % (returncode, summary)
         )
         raise Exception("Veo 3.1 extend-video helper failed")
 
@@ -369,7 +352,7 @@ def main():
     finally:
         nuke.endGroup()
 
-    if show_popup:
+    if _nuke_runner_launcher.should_show_success_popup(g):
         extra = ("\n\n%s" % trim_msg) if trim_msg else ""
         nuke.message("Veo 3.1 extend-video output created:\n%s%s" % (out_path_nk, extra))
 

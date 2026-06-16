@@ -1,15 +1,42 @@
 # Purpose:
 # - Shared Python 3 utilities used by multiple `fal_*.py` helper scripts in this folder.
 # - Centralizes common logic like: creating directories, atomic downloads, fal-client error parsing,
-#   retry heuristics, and printing queue log messages.
+#   and retry heuristics. Helpers do not stream fal queue logs to Nuke (noisy tqdm bars).
 
 from __future__ import annotations
 
 import json
 import os
 import random
+import sys
 import urllib.request
 from typing import Callable, Iterable
+
+
+def configure_stdio_utf8() -> None:
+    """Avoid Windows cp1252 crashes when fal/tqdm prints Unicode progress bars."""
+    for stream in (sys.stdout, sys.stderr):
+        if stream is None:
+            continue
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+
+
+def safe_print(msg: str, file=None) -> None:
+    target = file if file is not None else sys.stdout
+    try:
+        print(msg, file=target)
+    except UnicodeEncodeError:
+        enc = getattr(target, "encoding", None) or "utf-8"
+        sanitized = str(msg).encode(enc, errors="replace").decode(enc, errors="replace")
+        try:
+            print(sanitized, file=target)
+        except Exception:
+            pass
 
 
 def ensure_dir(path: str) -> None:
@@ -101,7 +128,16 @@ def iter_queue_log_messages(update) -> Iterable[str]:
             yield str(msg)
 
 
-def print_queue_logs(update, printer: Callable[[str], None] = print) -> None:
+def print_queue_logs(update, printer: Callable[[str], None] | None = None) -> None:
     for msg in iter_queue_log_messages(update):
-        printer(msg)
+        if printer is None:
+            safe_print(msg)
+            continue
+        try:
+            printer(msg)
+        except UnicodeEncodeError:
+            safe_print(msg)
+
+
+configure_stdio_utf8()
 

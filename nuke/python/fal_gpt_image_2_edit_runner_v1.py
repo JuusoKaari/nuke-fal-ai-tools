@@ -1,7 +1,8 @@
 # Purpose:
 # - Runner script for the Nuke Group node `GPT_Image_2_Edit_v1` (executes inside Nuke / Python 2.7).
 # - Reads edit settings from the Group knobs; optionally overrides prompt from Input 0 when a Text node
-#   (`message` knob) is connected. Collects reference image(s) from inputs 1-2 (required) and optional
+#   (`message` knob) is connected, including through Dot nodes. Collects reference image(s) from inputs
+#   1-2 (required) and optional
 #   mask from input 3. Calls the external Python 3 helper, then creates Read node(s) in the main graph.
 #
 # Notes:
@@ -11,7 +12,6 @@
 from __future__ import print_function
 
 import os
-import subprocess
 
 import sys
 
@@ -21,63 +21,11 @@ if _THIS_DIR not in sys.path:
 
 import _path_util
 import _install_help
+import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
+import nuke_prompt_input_v1 as prompt_input
 import nuke_spawn_read_position_v1 as spawn_pos
-
-
-def _stream_process_output(p):
-    while True:
-        line = p.stdout.readline()
-        if not line:
-            break
-        try:
-            if isinstance(line, bytes):
-                try:
-                    line = line.decode("utf-8", "replace")
-                except Exception:
-                    line = str(line)
-            print(line.rstrip("\r\n"))
-        except Exception:
-            pass
-
-
-def _get_prompt_from_input_or_group(nuke_module, g):
-    prompt = (g.knob("prompt").value() or "").strip()
-
-    try:
-        src = g.input(0)
-    except Exception:
-        src = None
-
-    if src is not None:
-        try:
-            k = src.knob("message")
-        except Exception:
-            k = None
-        if k is not None:
-            try:
-                msg = (k.value() or "").strip()
-            except Exception:
-                msg = ""
-            if msg:
-                return msg
-        else:
-            try:
-                cls = src.Class()
-            except Exception:
-                cls = "<unknown>"
-            try:
-                nuke_module.message(
-                    "Input 0 (prompt_text) is connected, but it's not a Text node (missing 'message' knob).\n\n"
-                    "Connected node class: %s\n\n"
-                    "Disconnect it or plug a Text node here. Execution cancelled." % cls
-                )
-            except Exception:
-                pass
-            raise Exception("prompt_input_not_text_node")
-
-    return prompt
 
 
 def _collect_reference_images(nuke_module, group_node, frame, temp_dir):
@@ -111,9 +59,11 @@ def _collect_reference_images(nuke_module, group_node, frame, temp_dir):
 def main():
     import nuke  # imported inside for Nuke environment
 
-    g = nuke.thisNode()
+    g = _nuke_runner_launcher.get_execute_group_node(
+        nuke, caller_globals=globals()
+    )
 
-    prompt = _get_prompt_from_input_or_group(nuke, g)
+    prompt = prompt_input.get_prompt_from_input_or_group(nuke, g)
     if not prompt:
         nuke.message("Prompt is empty (and no input Text node message found).")
         raise Exception("missing prompt")
@@ -192,18 +142,24 @@ def main():
     if mask_path:
         args += ["--mask", mask_path]
 
-    env = os.environ.copy()
+    env = prerender.helper_subprocess_env()
     fal_knob = (g.knob("FAL").value() or "").strip()
     if fal_knob and ("insert your secret" not in fal_knob.lower()):
         env.update({"FAL_KEY": fal_knob})
 
-    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=False, env=env)
-    _stream_process_output(p)
-    p.wait()
+    try:
+        returncode, _stdout_lines = prerender.run_helper_subprocess(
+            args,
+            env=env,
+            title="GPT Image 2 Edit",
+        )
+    except prerender.FalProgressCancelled:
+        nuke.message("GPT Image 2 Edit request cancelled.")
+        raise Exception("cancelled")
 
-    if p.returncode != 0:
+    if returncode != 0:
         nuke.message(
-            "GPT Image 2 helper failed (exit %d). Check the Script Editor output for details." % p.returncode
+            "GPT Image 2 helper failed (exit %d). Check the Script Editor output for details." % returncode
         )
         raise Exception("GPT Image 2 helper failed")
 
@@ -244,7 +200,7 @@ def main():
         nuke.message("Helper finished, but no output images were found in:\n%s" % out_dir)
         raise Exception("no outputs")
 
-    if bool(g.knob("show_success_popup").value()):
+    if _nuke_runner_launcher.should_show_success_popup(g):
         nuke.message("GPT Image 2 edit output created:\n" + "\n".join(created))
 
 

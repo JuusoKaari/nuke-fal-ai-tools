@@ -1,91 +1,277 @@
 # Purpose:
-# - Nuke Group node that runs Nano Banana 2 (fal.ai) generation/edit and creates Read node(s).
+# - Nuke Group node that runs Nano Banana 2 (fal.ai) generation/edit with in-group output preview.
+# - Preview graph is baked in this .nk; switches use parent knob expressions.
+# - ROI section: image_a preview via ROI_rectangle; crop on export; merge-back generated preview.
+# - Hidden fal_tool_id identifies the tool type; display name may be v1, v2, v3, etc.
 # - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
 
 set cut_paste_input [stack 0]
 version 11.3 v6
 push $cut_paste_input
 Group {
+ inputs 3
  name Nano_Banana_2_Generate_v1
+ knobChanged "\nimport nuke_group_output_preview_v1 as _gop\n_gop.on_knob_changed_ui()\n"
  selected true
- xpos -340
- ypos 120
- addUserKnob {20 Settings}
+ addUserKnob {26 guide_info l "" T "Nano Banana 2\nText-to-image or image edit.\n\nImage editing: Connect main image to image_a and optional reference to image_b.\nPrompt: Write on the node, or connect separate Text node to prompt_text input.\nPress Execute, then use Viewer mode to preview outputs."}
+ addUserKnob {26 preview_separator l "" +STARTLINE}
  addUserKnob {1 prompt l Prompt}
- prompt "Describe the image/edit you want (or connect a Text node with a message knob to override)"
+ prompt "Describe the image/edit you want (or connect a Text node)"
  addUserKnob {1 num_images l "Num images (1-4)"}
- num_images "1"
- addUserKnob {1 seed l "Seed (optional)"}
- seed ""
- addUserKnob {4 aspect_ratio l "Aspect ratio" M {auto 21:9 16:9 3:2 4:3 5:4 1:1 4:5 3:4 2:3 9:16 ""}}
- aspect_ratio auto
+ num_images 1
  addUserKnob {4 resolution l Resolution M {"0.5K" 1K 2K 4K ""}}
  resolution 1K
  addUserKnob {4 output_format l "Output format" M {png jpeg webp ""}}
  output_format png
+ addUserKnob {26 preview_separator l "" +STARTLINE}
+ addUserKnob {4 viewer_mode l "Viewer mode" M {Input Generated "Generated grid" ""}}
+ viewer_mode Input
+ addUserKnob {7 preview_index l "preview index" R 1 2.999}
+ preview_index 1
+ addUserKnob {6 spawn_reads_in_graph l "Spawn reads in graph" +STARTLINE}
+ spawn_reads_in_graph false
+ addUserKnob {6 match_input_resolution l "Match input resolution" +STARTLINE}
+ match_input_resolution true
+ addUserKnob {6 use_roi l "Use ROI" +STARTLINE}
+ use_roi false
+ addUserKnob {15 roi_area l "ROI area"}
+ roi_area {0 0 512 512}
+ addUserKnob {6 has_generated_output -STARTLINE +DISABLED +INVISIBLE}
+ has_generated_output false
+ addUserKnob {26 generated_output_count l "Generated outputs:" T "0"}
+ addUserKnob {1 generated_output_paths l "generated output paths" +INVISIBLE}
+ generated_output_paths ""
+ addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
+ addUserKnob {20 Advanced l Advanced +CLOSED}
+ addUserKnob {1 seed l "Seed (optional)"}
+ seed ""
+ addUserKnob {4 aspect_ratio l "Aspect ratio" M {auto 21:9 16:9 3:2 4:3 5:4 1:1 4:5 3:4 2:3 9:16 ""}}
+ aspect_ratio auto
  addUserKnob {4 safety_tolerance l "Safety tolerance (1=strict, 6=relaxed)" M {1 2 3 4 5 6 ""}}
  safety_tolerance 4
  addUserKnob {6 enable_web_search l "Enable web search" +STARTLINE}
  enable_web_search false
  addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}
  show_success_popup true
- addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
- addUserKnob {20 endGroup n -1}
+ addUserKnob {20 endAdvanced n -1}
  addUserKnob {1 python3_cmd l "Python 3 cmd" +INVISIBLE}
  python3_cmd "py -3"
  addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
  helper_path "__INSTALL_ROOT__/nuke/python/fal_nano_banana_2_generate_helper.py"
  addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
  runner_path "__INSTALL_ROOT__/nuke/python/fal_nano_banana_2_generate_runner_v1.py"
+ addUserKnob {1 fal_tool_id l "fal tool id" +INVISIBLE}
+ fal_tool_id Nano_Banana_2_Generate_v1
  addUserKnob {1 FAL +INVISIBLE}
  FAL "insert your secret key here or use env variable FAL_KEY"
 }
-Text {
- inputs 0
- message "Input 0: optional Text node (has a 'message' knob) to override Prompt.\\nInput 1-2: optional reference images (Read nodes). If any connected, uses Nano Banana 2 EDIT model.\\nThen press execute."
- font C:/Windows/Fonts/arial.ttf
- yjustify bottom
- Transform 1
- box {30 30 1906 1052}
- center {560 372}
- name Text1
- xpos 96
- ypos 301
-}
-set N0e5f49c0 [stack 0]
-Output {
- name Output1
- xpos 96
- ypos 409
-}
-Input {
- inputs 0
- name prompt_text
- xpos 0
- ypos -51
-}
-Input {
- inputs 0
- name ref_image_a
- xpos 120
- ypos -51
-}
-Input {
- inputs 0
- name ref_image_b
- xpos 240
- ypos -51
-}
-push $N0e5f49c0
-Viewer {
- inputs 1
- frame_range 0-199
- fps 25
- input_number 0
- name Viewer1
- selected true
- xpos 276
- ypos 412
-}
+ Read {
+  inputs 0
+  file_type png
+  file ""
+  format "1408 768 0 0 1408 768 1 "
+  origset true
+  name generated_read_01
+  label "F: \[value first]-\[value last] \[python \{\}] \nDUR: \[python \{nuke.thisNode()\['last'].value()-nuke.thisNode()\['first'].value()+1\}] \n|\[python \{nuke.thisNode()\['file'].value()\[0].upper()\}]|"
+  xpos 1732
+  ypos -261
+ }
+set N85c2da80 [stack 0]
+ Read {
+  inputs 0
+  file_type png
+  file ""
+  format "1408 768 0 0 1408 768 1 "
+  origset true
+  name generated_read_02
+  label "F: \[value first]-\[value last] \[python \{\}] \nDUR: \[python \{nuke.thisNode()\['last'].value()-nuke.thisNode()\['first'].value()+1\}] \n|\[python \{nuke.thisNode()\['file'].value()\[0].upper()\}]|"
+  xpos 1842
+  ypos -261
+ }
+set N85c2bf80 [stack 0]
+ Read {
+  inputs 0
+  file_type png
+  file ""
+  format "1408 768 0 0 1408 768 1 "
+  origset true
+  name generated_read_03
+  label "F: \[value first]-\[value last] \[python \{\}] \nDUR: \[python \{nuke.thisNode()\['last'].value()-nuke.thisNode()\['first'].value()+1\}] \n|\[python \{nuke.thisNode()\['file'].value()\[0].upper()\}]|"
+  xpos 1952
+  ypos -261
+ }
+set N85c2d180 [stack 0]
+ Read {
+  inputs 0
+  file_type png
+  file ""
+  format "1408 768 0 0 1408 768 1 "
+  origset true
+  name generated_read_04
+  label "F: \[value first]-\[value last] \[python \{\}] \nDUR: \[python \{nuke.thisNode()\['last'].value()-nuke.thisNode()\['first'].value()+1\}] \n|\[python \{nuke.thisNode()\['file'].value()\[0].upper()\}]|"
+  xpos 2062
+  ypos -261
+ }
+set N85c2c880 [stack 0]
+push $N85c2c880
+push $N85c2d180
+push $N85c2bf80
+push $N85c2da80
+ ContactSheet {
+  inputs 4
+  width 2048
+  height 1024
+  rows 2
+  columns 2
+  name generated_contactsheet
+  xpos 2101
+  ypos 173
+ }
+set Ndb7c100 [stack 0]
+push $N85c2c880
+push $N85c2d180
+push $N85c2bf80
+push $N85c2da80
+ Switch {
+  inputs 4
+  which {{"parent.preview_index - 1"}}
+  name generated_switch
+  xpos 1642
+  ypos 183
+ }
+set Ndb7c200 [stack 0]
+ Input {
+  inputs 0
+  name image_b
+  xpos 519
+  ypos -672
+  number 1
+ }
+ NoOp {
+  name preview_source_02
+  xpos 519
+  ypos -297
+ }
+set N16c8480 [stack 0]
+ Input {
+  inputs 0
+  name image_a
+  xpos 77
+  ypos -667
+  number 0
+ }
+ NoOp {
+  name preview_source_01
+  xpos 77
+  ypos -292
+ }
+set N16c9200 [stack 0]
+push $N16c9200
+ Rectangle {
+  invert true
+  opacity 0.8
+  area {{parent.roi_area.x} {parent.roi_area.y} {parent.roi_area.r} {parent.roi_area.t}}
+  color 0
+  disable {{!parent.use_roi}}
+  name ROI_rectangle
+  xpos 77
+  ypos -162
+ }
+set NroiRect [stack 0]
+push $N16c8480
+push $NroiRect
+ Switch {
+  inputs 2
+  which {{"parent.preview_index - 1"}}
+  name ai_input_switch
+  xpos 538
+  ypos 386
+ }
+set Ndb7c300 [stack 0]
+push $Ndb7c200
+ Reformat {
+  type "to box"
+  box_width {{parent.roi_area.r-parent.roi_area.x}}
+  box_height {{parent.roi_area.t-parent.roi_area.y}}
+  box_fixed true
+  name generated_reformat_to_ROI
+  xpos 1520
+  ypos 72
+ }
+ Transform {
+  translate {{parent.roi_area.x} {parent.roi_area.y}}
+  center {320 240}
+  shutteroffset centred
+  name generated_reposition_to_ROI
+  xpos 1520
+  ypos 98
+ }
+set NroiRepo [stack 0]
+push $NroiRepo
+push $N16c9200
+ Merge2 {
+  inputs 2
+  name merge_roi
+  xpos 1520
+  ypos 124
+ }
+set NroiMerged [stack 0]
+push $Ndb7c200
+ Reformat {
+  type "to box"
+  box_width {{preview_source_01.width}}
+  box_height {{preview_source_01.height}}
+  box_fixed true
+  resize fit
+  center false
+  disable {{1-parent.match_input_resolution}}
+  name generated_output_reformat
+  xpos 1642
+  ypos 213
+ }
+set Ndb7c210 [stack 0]
+push $Ndb7c210
+push $NroiMerged
+ Switch {
+  inputs 2
+  which {{"parent.use_roi ? 0 : 1"}}
+  name ROI_switch
+  xpos 1520
+  ypos 307
+ }
+set Ndb7c212 [stack 0]
+push $Ndb7c100
+push $Ndb7c212
+push $Ndb7c300
+ Switch {
+  inputs 3
+  which {{parent.viewer_mode}}
+  name viewer_mode_switch
+  xpos 858
+  ypos 1020
+ }
+set Nf9827200 [stack 0]
+ Output {
+  name Output1
+  xpos 858
+  ypos 1285
+ }
+ Input {
+  inputs 0
+  name prompt_text
+  xpos 1052
+  ypos -678
+  number 2
+ }
+push $N16c8480
+push $Nf9827200
+ Viewer {
+  inputs 1
+  frame_range 0-199
+  fps 25
+  input_number 0
+  name Viewer1
+  xpos -646
+  ypos 1786
+ }
 end_group
-
