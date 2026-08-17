@@ -4,6 +4,10 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- LTX 2.5 Image to Video Pro (`fal_ltx_25_image_to_video_pro_v1.nk`) - animates a still into video with optional end frame, camera motion, and synchronized audio via `lightricks/ltx-2.5/image-to-video/pro`
+
 ## [1.0.2] - 2026-06-16
 
 ### Added

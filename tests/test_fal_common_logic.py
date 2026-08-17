@@ -1,8 +1,9 @@
 # Run: py -3 -m unittest tests.test_fal_common_logic
-# Pure-logic tests for fal_common subscribe retry and download timeout (no network).
+# Pure-logic tests for fal_common subscribe retry, download timeout, and sidecars (no network).
 
 from __future__ import print_function
 
+import json
 import os
 import sys
 import tempfile
@@ -198,6 +199,64 @@ class TestDownloadRetry(unittest.TestCase):
                 timeout_seconds=12,
             )
         self.assertEqual(self._urlopen_calls, [12])
+
+
+class TestResultSidecar(unittest.TestCase):
+    def test_write_sidecar_sanitizes_secrets_and_truncates(self):
+        with tempfile.TemporaryDirectory() as td:
+            result_path = os.path.join(td, "out.mp4")
+            with open(result_path, "wb") as f:
+                f.write(b"x")
+            long_text = "a" * 5000
+            sidecar = fal_common.write_result_sidecar(
+                result_path,
+                {
+                    "endpoint": "fal-ai/example",
+                    "fal_key": "should-not-appear",
+                    "api_token": "nope",
+                    "authorization": "Bearer xyz",
+                    "prompt": long_text,
+                    "nested": {"password": "secret", "ok": 1},
+                },
+            )
+            self.assertTrue(sidecar.endswith(".json"))
+            self.assertTrue(os.path.isfile(sidecar))
+            with open(sidecar, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.assertEqual(data["fal_key"], "<redacted>")
+            self.assertEqual(data["api_token"], "<redacted>")
+            self.assertEqual(data["authorization"], "<redacted>")
+            self.assertEqual(data["nested"]["password"], "<redacted>")
+            self.assertEqual(data["nested"]["ok"], 1)
+            self.assertTrue(data["prompt"].endswith("...<truncated>"))
+            self.assertLessEqual(len(data["prompt"]), 4020)
+            self.assertEqual(data["endpoint"], "fal-ai/example")
+            self.assertIn("timestamp", data)
+            self.assertEqual(data["result_path"], os.path.abspath(result_path))
+
+    def test_emit_result_summary_writes_sidecar_and_prints(self):
+        with tempfile.TemporaryDirectory() as td:
+            result_path = os.path.join(td, "erased.jpg")
+            with open(result_path, "wb") as f:
+                f.write(b"x")
+            summary = {
+                "ok": True,
+                "endpoint": "fal-ai/finegrain-eraser/mask",
+                "downloaded": result_path,
+            }
+            old_stdout = sys.stdout
+            try:
+                from io import StringIO
+
+                buf = StringIO()
+                sys.stdout = buf
+                fal_common.emit_result_summary(summary)
+            finally:
+                sys.stdout = old_stdout
+            printed = buf.getvalue()
+            self.assertIn('"ok": true', printed)
+            sidecar = os.path.splitext(result_path)[0] + ".json"
+            self.assertTrue(os.path.isfile(sidecar))
 
 
 if __name__ == "__main__":

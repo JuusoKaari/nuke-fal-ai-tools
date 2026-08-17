@@ -1,7 +1,7 @@
 # Purpose:
 # - Shared Python 3 utilities used by multiple `fal_*.py` helper scripts in this folder.
 # - Centralizes common logic like: creating directories, atomic downloads with timeout/retry,
-#   fal-client subscribe retry, error parsing, and retry heuristics.
+#   fal-client subscribe retry, error parsing, retry heuristics, and result sidecars.
 # - Helpers do not stream fal queue logs to Nuke (noisy tqdm bars).
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 
 
 def configure_stdio_utf8() -> None:
@@ -173,6 +174,129 @@ def subscribe_with_retry(
     if last_exc is not None:
         raise last_exc
     raise RuntimeError("subscribe_with_retry: no result")
+
+
+_SECRET_KEY_FRAGMENTS = (
+    "api_key",
+    "apikey",
+    "token",
+    "secret",
+    "password",
+    "authorization",
+    "bearer",
+    "fal_key",
+)
+_SIDECAR_MAX_STR = 4000
+_SIDECAR_MAX_LIST = 50
+_SIDECAR_MAX_DEPTH = 8
+
+
+def _key_looks_secret(key) -> bool:
+    k = str(key or "").strip().lower().replace("-", "_")
+    for frag in _SECRET_KEY_FRAGMENTS:
+        if frag in k:
+            return True
+    return False
+
+
+def sanitize_for_sidecar(obj, _depth: int = 0):
+    """
+    Deep-copy JSON-ish data with secrets redacted and long strings truncated.
+    Never write fal keys / tokens into sidecars.
+    """
+    if _depth > _SIDECAR_MAX_DEPTH:
+        return "<max_depth>"
+    if obj is None or isinstance(obj, (bool, int, float)):
+        return obj
+    if isinstance(obj, str):
+        if len(obj) > _SIDECAR_MAX_STR:
+            return obj[:_SIDECAR_MAX_STR] + "...<truncated>"
+        return obj
+    if isinstance(obj, bytes):
+        try:
+            return sanitize_for_sidecar(obj.decode("utf-8", "replace"), _depth=_depth)
+        except Exception:
+            return "<bytes>"
+    if isinstance(obj, dict):
+        out = {}
+        for k, v in obj.items():
+            key_s = str(k)
+            if _key_looks_secret(key_s):
+                out[key_s] = "<redacted>"
+            else:
+                out[key_s] = sanitize_for_sidecar(v, _depth=_depth + 1)
+        return out
+    if isinstance(obj, (list, tuple)):
+        items = list(obj)
+        trimmed = items[:_SIDECAR_MAX_LIST]
+        out_list = [sanitize_for_sidecar(v, _depth=_depth + 1) for v in trimmed]
+        if len(items) > _SIDECAR_MAX_LIST:
+            out_list.append("<truncated %d more items>" % (len(items) - _SIDECAR_MAX_LIST))
+        return out_list
+    try:
+        return sanitize_for_sidecar(str(obj), _depth=_depth)
+    except Exception:
+        return "<unserializable>"
+
+
+def write_result_sidecar(result_path: str, metadata_dict) -> str | None:
+    """
+    Write a sanitized .json sidecar next to the primary result (same stem).
+    Returns the sidecar path, or None if result_path is empty.
+    """
+    if not result_path:
+        return None
+    abs_result = os.path.abspath(str(result_path))
+    stem, _ext = os.path.splitext(abs_result)
+    sidecar_path = stem + ".json"
+    ensure_dir(os.path.dirname(sidecar_path) or ".")
+
+    payload = sanitize_for_sidecar(metadata_dict if isinstance(metadata_dict, dict) else {})
+    if not isinstance(payload, dict):
+        payload = {"data": payload}
+    if "timestamp" not in payload:
+        payload["timestamp"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if "result_path" not in payload:
+        payload["result_path"] = abs_result
+
+    text = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=True) + "\n"
+    tmp_path = sidecar_path + ".part"
+    with open(tmp_path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(text)
+    os.replace(tmp_path, sidecar_path)
+    return sidecar_path
+
+
+def _primary_path_from_summary(summary: dict):
+    if not isinstance(summary, dict):
+        return None
+    for key in ("downloaded", "out", "out_path", "output_file", "result_path"):
+        v = summary.get(key)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+        if isinstance(v, (list, tuple)):
+            for item in v:
+                if isinstance(item, str) and item.strip():
+                    return item.strip()
+        if isinstance(v, dict):
+            for item in v.values():
+                if isinstance(item, str) and item.strip():
+                    return item.strip()
+    return None
+
+
+def emit_result_summary(summary, result_path=None) -> None:
+    """
+    Print the helper JSON summary to stdout and write a sanitized sidecar
+    next to the primary result file when a path is known.
+    """
+    path = result_path or _primary_path_from_summary(summary if isinstance(summary, dict) else {})
+    if path:
+        try:
+            write_result_sidecar(path, summary)
+        except Exception as e:
+            print("WARNING: failed to write result sidecar: %s" % e, file=sys.stderr)
+    print(json.dumps(summary))
 
 
 configure_stdio_utf8()

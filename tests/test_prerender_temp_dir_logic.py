@@ -129,6 +129,83 @@ class TestPickWritableTempDir(unittest.TestCase):
             prerender.pick_writable_temp_dir(nuke, "nuke_fal_output", "nuke_fal_output")
 
 
+class TestMakeRunDirsOutputBase(unittest.TestCase):
+    def test_uses_explicit_run_base_dir(self):
+        with tempfile.TemporaryDirectory() as td:
+            script_path = os.path.join(td, "shot.nk")
+            open(script_path, "wb").close()
+            out_base = os.path.join(td, "custom_outs")
+            os.makedirs(out_base)
+            nuke = _FakeNuke(root_name=script_path)
+            temp_dir, out_dir, _ts = prerender.make_run_dirs(
+                nuke, "test", run_base_dir=out_base
+            )
+            self.assertTrue(temp_dir.startswith(os.path.join(out_base, "nuke_fal_temp")))
+            self.assertTrue(out_dir.startswith(os.path.join(out_base, "nuke_fal_output")))
+            self.assertTrue(os.path.isdir(temp_dir))
+            self.assertTrue(os.path.isdir(out_dir))
+
+    def test_uses_config_output_dir(self):
+        with tempfile.TemporaryDirectory() as td:
+            script_path = os.path.join(td, "shot.nk")
+            open(script_path, "wb").close()
+            cfg_home = os.path.join(td, "home")
+            cfg_out = os.path.join(td, "from_config")
+            os.makedirs(cfg_out)
+            import nuke_fal_config_v1 as fal_config
+
+            fal_config.save_config({"output_dir": cfg_out}, home=cfg_home)
+            nuke = _FakeNuke(root_name=script_path)
+            temp_dir, out_dir, _ts = prerender.make_run_dirs(
+                nuke,
+                "test",
+                home=cfg_home,
+                config_file=fal_config.config_path(home=cfg_home),
+            )
+            self.assertTrue(temp_dir.startswith(os.path.join(cfg_out, "nuke_fal_temp")))
+            self.assertTrue(out_dir.startswith(os.path.join(cfg_out, "nuke_fal_output")))
+
+    def test_falls_back_to_script_when_config_invalid(self):
+        with tempfile.TemporaryDirectory() as td:
+            script_path = os.path.join(td, "shot.nk")
+            open(script_path, "wb").close()
+            cfg_home = os.path.join(td, "home")
+            blocker = os.path.join(td, "blocker_file")
+            with open(blocker, "wb") as f:
+                f.write(b"x")
+            bad = os.path.join(blocker, "cannot_create")
+            import nuke_fal_config_v1 as fal_config
+
+            fal_config.save_config({"output_dir": bad}, home=cfg_home)
+            nuke = _FakeNuke(root_name=script_path)
+            temp_dir, out_dir, _ts = prerender.make_run_dirs(
+                nuke,
+                "test",
+                home=cfg_home,
+                config_file=fal_config.config_path(home=cfg_home),
+            )
+            self.assertTrue(temp_dir.startswith(os.path.join(td, "nuke_fal_temp")))
+            self.assertTrue(out_dir.startswith(os.path.join(td, "nuke_fal_output")))
+
+    def test_empty_config_keeps_script_folder(self):
+        with tempfile.TemporaryDirectory() as td:
+            script_path = os.path.join(td, "shot.nk")
+            open(script_path, "wb").close()
+            cfg_home = os.path.join(td, "home")
+            import nuke_fal_config_v1 as fal_config
+
+            fal_config.save_config({"output_dir": ""}, home=cfg_home)
+            nuke = _FakeNuke(root_name=script_path)
+            temp_dir, out_dir, _ts = prerender.make_run_dirs(
+                nuke,
+                "test",
+                home=cfg_home,
+                config_file=fal_config.config_path(home=cfg_home),
+            )
+            self.assertTrue(temp_dir.startswith(os.path.join(td, "nuke_fal_temp")))
+            self.assertTrue(out_dir.startswith(os.path.join(td, "nuke_fal_output")))
+
+
 class _FakeFormat(object):
     def __init__(self, width, height, pixel_aspect=1.0):
         self._width = width

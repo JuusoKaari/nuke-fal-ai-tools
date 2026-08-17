@@ -17,6 +17,11 @@ if _PYTHON_DIR not in sys.path:
 from _fal_tools import _TOOLS
 
 
+def _nodes_menu_label(label):
+    """Nodes / Tab search labels are registered with a fal prefix in menu.py."""
+    return "fal %s" % label
+
+
 def _nk_path_filenames(nk_text):
     helper = None
     runner = None
@@ -81,6 +86,13 @@ class TestFalToolsCatalog(unittest.TestCase):
                     % (label, nk_helper, nk_runner, helper_py, runner_py)
                 )
         self.assertEqual(mismatches, [])
+
+    def test_nodes_tab_labels_use_fal_prefix(self):
+        for _cat, label, _group, _helper, _runner in _TOOLS:
+            prefixed = _nodes_menu_label(label)
+            self.assertTrue(prefixed.startswith("fal "))
+            self.assertEqual(prefixed, "fal %s" % label)
+            self.assertFalse(label.startswith("fal "))
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 # Purpose:
-# - Single catalog of the 20 fal.ai toolbox tools for menu.py and tests.
+# - Single catalog of the 21 fal.ai toolbox tools for menu.py and tests.
 # - No Nuke import. Python 2.7 compatible.
 
 from __future__ import print_function
@@ -37,6 +37,7 @@ _TOOLS = sorted(
         ("video", "DreamActor v2 Motion Control", "fal_dreamactor_v2_motion_control_v1.nk", "fal_dreamactor_v2_helper.py", "fal_dreamactor_v2_motion_control_runner_v1.py"),
         ("video", "Kling O3 V2V Edit", "fal_kling_o3_v2v_edit_v1.nk", "fal_kling_o3_v2v_edit_helper.py", "fal_kling_o3_v2v_edit_runner_v1.py"),
         ("video", "LTX 2.3 Image to Video", "fal_ltx_23_image_to_video_v1.nk", "fal_ltx_23_image_to_video_helper.py", "fal_ltx_23_image_to_video_runner_v1.py"),
+        ("video", "LTX 2.5 Image to Video Pro", "fal_ltx_25_image_to_video_pro_v1.nk", "fal_ltx_25_image_to_video_pro_helper.py", "fal_ltx_25_image_to_video_pro_runner_v1.py"),
         ("video", "Pika v2.2 Pikaframes", "fal_pika_v22_pikaframes_v1.nk", "fal_pika_v22_pikaframes_helper.py", "fal_pika_v22_pikaframes_runner_v1.py"),
         ("video", "Seedance 2 Image to Video", "fal_seedance_2_image_to_video_v1.nk", "fal_seedance_2_image_to_video_helper.py", "fal_seedance_2_image_to_video_runner_v1.py"),
         ("video", "Veo 3.1 Extend Video", "fal_veo3_1_extend_video_v1.nk", "fal_veo3_1_extend_video_helper.py", "fal_veo3_1_extend_video_runner_v1.py"),

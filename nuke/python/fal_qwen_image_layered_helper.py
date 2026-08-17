@@ -22,6 +22,7 @@ import sys
 
 from fal_common import (
     download,
+    emit_result_summary,
     ensure_dir,
     format_fal_error_summary,
     subscribe_with_retry,
@@ -175,6 +176,7 @@ def main(argv: list[str]) -> int:
         )
         return 4
 
+    primary_out = None
     for layer_idx, img_info in enumerate(images):
         try:
             layer_url = img_info.get("url") if isinstance(img_info, dict) else None
@@ -196,18 +198,20 @@ def main(argv: list[str]) -> int:
             print("Download layer %d -> %s" % (layer_idx, out_path))
 
         download(layer_url, out_path, user_agent=user_agent)
+        if primary_out is None:
+            primary_out = out_path
 
     layer_count = len(images) if images else args.num_layers
-    print(
-        json.dumps(
-            {
-                "ok": True,
-                "endpoint": _ENDPOINT_ID,
-                "out_dir": out_dir,
-                "num_layers": layer_count,
-                "output_format": args.output_format,
-            }
-        )
+    emit_result_summary(
+        {
+            "ok": True,
+            "endpoint": _ENDPOINT_ID,
+            "out_dir": out_dir,
+            "downloaded": primary_out,
+            "num_layers": layer_count,
+            "output_format": args.output_format,
+        },
+        result_path=primary_out,
     )
     return 0
 

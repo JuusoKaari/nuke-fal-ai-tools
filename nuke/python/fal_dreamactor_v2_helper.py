@@ -22,6 +22,7 @@ import sys
 
 from fal_common import (
     download,
+    emit_result_summary,
     format_fal_error_summary,
     subscribe_with_retry,
 )
@@ -128,14 +129,13 @@ def main(argv: list[str]) -> int:
 
     download(video_out_url, out_path, user_agent="nuke-fal-dreamactor-v2-helper")
 
-    print(
-        json.dumps(
-            {
-                "ok": True,
-                "video_url": video_out_url,
-                "out_path": out_path,
-            }
-        )
+    emit_result_summary(
+        {
+            "ok": True,
+            "endpoint": _ENDPOINT_ID,
+            "video_url": video_out_url,
+            "out_path": out_path,
+        }
     )
     return 0
 

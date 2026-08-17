@@ -18,6 +18,7 @@ import sys
 
 from fal_common import (
     download,
+    emit_result_summary,
     ensure_dir,
     format_fal_error_summary,
     subscribe_with_retry,
@@ -151,7 +152,7 @@ def main(argv: list[str]) -> int:
     }
     if duration is not None:
         out_obj["duration"] = duration
-    print(json.dumps(out_obj))
+    emit_result_summary(out_obj)
     return 0
 
 

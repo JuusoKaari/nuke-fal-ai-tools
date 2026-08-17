@@ -24,6 +24,7 @@ import sys
 
 from fal_common import (
     download,
+    emit_result_summary,
     ensure_dir,
     format_fal_error_summary,
     subscribe_with_retry,
@@ -244,7 +245,7 @@ def main(argv: list[str]) -> int:
         "num_images": len(downloaded),
         "output_format": output_format,
     }
-    print(json.dumps(summary))
+    emit_result_summary(summary)
     return 0
 
 

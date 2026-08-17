@@ -20,6 +20,7 @@ import sys
 
 from fal_common import (
     download,
+    emit_result_summary,
     ensure_dir,
     format_fal_error_summary,
     subscribe_with_retry,
@@ -233,19 +234,17 @@ def main(argv: list[str]) -> int:
         print("Downloading output video -> %s" % out_path)
     download(str(video_out_url), out_path, user_agent=user_agent)
 
-    print(
-        json.dumps(
-            {
-                "ok": True,
-                "endpoint": _ENDPOINT_ID,
-                "out_path": out_path,
-                "video_url": video_out_url,
-                "duration": _API_DURATION,
-                "resolution": _API_RESOLUTION,
-                "aspect_ratio": args.aspect_ratio,
-                "generate_audio": bool(args.generate_audio),
-            }
-        )
+    emit_result_summary(
+        {
+            "ok": True,
+            "endpoint": _ENDPOINT_ID,
+            "out_path": out_path,
+            "video_url": video_out_url,
+            "duration": _API_DURATION,
+            "resolution": _API_RESOLUTION,
+            "aspect_ratio": args.aspect_ratio,
+            "generate_audio": bool(args.generate_audio),
+        }
     )
     return 0
 

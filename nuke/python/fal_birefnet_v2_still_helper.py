@@ -23,6 +23,7 @@ import sys
 
 from fal_common import (
     download,
+    emit_result_summary,
     ensure_dir,
     format_fal_error_summary,
     subscribe_with_retry,
@@ -176,17 +177,15 @@ def main(argv: list[str]) -> int:
                 print("Downloading mask -> %s" % mask_path)
             download(mask_out_url, mask_path, user_agent=user_agent)
 
-    print(
-        json.dumps(
-            {
-                "ok": True,
-                "endpoint": _ENDPOINT_ID,
-                "out_dir": out_dir,
-                "downloaded": out_path,
-                "mask": mask_path,
-                "output_format": args.output_format,
-            }
-        )
+    emit_result_summary(
+        {
+            "ok": True,
+            "endpoint": _ENDPOINT_ID,
+            "out_dir": out_dir,
+            "downloaded": out_path,
+            "mask": mask_path,
+            "output_format": args.output_format,
+        }
     )
     return 0
 

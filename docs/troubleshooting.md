@@ -11,10 +11,13 @@ Common issues when setting up or running **nuke-fal-ai-tools**.
 **Fix:**
 
 1. Download the [latest release zip](https://github.com/JuusoKaari/nuke-fal-ai-tools/releases/latest) or clone the [repository](https://github.com/JuusoKaari/nuke-fal-ai-tools).
-2. Add the **install root** (not the inner `nuke/` folder) to `NUKE_PATH` -- see [INSTALL.md](INSTALL.md).
+2. Point Nuke at the **install root** (folder with `init.py`), **not** the inner `nuke/` folder:
+   - Artists: one line in `~/.nuke/init.py` -- `nuke.pluginAddPath("/path/to/nuke-fal-ai-tools")`
+   - Studios: add that same folder to `NUKE_PATH`
+   - See [INSTALL.md](INSTALL.md).
 3. Confirm the folder contains `init.py`, `menu.py`, and `nuke/python/`.
-4. Fully quit and restart Nuke (environment variables are read at process start).
-5. Confirm in PowerShell: `echo $env:NUKE_PATH` includes your clone path.
+4. Fully quit and restart Nuke (environment variables and `~/.nuke/init.py` are read at process start).
+5. Confirm in PowerShell: `echo $env:NUKE_PATH` includes your clone path (if using `NUKE_PATH`), or that `~/.nuke/init.py` has the correct `pluginAddPath`.
 
 ## Nodes menu missing **fal.ai**
 
@@ -22,7 +25,7 @@ Common issues when setting up or running **nuke-fal-ai-tools**.
 
 **Checks:**
 
-- `NUKE_PATH` includes the repo root (e.g. `...\nuke-fal-ai-tools`), not `...\nuke-fal-ai-tools\nuke`.
+- Install root is loaded via `pluginAddPath` or `NUKE_PATH` (e.g. `...\nuke-fal-ai-tools`), not `...\nuke-fal-ai-tools\nuke`.
 - Script Editor shows no traceback from `init.py` / `menu.py` on startup.
 
 ## Nuke with Python 3 (`NameError: execfile` / Execute does nothing)
@@ -68,13 +71,16 @@ If `py` is unavailable on Windows, set the node's **Advanced / Python 3 cmd** to
 py -3 -m pip install fal-client
 ```
 
+You can also open **fal.ai -> Settings...** and click **Test connection** to verify system Python 3 + `fal_client`, then that fal.ai accepts the API key (models list ping; not a generative run).
+
 ## fal.ai API / authentication errors
 
 **Symptom:** HTTP 401/403, "invalid key", or fal-client `FalClientHTTPError`.
 
 **Fix:**
 
-- Set `FAL_KEY` in the environment (recommended), or a real key in the node's **FAL** knob (not the placeholder text).
+- Set a key via studio-wide `FAL_KEY`, local **fal.ai -> Settings...**, or a per-node **FAL** knob (not the placeholder text).
+- Cascade: studio-wide `FAL_KEY` -> local `~/.nuke-fal-ai/config.json` -> per-node **FAL** knob (highest wins).
 - If you pasted a key into **FAL**, it is stored in the saved `.nk` -- rotate the key on fal.ai if the script was shared or committed by mistake.
 - Confirm billing/credits on your [fal.ai](https://fal.ai/) account.
 - Model endpoints can change; check fal.ai model pages linked in helper script headers.
@@ -105,7 +111,7 @@ ffprobe -version
 
 **Symptom:** Large folders appearing next to your `.nk` scripts after many runs.
 
-**Expected:** Each Execute adds timestamped subfolders under `nuke_fal_temp/` (scratch) and `nuke_fal_output/` (downloads). Nothing is auto-cleaned.
+**Expected:** Each Execute adds timestamped subfolders under `nuke_fal_temp/` (scratch) and `nuke_fal_output/` (downloads). Nothing is auto-cleaned. Successful runs also write a `.json` sidecar next to the primary downloaded file.
 
 **Fix:** Delete old `*_YYYYMMDD_*` subfolders when you no longer need them. Keep folders for runs whose Read nodes still point at those files.
 

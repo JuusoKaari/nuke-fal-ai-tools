@@ -6,7 +6,7 @@
 # - Mask / paired stills can pass `match_format_node` so Write uses that node's format (not root).
 # - `make_run_dirs()` also creates a paired output folder (`nuke_fal_output`) for FAL API results.
 # - `require_saved_nuke_script()` blocks runners when the script has no saved path on disk.
-# - Temp/output folders are always created next to the saved .nk script; no home/temp fallbacks.
+# - Temp/output folders prefer Settings `output_dir` when usable; else next to the saved .nk script.
 # - `group_scope()` resets to root, enters a Group, and always returns to root afterward.
 #
 # Notes:
@@ -470,6 +470,65 @@ def make_run_dir(nuke_module, prefix, leaf_dir_name="nuke_fal_temp", env_subdir_
     return run_dir, ts
 
 
+def _tprint_warning(nuke_module, message):
+    try:
+        if nuke_module is not None and hasattr(nuke_module, "tprint"):
+            nuke_module.tprint(message)
+            return
+    except Exception:
+        pass
+    try:
+        print(message)
+    except Exception:
+        pass
+
+
+def _resolve_configured_run_base(nuke_module, run_base_dir=None, home=None, config_file=None):
+    """
+    Return absolute Settings (or explicit) run parent dir, or "" to use script-dir fallback.
+    Invalid configured paths warn and fall back; they do not fail Execute.
+    """
+    try:
+        import nuke_fal_config_v1 as fal_config
+    except Exception:
+        fal_config = None
+
+    if run_base_dir is not None:
+        raw = (run_base_dir or "").strip()
+        if not raw:
+            return ""
+        if fal_config is not None:
+            base = fal_config.resolve_usable_output_base(configured=raw)
+        else:
+            base = raw if _can_write_dir(raw) else ""
+        if base:
+            return base
+        _tprint_warning(
+            nuke_module,
+            "nuke-fal-ai: run_base_dir is not usable; falling back to script folder:\n%s"
+            % norm_slashes(raw),
+        )
+        return ""
+
+    if fal_config is None:
+        return ""
+
+    configured = fal_config.get_output_dir(home=home, path=config_file)
+    if not configured:
+        return ""
+    base = fal_config.resolve_usable_output_base(
+        configured=configured, home=home, path=config_file
+    )
+    if base:
+        return base
+    _tprint_warning(
+        nuke_module,
+        "nuke-fal-ai: Settings output folder is not usable; "
+        "falling back to script folder:\n%s" % norm_slashes(configured),
+    )
+    return ""
+
+
 def make_run_dirs(
     nuke_module,
     prefix,
@@ -478,11 +537,19 @@ def make_run_dirs(
     output_leaf_dir_name="nuke_fal_output",
     output_env_subdir_name="nuke_fal_output",
     group_node=None,
+    run_base_dir=None,
+    home=None,
+    config_file=None,
 ):
     """
     Create paired run folders sharing the same timestamp suffix:
     - temp_dir under nuke_fal_temp (prerenders / scratch)
     - out_dir under nuke_fal_output (FAL API downloads / final outputs)
+
+    Parent for those leaf folders:
+    1. Explicit run_base_dir when non-empty and writable
+    2. Else Settings output_dir when non-empty and writable
+    3. Else next to the saved Nuke script (existing behavior)
 
     When group_node is given, its name is included so parallel executes on
     multiple Group instances do not share the same folder.
@@ -499,14 +566,34 @@ def make_run_dirs(
         except Exception:
             group_token = "_group_%d" % (id(group_node) % 10000)
     sub = "%s%s_%s" % (prefix, group_token, ts)
-    temp_base = pick_writable_temp_dir(
-        nuke_module, leaf_dir_name=temp_leaf_dir_name, env_subdir_name=temp_env_subdir_name
+
+    configured_base = _resolve_configured_run_base(
+        nuke_module, run_base_dir=run_base_dir, home=home, config_file=config_file
     )
-    out_base = pick_writable_temp_dir(
-        nuke_module, leaf_dir_name=output_leaf_dir_name, env_subdir_name=output_env_subdir_name
-    )
-    ensure_dir(temp_base)
-    ensure_dir(out_base)
+    if configured_base:
+        temp_base = os.path.join(configured_base, temp_leaf_dir_name)
+        out_base = os.path.join(configured_base, output_leaf_dir_name)
+        if (not _can_write_dir(temp_base)) or (not _can_write_dir(out_base)):
+            _tprint_warning(
+                nuke_module,
+                "nuke-fal-ai: could not create temp/output under Settings folder; "
+                "falling back to script folder:\n%s" % norm_slashes(configured_base),
+            )
+            configured_base = ""
+
+    if configured_base:
+        ensure_dir(temp_base)
+        ensure_dir(out_base)
+    else:
+        temp_base = pick_writable_temp_dir(
+            nuke_module, leaf_dir_name=temp_leaf_dir_name, env_subdir_name=temp_env_subdir_name
+        )
+        out_base = pick_writable_temp_dir(
+            nuke_module, leaf_dir_name=output_leaf_dir_name, env_subdir_name=output_env_subdir_name
+        )
+        ensure_dir(temp_base)
+        ensure_dir(out_base)
+
     temp_dir = os.path.join(temp_base, sub)
     out_dir = os.path.join(out_base, sub)
     ensure_dir(temp_dir)

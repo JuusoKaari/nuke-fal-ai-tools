@@ -10,22 +10,25 @@
 
 ## Tools
 
-20 groups under **Nodes → fal.ai**:
+21 groups under **Nodes -> fal.ai**:
 
 | Category | Tools |
 |----------|--------|
 | **Image** | Hunyuan World, Nano Banana 2, Qwen Image Max, GPT Image 2, Qwen Inpaint, Finegrain Eraser, BiRefNet v2 Still, Depth Anything v2, Qwen Layered |
-| **Video** | BiRefNet v2, LTX 2.3, Seedance 2, Pika v2.2, Kling O3, Veo 3.1, ByteDance Upscaler, DreamActor v2 |
+| **Video** | BiRefNet v2, LTX 2.3, LTX 2.5 Pro, Seedance 2, Pika v2.2, Kling O3, Veo 3.1, ByteDance Upscaler, DreamActor v2 |
 | **3D** | Hunyuan 3D |
 | **Text** | Generate text, Describe image |
 
 ## Quick start
 
 1. Download the [latest release](https://github.com/JuusoKaari/nuke-fal-ai-tools/releases/latest) or `git clone`.
-2. Add the folder with `init.py` to **`NUKE_PATH`**.
+2. Point Nuke at the install **root** (folder with `init.py`, not the inner `nuke/`):
+   - Artists: add one line to `~/.nuke/init.py`:
+     `nuke.pluginAddPath("/path/to/nuke-fal-ai-tools")`
+   - Studios: add that same folder to **`NUKE_PATH`**.
 3. `py -3 -m pip install -r requirements-python3.txt`
-4. Set **`FAL_KEY`** before launching Nuke.
-5. Restart Nuke → **Nodes → fal.ai**.
+4. Set your API key (cascade: studio `FAL_KEY` -> **fal.ai -> Settings...** on this machine -> optional per-node **FAL** knob).
+5. Restart Nuke -> **Nodes -> fal.ai** (Tab search: type `fal`).
 
 Install details: [docs/INSTALL.md](docs/INSTALL.md) · Issues: [docs/troubleshooting.md](docs/troubleshooting.md)
 
@@ -39,7 +42,7 @@ Install details: [docs/INSTALL.md](docs/INSTALL.md) · Issues: [docs/troubleshoo
 ## How it works
 
 ```text
-Nuke Group  →  runner (in Nuke)  →  helper (system Python 3)  →  fal.ai
+Nuke Group  ->  runner (in Nuke)  ->  helper (system Python 3)  ->  fal.ai
 ```
 
 Runners pre-render inputs inside Nuke, call helpers via subprocess, then spawn Read, Geo, or Text nodes for results.
@@ -47,8 +50,8 @@ Runners pre-render inputs inside Nuke, call helpers via subprocess, then spawn R
 ## Notes
 
 - Each Execute call bills your fal.ai account.
-- Set `FAL_KEY` in the environment.
-- Output lands in `nuke_fal_temp/` and `nuke_fal_output/` next to your script (or system temp).
+- API key cascade: studio-wide `FAL_KEY` -> local Settings (`~/.nuke-fal-ai/config.json`) -> per-node **FAL** knob.
+- Output lands in `nuke_fal_temp/` and `nuke_fal_output/` next to your script (or system temp), plus a `.json` sidecar next to each primary result.
 - Best-effort support via [GitHub issues](https://github.com/JuusoKaari/nuke-fal-ai-tools/issues). No warranty.
 
 ## License

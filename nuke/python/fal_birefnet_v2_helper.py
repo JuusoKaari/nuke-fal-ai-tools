@@ -22,6 +22,7 @@ import sys
 
 from fal_common import (
     download,
+    emit_result_summary,
     ensure_dir,
     format_fal_error_summary,
     subscribe_with_retry,
@@ -159,6 +160,7 @@ def main(argv: list[str]) -> int:
     if args.output_mask:
         ensure_dir(mask_dir)
 
+    primary_out = None
     for frame in range(first, last + 1):
         in_path = _resolve_frame_path(pattern, frame, pad)
         in_path = os.path.abspath(in_path)
@@ -217,6 +219,8 @@ def main(argv: list[str]) -> int:
             print("Frame %d: download image -> %s" % (frame, out_path))
 
         download(image_out_url, out_path, user_agent=user_agent)
+        if primary_out is None:
+            primary_out = out_path
 
         if args.output_mask and result.get("mask_image"):
             try:
@@ -233,19 +237,19 @@ def main(argv: list[str]) -> int:
                     print("Frame %d: download mask -> %s" % (frame, mask_path))
                 download(mask_out_url, mask_path, user_agent=user_agent)
 
-    print(
-        json.dumps(
-            {
-                "ok": True,
-                "endpoint": _ENDPOINT_ID,
-                "first": first,
-                "last": last,
-                "out_dir": out_dir,
-                "output_format": args.output_format,
-                "pad": pad,
-                "mask_dir": mask_dir if args.output_mask else None,
-            }
-        )
+    emit_result_summary(
+        {
+            "ok": True,
+            "endpoint": _ENDPOINT_ID,
+            "first": first,
+            "last": last,
+            "out_dir": out_dir,
+            "downloaded": primary_out,
+            "output_format": args.output_format,
+            "pad": pad,
+            "mask_dir": mask_dir if args.output_mask else None,
+        },
+        result_path=primary_out,
     )
     return 0
 

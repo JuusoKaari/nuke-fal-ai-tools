@@ -1,6 +1,7 @@
 # Purpose:
 # - Shared Nuke-side (Python 2.7) helpers for fal group runners: python3 argv, FAL env,
 #   helper path, subprocess run, and frame range knobs.
+# - FAL_KEY cascade: node knob -> ~/.nuke-fal-ai/config.json -> process env.
 # - Importable without Nuke for unit tests (pass nuke_module where needed).
 
 from __future__ import print_function
@@ -8,6 +9,7 @@ from __future__ import print_function
 import sys
 
 import _install_help
+import nuke_fal_config_v1 as fal_config
 import nuke_prerender_v1 as prerender
 
 
@@ -39,7 +41,14 @@ def resolve_python3_cmd(group_node, platform=None):
     return ["python3"]
 
 
-def helper_env_from_group(group_node):
+def helper_env_from_group(group_node, home=None, config_file=None):
+    """
+    Build helper subprocess env. Sets FAL_KEY from cascade (highest first):
+    1. Per-node FAL knob (script override)
+    2. fal_key from ~/.nuke-fal-ai/config.json (local machine)
+    3. Existing FAL_KEY in the process environment (studio-wide fallback)
+    Config wins over env when both are set.
+    """
     env = prerender.helper_subprocess_env()
     fal_knob = ""
     try:
@@ -48,6 +57,11 @@ def helper_env_from_group(group_node):
         fal_knob = ""
     if fal_knob and ("insert your secret" not in fal_knob.lower()):
         env["FAL_KEY"] = fal_knob
+        return env
+    cfg_key = fal_config.get_fal_key_from_config(home=home, path=config_file)
+    if cfg_key:
+        env["FAL_KEY"] = cfg_key
+        return env
     return env
 
 

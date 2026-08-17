@@ -1,15 +1,18 @@
 # Purpose:
-# - Python 3 helper for Nuke (Python 2.7) to run fal.ai LTX 2.3 *image-to-video* (not editing).
-# - Uploads local start (and optional end) images, calls `fal-ai/ltx-2.3/image-to-video`, downloads the mp4.
+# - Python 3 helper for Nuke (Python 2.7) to run fal.ai LTX 2.5 Pro *image-to-video* (not editing).
+# - Uploads local start (and optional end) images, calls `lightricks/ltx-2.5/image-to-video/pro`, downloads the mp4.
 #
 # Usage (example):
-#   py -3 fal_ltx_23_image_to_video_helper.py --image "C:/start.png" --prompt "..." --out "C:/temp/out.mp4" --verbose
+#   py -3 fal_ltx_25_image_to_video_pro_helper.py --image "C:/start.png" --prompt "..." --out "C:/temp/out.mp4" --verbose
 #
 # Requirements:
 #   pip install fal-client
 #
 # Auth:
 # - Provide `--fal-key` or set environment variable `FAL_KEY`.
+#
+# Model:
+# - https://fal.ai/models/lightricks/ltx-2.5/image-to-video/pro
 
 from __future__ import annotations
 
@@ -26,12 +29,31 @@ from fal_common import (
     subscribe_with_retry,
 )
 
-_ENDPOINT_ID = "fal-ai/ltx-2.3/image-to-video"
+_ENDPOINT_ID = "lightricks/ltx-2.5/image-to-video/pro"
+_DURATION_CHOICES = ["auto", "6", "8", "10"]
+_CAMERA_MOTION_CHOICES = [
+    "none",
+    "dolly_in",
+    "dolly_out",
+    "dolly_left",
+    "dolly_right",
+    "jib_up",
+    "jib_down",
+    "static",
+    "focus_shift",
+]
+
+
+def _duration_argument(raw):
+    value = str(raw).strip()
+    if value == "auto":
+        return "auto"
+    return int(value)
 
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
-        description="Run LTX 2.3 image-to-video via fal.ai and download the resulting mp4."
+        description="Run LTX 2.5 Pro image-to-video via fal.ai and download the resulting mp4."
     )
     parser.add_argument("--fal-key", default=None, help="fal.ai API key (otherwise uses FAL_KEY env var).")
     parser.add_argument("--image", required=True, help="Path to local start frame image.")
@@ -40,15 +62,14 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--out", required=True, help="Output path for the downloaded .mp4 file.")
     parser.add_argument(
         "--duration",
-        type=int,
-        choices=[6, 8, 10],
-        default=6,
-        help="Video duration in seconds. Default: 6.",
+        default="auto",
+        choices=_DURATION_CHOICES,
+        help='Video duration: "auto" or 6/8/10 seconds. Default: auto.',
     )
     parser.add_argument(
         "--resolution",
         default="1080p",
-        choices=["1080p", "1440p", "2160p"],
+        choices=["720p", "1080p"],
         help="Output resolution. Default: 1080p.",
     )
     parser.add_argument(
@@ -60,7 +81,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--fps",
         type=int,
-        choices=[24, 25, 48, 50],
+        choices=[24, 25, 50],
         default=25,
         help="Frames per second. Default: 25.",
     )
@@ -69,6 +90,12 @@ def main(argv: list[str]) -> int:
         action=argparse.BooleanOptionalAction,
         default=True,
         help="Whether to generate audio. Default: true.",
+    )
+    parser.add_argument(
+        "--camera-motion",
+        default="none",
+        choices=_CAMERA_MOTION_CHOICES,
+        help="Optional camera motion. Default: none (omit from request).",
     )
     parser.add_argument(
         "--max-retries",
@@ -112,7 +139,7 @@ def main(argv: list[str]) -> int:
         return 3
 
     client = fal_client.SyncClient(key=fal_key)
-    user_agent = "nuke-fal-ltx-23-i2v-helper"
+    user_agent = "nuke-fal-ltx-25-i2v-pro-helper"
 
     if args.verbose:
         print("Uploading start image: %s" % image_path)
@@ -130,7 +157,7 @@ def main(argv: list[str]) -> int:
     arguments: dict = {
         "image_url": image_url,
         "prompt": args.prompt,
-        "duration": int(args.duration),
+        "duration": _duration_argument(args.duration),
         "resolution": args.resolution,
         "aspect_ratio": args.aspect_ratio,
         "fps": int(args.fps),
@@ -138,6 +165,9 @@ def main(argv: list[str]) -> int:
     }
     if end_image_url:
         arguments["end_image_url"] = end_image_url
+    camera_motion = (args.camera_motion or "none").strip()
+    if camera_motion and camera_motion != "none":
+        arguments["camera_motion"] = camera_motion
 
     try:
         result = subscribe_with_retry(
@@ -150,7 +180,7 @@ def main(argv: list[str]) -> int:
         )
     except Exception as e:
         print(
-            "ERROR: LTX 2.3 image-to-video request failed.\n%s"
+            "ERROR: LTX 2.5 Pro image-to-video request failed.\n%s"
             % format_fal_error_summary(e),
             file=sys.stderr,
         )

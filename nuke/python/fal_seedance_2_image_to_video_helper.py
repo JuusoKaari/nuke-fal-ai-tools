@@ -23,6 +23,7 @@ import sys
 
 from fal_common import (
     download,
+    emit_result_summary,
     ensure_dir,
     format_fal_error_summary,
     subscribe_with_retry,
@@ -170,7 +171,7 @@ def main(argv: list[str]) -> int:
         "out": out_path,
         "video": video,
     }
-    print(json.dumps(summary))
+    emit_result_summary(summary)
     return 0
 
 
