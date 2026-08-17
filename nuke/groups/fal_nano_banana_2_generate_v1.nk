@@ -1,6 +1,8 @@
 # Purpose:
 # - Nuke Group node that runs Nano Banana 2 (fal.ai) generation/edit with in-group output preview.
 # - Preview graph is baked in this .nk; switches use parent knob expressions.
+# - Buttons: extract the selected generation as a root Read; clear generation history
+#   (node history only, files on disk are kept).
 # - ROI section: image_a preview via ROI_rectangle; crop on export; merge-back generated preview.
 # - Hidden fal_tool_id identifies the tool type; display name may be v1, v2, v3, etc.
 # - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
@@ -41,6 +43,8 @@ Group {
  addUserKnob {26 generated_output_count l "Generated outputs:" T "0"}
  addUserKnob {1 generated_output_paths l "generated output paths" +INVISIBLE}
  generated_output_paths ""
+ addUserKnob {22 extract_selected_generation l "Extract selected as Read" T "import nuke_group_output_preview_v1 as _gop\n_gop.extract_selected_generation_ui()\n" +STARTLINE}
+ addUserKnob {22 clear_generated_outputs l "Clear generation history" T "import nuke_group_output_preview_v1 as _gop\n_gop.clear_generated_outputs_ui()\n"}
  addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
  addUserKnob {20 Advanced l Advanced +CLOSED}
  addUserKnob {1 seed l "Seed (optional)"}

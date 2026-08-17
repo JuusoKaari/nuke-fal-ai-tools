@@ -7,6 +7,7 @@ All notable changes to this project are documented here.
 ### Added
 
 - LTX 2.5 Image to Video Pro (`fal_ltx_25_image_to_video_pro_v1.nk`) - animates a still into video with optional end frame, camera motion, and synchronized audio via `lightricks/ltx-2.5/image-to-video/pro`
+- Nano Banana 2 Generate: **Extract selected as Read** and **Clear generation history** buttons. Clear only forgets node history; files on disk are kept.
 
 ## [1.0.2] - 2026-06-16
 

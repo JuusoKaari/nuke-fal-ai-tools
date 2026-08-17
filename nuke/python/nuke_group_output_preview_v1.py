@@ -3,6 +3,8 @@
 # - Nano Banana 2 ships a baked preview graph in its .nk; this module wires outputs after Execute
 #   and handles UI polish (preview_index disable in grid modes, generated output count).
 # - Accumulated outputs are stored on a hidden registry knob; Read nodes and switches grow as needed.
+# - UI buttons: extract the selected generation as a root Read; clear generation history on the
+#   node without deleting files.
 # - Optional match_input_resolution reformats the selected generated preview to image_a size.
 # - Optional ROI: image_a through ROI_rectangle for preview; crop on export; merge-back preview.
 # - ensure_group_preview_graph() remains for migrating older nodes that lack a baked graph.
@@ -32,7 +34,10 @@ VIEWER_MODES = [
 
 OUTPUT_PATHS_REGISTRY_KNOB = "generated_output_paths"
 OUTPUT_COUNT_KNOB = "generated_output_count"
+EXTRACT_SELECTED_KNOB = "extract_selected_generation"
+CLEAR_HISTORY_KNOB = "clear_generated_outputs"
 MATCH_INPUT_RESOLUTION_KNOB = "match_input_resolution"
+_EXTRACT_READ_OFFSET_Y = 140
 USE_ROI_KNOB = "use_roi"
 ROI_AREA_KNOB = "roi_area"
 TOOL_ID_KNOB = "fal_tool_id"
@@ -164,6 +169,23 @@ def generated_read_node_name(index):
     if index < 100:
         return "generated_read_%02d" % index
     return "generated_read_%03d" % index
+
+
+def selected_output_path(paths, preview_index):
+    """Return the path at 1-based preview_index, or None if missing / out of range."""
+    items = list(paths or [])
+    if not items:
+        return None
+    try:
+        idx = int(preview_index)
+    except Exception:
+        return None
+    if idx < 1 or idx > len(items):
+        return None
+    path = prerender.norm_slashes((items[idx - 1] or "").strip())
+    if not path:
+        return None
+    return path
 
 
 def filter_existing_output_paths(paths):
@@ -613,6 +635,41 @@ def _ensure_group_knobs(group, config):
             pass
         try:
             k.setValue("0")
+        except Exception:
+            pass
+        group.addKnob(k)
+
+    if group.knob(EXTRACT_SELECTED_KNOB) is None:
+        k = nuke.PyScript_Knob(
+            EXTRACT_SELECTED_KNOB,
+            "Extract selected as Read",
+            "import nuke_group_output_preview_v1 as _gop\n"
+            "_gop.extract_selected_generation_ui()\n",
+        )
+        try:
+            k.setFlag(nuke.STARTLINE)
+        except Exception:
+            pass
+        try:
+            k.setTooltip(
+                "Create a Read node below this Group for the image at Preview index. "
+                "Does not copy or move files."
+            )
+        except Exception:
+            pass
+        group.addKnob(k)
+
+    if group.knob(CLEAR_HISTORY_KNOB) is None:
+        k = nuke.PyScript_Knob(
+            CLEAR_HISTORY_KNOB,
+            "Clear generation history",
+            "import nuke_group_output_preview_v1 as _gop\n"
+            "_gop.clear_generated_outputs_ui()\n",
+        )
+        try:
+            k.setTooltip(
+                "Forget stored generations on this node. Files on disk are not deleted."
+            )
         except Exception:
             pass
         group.addKnob(k)
@@ -1208,7 +1265,7 @@ def _sync_generated_preview_wiring(group, config, paths):
 
 
 def clear_generated_outputs(group):
-    """Clear accumulated generated outputs and reset preview wiring."""
+    """Forget stored generations on this node. Files on disk are not deleted."""
     config = get_config_for_group(group)
     if config is None:
         return
@@ -1235,6 +1292,71 @@ def clear_generated_outputs_ui():
 
     try:
         clear_generated_outputs(nuke.thisNode())
+    except Exception:
+        traceback.print_exc()
+
+
+def _spawn_root_read_for_path(group, path, index):
+    """Create a root-level Read below the Group for one generated file."""
+    import nuke
+    import nuke_spawn_read_position_v1 as spawn_pos
+
+    path_nk = prerender.norm_slashes(path)
+    xpos = int(group.xpos())
+    ypos = int(group.ypos())
+    nuke.root().begin()
+    try:
+        fx, fy = spawn_pos.resolve_spawn_xy(
+            nuke, xpos, ypos + _EXTRACT_READ_OFFSET_Y
+        )
+        r = nuke.nodes.Read(file=path_nk)
+        try:
+            r.setName("%s_out_%02d" % (group.name(), int(index)), unique=True)
+        except Exception:
+            pass
+        try:
+            r.knob("label").setValue("%s\n%s" % (group.name(), path_nk))
+        except Exception:
+            pass
+        r.setXpos(fx)
+        r.setYpos(fy)
+        return r
+    finally:
+        nuke.endGroup()
+
+
+def extract_selected_generation(group):
+    """Spawn a root Read for the Preview index image. Files are not copied or moved."""
+    import nuke
+
+    config = get_config_for_group(group)
+    if config is None:
+        nuke.message("This node does not support in-group generation history.")
+        return None
+
+    idx = _read_preview_index(group)
+    path = selected_output_path(_read_output_paths_registry(group), idx)
+    if not path:
+        nuke.message(
+            "No generated output is selected.\n"
+            "Run Execute first, then set Preview index."
+        )
+        return None
+    if not os.path.isfile(path):
+        nuke.message("Selected generation file is missing:\n%s" % path)
+        return None
+
+    return _spawn_root_read_for_path(group, path, idx)
+
+
+def extract_selected_generation_ui():
+    """Knob callback entry point for extract_selected_generation."""
+    import traceback
+
+    import nuke
+
+    try:
+        extract_selected_generation(nuke.thisNode())
     except Exception:
         traceback.print_exc()
 

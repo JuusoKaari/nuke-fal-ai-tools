@@ -138,7 +138,9 @@ Video generation and upscaling can take several minutes. Watch the Script Editor
 - Before Execute, **Viewer mode = Guide** shows a dimmed reference plate (when connected) with centered setup text, not a blank frame.
 - After Execute, **Viewer mode = Generated** shows the latest result on the Group output and postage stamp.
 - Use **Preview index** to browse multiple outputs without re-running.
-- **Spawn reads in graph** is off by default; enable it if you want the old behavior of creating root-level Read nodes below the Group.
+- **Extract selected as Read** creates a root-level Read for the current Preview index, below the Group.
+- **Clear generation history** forgets stored outputs on the node. Files on disk are kept.
+- **Spawn reads in graph** is off by default; enable it if you want every Execute to also spawn Read nodes for that run.
 
 **Viewer modes:**
 

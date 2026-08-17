@@ -188,6 +188,16 @@ class TestOutputRegistry(unittest.TestCase):
         self.assertEqual(preview.generated_read_node_name(99), "generated_read_99")
         self.assertEqual(preview.generated_read_node_name(100), "generated_read_100")
 
+    def test_selected_output_path(self):
+        paths = ["C:/a/1.png", "C:/a/2.png", "C:/a/3.png"]
+        self.assertEqual(preview.selected_output_path(paths, 1), "C:/a/1.png")
+        self.assertEqual(preview.selected_output_path(paths, 3), "C:/a/3.png")
+        self.assertIsNone(preview.selected_output_path(paths, 0))
+        self.assertIsNone(preview.selected_output_path(paths, 4))
+        self.assertIsNone(preview.selected_output_path([], 1))
+        self.assertIsNone(preview.selected_output_path(None, 1))
+        self.assertIsNone(preview.selected_output_path(paths, "x"))
+
 
 class TestRoiBboxValidation(unittest.TestCase):
     def test_valid_bbox(self):
