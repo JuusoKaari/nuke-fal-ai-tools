@@ -20,7 +20,12 @@ import json
 import os
 import sys
 
-from fal_common import download, ensure_dir
+from fal_common import (
+    download,
+    ensure_dir,
+    format_fal_error_summary,
+    subscribe_with_retry,
+)
 
 
 _ENDPOINT_ID = "fal-ai/qwen-image-layered"
@@ -82,6 +87,18 @@ def main(argv: list[str]) -> int:
         default=True,
         help="Enable safety checker.",
     )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=3,
+        help="Max retries for transient fal backend errors (5xx/429/downstream_service_error). Default: 3.",
+    )
+    parser.add_argument(
+        "--retry-base-seconds",
+        type=float,
+        default=2.0,
+        help="Base backoff seconds for retries (exponential with jitter). Default: 2.0.",
+    )
     parser.add_argument("--verbose", action="store_true", help="Print more logs.")
     args = parser.parse_args(argv)
 
@@ -132,10 +149,22 @@ def main(argv: list[str]) -> int:
     if args.seed is not None:
         api_args["seed"] = args.seed
 
-    result = client.subscribe(
-        _ENDPOINT_ID,
-        arguments=api_args,
-    )
+    try:
+        result = subscribe_with_retry(
+            client,
+            _ENDPOINT_ID,
+            api_args,
+            max_retries=args.max_retries,
+            retry_base_seconds=args.retry_base_seconds,
+            verbose=args.verbose,
+        )
+    except Exception as e:
+        print(
+            "ERROR: Qwen Image Layered request failed.\n%s"
+            % format_fal_error_summary(e),
+            file=sys.stderr,
+        )
+        return 5
 
     try:
         images = result.get("images") or []

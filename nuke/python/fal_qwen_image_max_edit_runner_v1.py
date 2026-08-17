@@ -20,11 +20,10 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
-import _path_util
-import _install_help
 import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
+import nuke_fal_runner_util_v1 as runner_util
 import nuke_spawn_read_position_v1 as spawn_pos
 
 
@@ -63,6 +62,7 @@ def main():
     temp_dir, out_dir, ts = prerender.make_run_dirs(
         nuke_module=nuke,
         prefix="qwen_image_max_edit",
+        group_node=g,
     )
 
     try:
@@ -73,16 +73,8 @@ def main():
         nuke.message("Failed to prepare input image:\n%s" % str(e))
         raise
 
-    python3_cmd = (g.knob("python3_cmd").value() or "").strip() or "py -3"
-    helper_path = _install_help.require_helper_path(
-        nuke,
-        (g.knob("helper_path").value() or "").strip(),
-    )
 
-    py_parts = prerender.split_cmd(python3_cmd) or ["py", "-3"]
-
-    args = list(py_parts) + [
-        helper_path,
+    extra_args = [
         "--image",
         image_path,
         "--prompt",
@@ -97,46 +89,28 @@ def main():
     ]
 
     if negative_prompt:
-        args += ["--negative-prompt", negative_prompt]
+        extra_args += ["--negative-prompt", negative_prompt]
     if image_size:
-        args += ["--image-size", image_size]
+        extra_args += ["--image-size", image_size]
     if seed_s:
         try:
-            args += ["--seed", str(int(seed_s))]
+            extra_args += ["--seed", str(int(seed_s))]
         except Exception:
             pass
 
     if enable_prompt_expansion:
-        args += ["--enable-prompt-expansion"]
+        extra_args += ["--enable-prompt-expansion"]
     else:
-        args += ["--no-enable-prompt-expansion"]
+        extra_args += ["--no-enable-prompt-expansion"]
 
     if enable_safety_checker:
-        args += ["--enable-safety-checker"]
+        extra_args += ["--enable-safety-checker"]
     else:
-        args += ["--no-enable-safety-checker"]
+        extra_args += ["--no-enable-safety-checker"]
 
-    # Pass auth via env var (do NOT override env with the placeholder text)
-    env = prerender.helper_subprocess_env()
-    fal_knob = (g.knob("FAL").value() or "").strip()
-    if fal_knob and ("insert your secret" not in fal_knob.lower()):
-        env.update({"FAL_KEY": fal_knob})
-
-    try:
-        returncode, _stdout_lines = prerender.run_helper_subprocess(
-            args,
-            env=env,
-            title="Qwen Image Max Edit",
-        )
-    except prerender.FalProgressCancelled:
-        nuke.message("Qwen Image Max Edit request cancelled.")
-        raise Exception("cancelled")
-
-    if returncode != 0:
-        nuke.message(
-            "Qwen Image Max helper failed (exit %d). Check the Script Editor output for details." % returncode
-        )
-        raise Exception("Qwen Image Max helper failed")
+    returncode, _stdout_lines = runner_util.run_group_helper(
+        nuke, g, extra_args, 'Qwen Image Max Edit'
+    )
 
     # Create Read node(s) in the main node graph (not inside the group)
     xpos = int(g.xpos())

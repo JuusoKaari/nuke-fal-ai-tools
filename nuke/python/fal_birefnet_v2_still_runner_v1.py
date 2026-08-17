@@ -18,11 +18,10 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
-import _path_util
-import _install_help
 import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
+import nuke_fal_runner_util_v1 as runner_util
 import nuke_spawn_read_position_v1 as spawn_pos
 
 
@@ -56,6 +55,7 @@ def main():
     temp_dir, out_dir, ts = prerender.make_run_dirs(
         nuke_module=nuke,
         prefix="birefnet_v2_still",
+        group_node=g,
     )
 
     try:
@@ -66,11 +66,6 @@ def main():
         nuke.message("Failed to prepare input image:\n%s" % str(e))
         raise
 
-    python3_cmd = (g.knob("python3_cmd").value() or "").strip() or "py -3"
-    helper_path = _install_help.require_helper_path(
-        nuke,
-        (g.knob("helper_path").value() or "").strip(),
-    )
 
     model = g.knob("model").value()
     operating_resolution = g.knob("operating_resolution").value()
@@ -78,10 +73,8 @@ def main():
     output_mask = bool(g.knob("output_mask").value())
     refine_foreground = bool(g.knob("refine_foreground").value())
 
-    py_parts = prerender.split_cmd(python3_cmd) or ["py", "-3"]
 
-    args = list(py_parts) + [
-        helper_path,
+    extra_args = [
         "--image",
         image_path,
         "--out-dir",
@@ -95,31 +88,13 @@ def main():
         "--verbose",
     ]
     if output_mask:
-        args += ["--output-mask"]
+        extra_args += ["--output-mask"]
     if not refine_foreground:
-        args += ["--no-refine-foreground"]
+        extra_args += ["--no-refine-foreground"]
 
-    env = prerender.helper_subprocess_env()
-    fal_knob = (g.knob("FAL").value() or "").strip()
-    if fal_knob and ("insert your secret" not in fal_knob.lower()):
-        env.update({"FAL_KEY": fal_knob})
-
-    try:
-        returncode, _stdout_lines = prerender.run_helper_subprocess(
-            args,
-            env=env,
-            title="BiRefNet v2 Still",
-        )
-    except prerender.FalProgressCancelled:
-        nuke.message("BiRefNet v2 Still request cancelled.")
-        raise Exception("cancelled")
-
-    if returncode != 0:
-        nuke.message(
-            "BiRefNet v2 still helper failed (exit %d). Check the Script Editor output for details."
-            % returncode
-        )
-        raise Exception("BiRefNet v2 still helper failed")
+    returncode, _stdout_lines = runner_util.run_group_helper(
+        nuke, g, extra_args, 'BiRefNet v2 Still'
+    )
 
     out_path = _find_output_path(out_dir, output_format)
     if not out_path:

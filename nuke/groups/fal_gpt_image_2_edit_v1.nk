@@ -25,14 +25,16 @@ Group {
  show_success_popup true
  addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
  addUserKnob {20 endGroup n -1}
- addUserKnob {1 python3_cmd l "Python 3 cmd" +INVISIBLE}
+ addUserKnob {20 Advanced l Advanced +CLOSED}
+ addUserKnob {1 python3_cmd l "Python 3 cmd"}
  python3_cmd "py -3"
+ addUserKnob {1 FAL}
+ FAL "insert your secret key here or use env variable FAL_KEY"
+ addUserKnob {20 endAdvanced n -1}
  addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
  helper_path "__INSTALL_ROOT__/nuke/python/fal_gpt_image_2_edit_helper.py"
  addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
  runner_path "__INSTALL_ROOT__/nuke/python/fal_gpt_image_2_edit_runner_v1.py"
- addUserKnob {1 FAL +INVISIBLE}
- FAL "insert your secret key here or use env variable FAL_KEY"
 }
 Text {
  inputs 0
@@ -63,18 +65,21 @@ Input {
  name ref_image_a
  xpos 120
  ypos -51
+ number 1
 }
 Input {
  inputs 0
  name ref_image_b
  xpos 240
  ypos -51
+ number 2
 }
 Input {
  inputs 0
  name mask
  xpos 360
  ypos -51
+ number 3
 }
 push $N0e5f49c0
 Viewer {

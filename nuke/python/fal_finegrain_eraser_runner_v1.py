@@ -1,6 +1,7 @@
 # Purpose:
 # - Runner script for the Nuke Group node `Finegrain_Eraser_v1` (executes inside Nuke / Python 2.7).
 # - Input 0: source plate; input 1: mask (white = region to erase). Pre-renders stills if needed.
+# - Mask prerender is reformatted to the source node's format (not the script root format).
 # - Calls `fal_finegrain_eraser_helper.py` (Python 3), then spawns a Read node for the downloaded output.
 #
 # Notes:
@@ -15,11 +16,10 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
-import _path_util
-import _install_help
 import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
+import nuke_fal_runner_util_v1 as runner_util
 import nuke_spawn_read_position_v1 as spawn_pos
 
 
@@ -47,6 +47,7 @@ def main():
     temp_dir, out_dir, ts = prerender.make_run_dirs(
         nuke_module=nuke,
         prefix="finegrain_eraser",
+        group_node=g,
     )
 
     try:
@@ -54,22 +55,19 @@ def main():
             nuke_module=nuke, src_node=src_node, frame=frame, run_dir=temp_dir, base_name="source"
         )
         mask_path = prerender.prepare_still_input_path(
-            nuke_module=nuke, src_node=mask_node, frame=frame, run_dir=temp_dir, base_name="mask"
+            nuke_module=nuke,
+            src_node=mask_node,
+            frame=frame,
+            run_dir=temp_dir,
+            base_name="mask",
+            match_format_node=src_node,
         )
     except Exception as e:
         nuke.message("Failed to prepare image or mask:\n%s" % str(e))
         raise
 
-    python3_cmd = (g.knob("python3_cmd").value() or "").strip() or "py -3"
-    helper_path = _install_help.require_helper_path(
-        nuke,
-        (g.knob("helper_path").value() or "").strip(),
-    )
 
-    py_parts = prerender.split_cmd(python3_cmd) or ["py", "-3"]
-
-    args = list(py_parts) + [
-        helper_path,
+    extra_args = [
         "--image",
         image_path,
         "--mask",
@@ -83,30 +81,13 @@ def main():
 
     if seed_s:
         try:
-            args += ["--seed", str(int(seed_s))]
+            extra_args += ["--seed", str(int(seed_s))]
         except Exception:
             pass
 
-    env = prerender.helper_subprocess_env()
-    fal_knob = (g.knob("FAL").value() or "").strip()
-    if fal_knob and ("insert your secret" not in fal_knob.lower()):
-        env.update({"FAL_KEY": fal_knob})
-
-    try:
-        returncode, _stdout_lines = prerender.run_helper_subprocess(
-            args,
-            env=env,
-            title="Finegrain Eraser",
-        )
-    except prerender.FalProgressCancelled:
-        nuke.message("Finegrain Eraser request cancelled.")
-        raise Exception("cancelled")
-
-    if returncode != 0:
-        nuke.message(
-            "Finegrain Eraser helper failed (exit %d). Check the Script Editor output for details." % returncode
-        )
-        raise Exception("Finegrain Eraser helper failed")
+    returncode, _stdout_lines = runner_util.run_group_helper(
+        nuke, g, extra_args, 'Finegrain Eraser'
+    )
 
     xpos = int(g.xpos())
     ypos = int(g.ypos())

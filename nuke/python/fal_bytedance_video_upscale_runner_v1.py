@@ -16,60 +16,12 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
-import _path_util
-import _install_help
 import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
+import nuke_fal_runner_util_v1 as runner_util
 import nuke_read_video_frames_v1 as video_frames
 import nuke_spawn_read_position_v1 as spawn_pos
-
-
-def _norm_slashes(p):
-    return (p or "").replace("\\", "/")
-
-
-def _split_cmd(cmd):
-    cmd = (cmd or "").strip()
-    if not cmd:
-        return []
-    try:
-        import shlex
-
-        return shlex.split(cmd)
-    except Exception:
-        return cmd.split()
-
-
-def _get_frame_range_from_knobs(group_node, nuke_module):
-    try:
-        mode = (group_node.knob("frame_range").value() or "root").strip().lower()
-    except Exception:
-        mode = "root"
-
-    if mode == "current":
-        f = int(nuke_module.frame())
-        return f, f
-
-    if mode == "custom":
-        try:
-            start = int(float((group_node.knob("custom_start").value() or "1").strip()))
-            end = int(float((group_node.knob("custom_end").value() or "1").strip()))
-            if end < start:
-                start, end = end, start
-            return start, end
-        except Exception:
-            pass
-
-    try:
-        start = int(nuke_module.root().firstFrame())
-        end = int(nuke_module.root().lastFrame())
-    except Exception:
-        start = 1
-        end = 1
-    if end < start:
-        start, end = end, start
-    return start, end
 
 
 def main():
@@ -101,11 +53,12 @@ def main():
     target_resolution = _enum_knob_str("target_resolution", ("1080p", "2k", "4k"), "1080p")
     target_fps = _enum_knob_str("target_fps", ("30fps", "60fps"), "30fps")
 
-    default_first, default_last = _get_frame_range_from_knobs(g, nuke)
+    default_first, default_last = runner_util.frame_range_from_knobs(g, nuke)
 
     temp_dir, out_dir, ts = prerender.make_run_dirs(
         nuke_module=nuke,
         prefix="bytedance_video_upscale",
+        group_node=g,
     )
 
     try:
@@ -123,17 +76,10 @@ def main():
         raise
 
     out_path = os.path.join(out_dir, "bytedance_video_upscale_%s.mp4" % ts)
-    out_path_nk = _norm_slashes(out_path)
+    out_path_nk = prerender.norm_slashes(out_path)
 
-    python3_cmd = (g.knob("python3_cmd").value() or "").strip() or "py -3"
-    helper_path = _install_help.require_helper_path(
-        nuke,
-        (g.knob("helper_path").value() or "").strip(),
-    )
 
-    py_parts = _split_cmd(python3_cmd) or ["py", "-3"]
-    args = list(py_parts) + [
-        helper_path,
+    extra_args = [
         "--video",
         video_path,
         "--out",
@@ -145,27 +91,9 @@ def main():
         "--verbose",
     ]
 
-    env = prerender.helper_subprocess_env()
-    fal_knob = (g.knob("FAL").value() or "").strip()
-    if fal_knob and ("insert your secret" not in fal_knob.lower()):
-        env.update({"FAL_KEY": fal_knob})
-
-    try:
-        returncode, _stdout_lines = prerender.run_helper_subprocess(
-            args,
-            env=env,
-            title="ByteDance Video Upscale",
-        )
-    except prerender.FalProgressCancelled:
-        nuke.message("ByteDance Video Upscale request cancelled.")
-        raise Exception("cancelled")
-
-    if returncode != 0:
-        nuke.message(
-            "ByteDance video upscale helper failed (exit %d). Check the Script Editor output for details."
-            % returncode
-        )
-        raise Exception("Bytedance upscale helper failed")
+    returncode, _stdout_lines = runner_util.run_group_helper(
+        nuke, g, extra_args, 'ByteDance Video Upscale'
+    )
 
     xpos = int(g.xpos())
     ypos = int(g.ypos())

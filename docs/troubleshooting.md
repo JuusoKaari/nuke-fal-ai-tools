@@ -11,14 +11,14 @@ Common issues when setting up or running **nuke-fal-ai-tools**.
 **Fix:**
 
 1. Download the [latest release zip](https://github.com/JuusoKaari/nuke-fal-ai-tools/releases/latest) or clone the [repository](https://github.com/JuusoKaari/nuke-fal-ai-tools).
-2. Add the **install root** (not the inner `nuke/` folder) to `NUKE_PATH` — see [INSTALL.md](INSTALL.md).
+2. Add the **install root** (not the inner `nuke/` folder) to `NUKE_PATH` -- see [INSTALL.md](INSTALL.md).
 3. Confirm the folder contains `init.py`, `menu.py`, and `nuke/python/`.
 4. Fully quit and restart Nuke (environment variables are read at process start).
 5. Confirm in PowerShell: `echo $env:NUKE_PATH` includes your clone path.
 
 ## Nodes menu missing **fal.ai**
 
-**Symptom:** No **Nodes → fal.ai** submenu.
+**Symptom:** No **Nodes -> fal.ai** submenu.
 
 **Checks:**
 
@@ -29,7 +29,7 @@ Common issues when setting up or running **nuke-fal-ai-tools**.
 
 **Symptom:** Execute fails on Nuke 13.2+ / 14 with Python 3 embedded; older builds worked.
 
-**Fix:** Use a current clone that includes `_nuke_py_compat.py` and `_nuke_runner_launcher.py`. Group Execute knobs must call `_nuke_runner_launcher.execute_this_node()`, not `execfile()` directly. Re-create nodes from **Nodes → fal.ai** after updating.
+**Fix:** Use a current clone that includes `_nuke_py_compat.py` and `_nuke_runner_launcher.py`. Group Execute knobs must call `_nuke_runner_launcher.execute_this_node()`, not `execfile()` directly. Re-create nodes from **Nodes -> fal.ai** after updating.
 
 **Note:** Py3-Nuke (Nuke 13.2+) is supported alongside classic Py2.7 Nuke. The toolkit targets Nuke 8.0+; primary testing is on 11.3v6 and 17.0v2. Report issues with your Nuke version and `sys.version` from the Script Editor.
 
@@ -41,9 +41,9 @@ Common issues when setting up or running **nuke-fal-ai-tools**.
 
 1. Install or update from the [latest release](https://github.com/JuusoKaari/nuke-fal-ai-tools/releases/latest) or [repository](https://github.com/JuusoKaari/nuke-fal-ai-tools).
 2. Confirm files exist under `<repo-root>\nuke\python\` (helpers and runners).
-3. On the node, **Advanced → Helper path** and **Runner path** should look like:
+3. On the node, hidden **helper_path** and **runner_path** knobs should look like:
    `__INSTALL_ROOT__/nuke/python/fal_....py`
-4. Re-create the node from **Nodes → fal.ai** if knobs were edited manually or the node came from an older script with legacy filenames.
+4. Re-create the node from **Nodes -> fal.ai** if knobs were edited manually or the node came from an older script with legacy filenames.
 
 ## `py -3` not found / helper fails immediately
 
@@ -56,7 +56,7 @@ py -3 --version
 py -3 -m pip install -r requirements-python3.txt
 ```
 
-If `py` is unavailable, set the node's **Python 3 cmd** to your launcher, e.g. `python3` or `C:\Python312\python.exe`.
+If `py` is unavailable on Windows, set the node's **Advanced / Python 3 cmd** to your launcher, e.g. `python3` or `C:\Python312\python.exe`. On macOS/Linux the runner already treats the shipped `py -3` default as `python3`.
 
 ## `failed to import fal_client`
 
@@ -75,7 +75,7 @@ py -3 -m pip install fal-client
 **Fix:**
 
 - Set `FAL_KEY` in the environment (recommended), or a real key in the node's **FAL** knob (not the placeholder text).
-- If you pasted a key into **FAL**, it is stored in the saved `.nk` — rotate the key on fal.ai if the script was shared or committed by mistake.
+- If you pasted a key into **FAL**, it is stored in the saved `.nk` -- rotate the key on fal.ai if the script was shared or committed by mistake.
 - Confirm billing/credits on your [fal.ai](https://fal.ai/) account.
 - Model endpoints can change; check fal.ai model pages linked in helper script headers.
 

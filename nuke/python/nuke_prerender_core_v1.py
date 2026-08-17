@@ -3,6 +3,7 @@
 # - If the input is a suitable `Read` node with a valid format (PNG/JPG for images, MP4/MOV for video),
 #   returns its file/pattern directly (no re-render).
 # - Otherwise, pre-renders a still image or image sequence to a writable temp folder (`nuke_fal_temp`) and returns that path/pattern.
+# - Mask / paired stills can pass `match_format_node` so Write uses that node's format (not root).
 # - `make_run_dirs()` also creates a paired output folder (`nuke_fal_output`) for FAL API results.
 # - `require_saved_nuke_script()` blocks runners when the script has no saved path on disk.
 # - Temp/output folders are always created next to the saved .nk script; no home/temp fallbacks.
@@ -94,6 +95,123 @@ else:
                 pass
             reset_to_root_graph(self._nuke)
             return False
+
+
+def format_size_from_node(node):
+    """
+    Return (width, height, pixel_aspect) for a Nuke node's full-res format, or None.
+    Prefers fullSizeFormat() so proxy mode does not shrink paired mask renders.
+    """
+    if node is None:
+        return None
+    fmt = None
+    for getter in ("fullSizeFormat", "format"):
+        try:
+            candidate = getattr(node, getter)
+        except Exception:
+            candidate = None
+        if not callable(candidate):
+            continue
+        try:
+            fmt = candidate()
+        except Exception:
+            fmt = None
+        if fmt is not None:
+            break
+    if fmt is None:
+        return None
+    try:
+        width = int(fmt.width())
+        height = int(fmt.height())
+    except Exception:
+        return None
+    if width < 1 or height < 1:
+        return None
+    pixel_aspect = 1.0
+    try:
+        pixel_aspect = float(fmt.pixelAspect())
+    except Exception:
+        pass
+    if pixel_aspect <= 0:
+        pixel_aspect = 1.0
+    return width, height, pixel_aspect
+
+
+def _set_reformat_to_size(nuke_module, reformat_node, width, height, pixel_aspect):
+    """
+    Point a Reformat at an exact pixel size with resize none and center off.
+    Format box changes; pixels are not scaled or recentered.
+    """
+    fmt_name = "fal_still_%dx%d" % (int(width), int(height))
+    fmt_line = "%d %d 0 0 %d %d %g %s" % (
+        int(width),
+        int(height),
+        int(width),
+        int(height),
+        float(pixel_aspect),
+        fmt_name,
+    )
+    try:
+        nuke_module.addFormat(fmt_line)
+    except Exception:
+        pass
+    for type_val in ("to format", 0):
+        try:
+            reformat_node["type"].setValue(type_val)
+            break
+        except Exception:
+            continue
+    try:
+        reformat_node["format"].setValue(fmt_name)
+    except Exception:
+        for type_val in ("to box", 2, 1):
+            try:
+                reformat_node["type"].setValue(type_val)
+                break
+            except Exception:
+                continue
+        try:
+            reformat_node["box"].setValue(0, 0, int(width), int(height))
+        except Exception:
+            try:
+                reformat_node["box"].setValue([0, 0, int(width), int(height)])
+            except Exception:
+                pass
+    for resize_val in ("none", 0):
+        try:
+            reformat_node["resize"].setValue(resize_val)
+            break
+        except Exception:
+            continue
+    for center_val in (False, 0):
+        try:
+            reformat_node["center"].setValue(center_val)
+            break
+        except Exception:
+            continue
+
+
+def _execute_write_full_res(nuke_module, write_node, first, last):
+    """Execute a Write at full resolution even if the script is in proxy mode."""
+    root = nuke_module.root()
+    was_proxy = False
+    try:
+        was_proxy = bool(root.proxy())
+    except Exception:
+        was_proxy = False
+    if was_proxy:
+        try:
+            root.setProxy(False)
+        except Exception:
+            was_proxy = False
+    try:
+        nuke_module.execute(write_node, int(first), int(last))
+    finally:
+        if was_proxy:
+            try:
+                root.setProxy(True)
+            except Exception:
+                pass
 
 
 def require_rendered_file(out_path, context="Render"):
@@ -406,19 +524,31 @@ def resolve_read_file_at_frame(nuke_module, read_node, frame):
             return ""
 
 
-def render_still_from_node(nuke_module, src_node, out_path, frame):
+def render_still_from_node(nuke_module, src_node, out_path, frame, match_format_node=None):
     """
     Render a single frame from any node to `out_path` by creating a temporary Write node.
     The source node must live on the root graph (use render_still_inside_group for in-group nodes).
+    When `match_format_node` is set, insert a Reformat to that node's full-res format so
+    Roto/mask pipes are not written at the script root format.
     """
     out_path = os.path.abspath(out_path)
     ensure_dir(os.path.dirname(out_path))
+    match_size = format_size_from_node(match_format_node)
 
     nuke_module.root().begin()
     w = None
+    rf = None
     try:
+        write_src = src_node
+        if match_size is not None:
+            rf = nuke_module.nodes.Reformat()
+            rf.setInput(0, src_node)
+            _set_reformat_to_size(
+                nuke_module, rf, match_size[0], match_size[1], match_size[2]
+            )
+            write_src = rf
         w = nuke_module.nodes.Write()
-        w.setInput(0, src_node)
+        w.setInput(0, write_src)
         try:
             w["file"].setValue(norm_slashes(out_path))
         except Exception:
@@ -433,11 +563,16 @@ def render_still_from_node(nuke_module, src_node, out_path, frame):
                 w["channels"].setValue("rgb")
         except Exception:
             pass
-        nuke_module.execute(w, int(frame), int(frame))
+        _execute_write_full_res(nuke_module, w, int(frame), int(frame))
     finally:
         try:
             if w is not None:
                 nuke_module.delete(w)
+        except Exception:
+            pass
+        try:
+            if rf is not None:
+                nuke_module.delete(rf)
         except Exception:
             pass
         nuke_module.endGroup()
@@ -565,7 +700,7 @@ def render_sequence_from_node(nuke_module, src_node, out_pattern, first, last):
                 w["channels"].setValue("rgb")
         except Exception:
             pass
-        nuke_module.execute(w, int(first), int(last))
+        _execute_write_full_res(nuke_module, w, int(first), int(last))
     finally:
         try:
             if w is not None:
@@ -577,13 +712,15 @@ def render_sequence_from_node(nuke_module, src_node, out_pattern, first, last):
     return out_pattern
 
 
-def prepare_still_input_path(nuke_module, src_node, frame, run_dir, base_name):
+def prepare_still_input_path(nuke_module, src_node, frame, run_dir, base_name, match_format_node=None):
     """
     Return a single still image path for any upstream node.
     - Read with PNG/JPG: resolves to the file at `frame` (no re-render).
     - Read with other format, or non-Read: renders a single PNG at `frame` under `run_dir`.
+    - When `match_format_node` is set, always prerender and Reformat to that node's format
+      so a Roto mask is not written at script root size while the plate stays native.
     """
-    if is_read_node(src_node):
+    if match_format_node is None and is_read_node(src_node):
         p = resolve_read_file_at_frame(nuke_module, src_node, frame)
         if p and os.path.isfile(p) and _is_valid_image_extension(p):
             return p
@@ -593,7 +730,13 @@ def prepare_still_input_path(nuke_module, src_node, frame, run_dir, base_name):
             raise Exception("Resolved Read file not found: %s" % (p or "<empty>"))
 
     out_path = os.path.join(run_dir, "%s.png" % base_name)
-    return render_still_from_node(nuke_module, src_node, out_path, frame)
+    return render_still_from_node(
+        nuke_module,
+        src_node,
+        out_path,
+        frame,
+        match_format_node=match_format_node,
+    )
 
 
 def prepare_sequence_input_pattern(nuke_module, src_node, default_first, default_last, run_dir, base_name, pad=4):

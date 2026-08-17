@@ -22,8 +22,6 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
-import _path_util
-import _install_help
 import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
@@ -47,23 +45,9 @@ def _reload_runner_modules():
 
 _reload_runner_modules()
 
+import nuke_fal_runner_util_v1 as runner_util
+
 _MAX_INPUT_SECONDS = 8.0
-
-
-def _norm_slashes(p):
-    return (p or "").replace("\\", "/")
-
-
-def _split_cmd(cmd):
-    cmd = (cmd or "").strip()
-    if not cmd:
-        return []
-    try:
-        import shlex
-
-        return shlex.split(cmd)
-    except Exception:
-        return cmd.split()
 
 
 def _cap_frame_range_to_max_seconds(first, last, fps, max_seconds):
@@ -168,35 +152,6 @@ def main():
         nuke.message("Input 0 (source_video) is not connected.")
         raise Exception("missing input 0")
 
-    def _get_frame_range_from_knobs(group_node, nuke_module):
-        try:
-            mode = (group_node.knob("frame_range").value() or "root").strip().lower()
-        except Exception:
-            mode = "root"
-
-        if mode == "current":
-            f = int(nuke_module.frame())
-            return f, f
-
-        if mode == "custom":
-            try:
-                start = int(float((group_node.knob("custom_start").value() or "1").strip()))
-                end = int(float((group_node.knob("custom_end").value() or "1").strip()))
-                if end < start:
-                    start, end = end, start
-                return start, end
-            except Exception:
-                pass
-
-        try:
-            start = int(nuke_module.root().firstFrame())
-            end = int(nuke_module.root().lastFrame())
-        except Exception:
-            start = 1
-            end = 1
-        if end < start:
-            start, end = end, start
-        return start, end
 
     prompt = (g.knob("prompt").value() or "").strip()
     if not prompt:
@@ -217,7 +172,7 @@ def main():
             nuke.message("Seed must be an integer (or leave empty).")
             raise Exception("invalid seed")
 
-    default_first, default_last = _get_frame_range_from_knobs(g, nuke)
+    default_first, default_last = runner_util.frame_range_from_knobs(g, nuke)
     try:
         fps = float(nuke.root().fps())
     except Exception:
@@ -229,6 +184,7 @@ def main():
     temp_dir, out_dir, ts = prerender.make_run_dirs(
         nuke_module=nuke,
         prefix="veo3_1_extend_video",
+        group_node=g,
     )
 
     try:
@@ -268,17 +224,10 @@ def main():
         raise Exception("unsupported input resolution")
 
     out_path = os.path.join(out_dir, "veo3_1_extend_video_%s.mp4" % ts)
-    out_path_nk = _norm_slashes(out_path)
+    out_path_nk = prerender.norm_slashes(out_path)
 
-    python3_cmd = (g.knob("python3_cmd").value() or "").strip() or "py -3"
-    helper_path = _install_help.require_helper_path(
-        nuke,
-        (g.knob("helper_path").value() or "").strip(),
-    )
 
-    py_parts = _split_cmd(python3_cmd) or ["py", "-3"]
-    args = list(py_parts) + [
-        helper_path,
+    extra_args = [
         "--video",
         video_path,
         "--prompt",
@@ -295,38 +244,26 @@ def main():
     ]
 
     if generate_audio:
-        args += ["--generate-audio"]
+        extra_args += ["--generate-audio"]
     else:
-        args += ["--no-generate-audio"]
+        extra_args += ["--no-generate-audio"]
 
     if negative_prompt:
-        args += ["--negative-prompt", negative_prompt]
+        extra_args += ["--negative-prompt", negative_prompt]
 
     if seed_val is not None:
-        args += ["--seed", str(seed_val)]
+        extra_args += ["--seed", str(seed_val)]
 
-    env = prerender.helper_subprocess_env()
-    fal_knob = (g.knob("FAL").value() or "").strip()
-    if fal_knob and ("insert your secret" not in fal_knob.lower()):
-        env.update({"FAL_KEY": fal_knob})
-
-    try:
-        returncode, helper_lines = prerender.run_helper_subprocess(
-            args,
-            env=env,
-            title="Veo 3.1 Extend Video",
-        )
-    except prerender.FalProgressCancelled:
-        nuke.message("Veo 3.1 Extend Video request cancelled.")
-        raise Exception("cancelled")
-
-    if returncode != 0:
-        summary = _summarize_helper_failure(helper_lines)
-        nuke.message(
+    returncode, helper_lines = runner_util.run_group_helper(
+        nuke,
+        g,
+        extra_args,
+        'Veo 3.1 Extend Video',
+        failure_formatter=lambda code, lines: (
             "Veo 3.1 extend-video helper failed (exit %d).\n\n%s"
-            % (returncode, summary)
-        )
-        raise Exception("Veo 3.1 extend-video helper failed")
+            % (code, _summarize_helper_failure(lines))
+        ),
+    )
 
     xpos = int(g.xpos())
     ypos = int(g.ypos())

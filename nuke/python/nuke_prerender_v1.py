@@ -15,6 +15,7 @@ from nuke_prerender_core_v1 import (
     current_group_context,
     ensure_dir,
     group_scope,
+    format_size_from_node,
     helper_subprocess_env,
     is_read_node,
     looks_like_sequence_pattern,

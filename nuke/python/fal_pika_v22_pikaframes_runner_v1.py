@@ -18,11 +18,10 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
-import _path_util
-import _install_help
 import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
+import nuke_fal_runner_util_v1 as runner_util
 import nuke_read_video_frames_v1 as video_frames
 import nuke_spawn_read_position_v1 as spawn_pos
 
@@ -58,6 +57,7 @@ def main():
     temp_dir, out_dir, ts = prerender.make_run_dirs(
         nuke_module=nuke,
         prefix="pika_v22_pikaframes",
+        group_node=g,
     )
 
     image_paths = []
@@ -103,15 +103,8 @@ def main():
     out_path = os.path.join(out_dir, "pika_v22_pikaframes_%s.mp4" % ts)
     out_path_nk = prerender.norm_slashes(out_path)
 
-    python3_cmd = (g.knob("python3_cmd").value() or "").strip() or "py -3"
-    helper_path = _install_help.require_helper_path(
-        nuke,
-        (g.knob("helper_path").value() or "").strip(),
-    )
 
-    py_parts = prerender.split_cmd(python3_cmd) or ["py", "-3"]
-    args = list(py_parts) + [
-        helper_path,
+    extra_args = [
         "--out",
         out_path,
         "--resolution",
@@ -121,41 +114,23 @@ def main():
         "--verbose",
     ]
     for image_path in image_paths:
-        args += ["--image", image_path]
+        extra_args += ["--image", image_path]
     if prompt:
-        args += ["--prompt", prompt]
+        extra_args += ["--prompt", prompt]
     if negative_prompt:
-        args += ["--negative-prompt", negative_prompt]
+        extra_args += ["--negative-prompt", negative_prompt]
 
     seed_s = (g.knob("seed").value() or "").strip()
     if seed_s:
         try:
-            args += ["--seed", str(int(float(seed_s)))]
+            extra_args += ["--seed", str(int(float(seed_s)))]
         except Exception:
             nuke.message("Invalid seed value.")
             raise Exception("invalid seed")
 
-    env = prerender.helper_subprocess_env()
-    fal_knob = (g.knob("FAL").value() or "").strip()
-    if fal_knob and ("insert your secret" not in fal_knob.lower()):
-        env.update({"FAL_KEY": fal_knob})
-
-    try:
-        returncode, _stdout_lines = prerender.run_helper_subprocess(
-            args,
-            env=env,
-            title="Pika 2.2 Pikaframes",
-        )
-    except prerender.FalProgressCancelled:
-        nuke.message("Pika 2.2 Pikaframes request cancelled.")
-        raise Exception("cancelled")
-
-    if returncode != 0:
-        nuke.message(
-            "Pika 2.2 Pikaframes helper failed (exit %d). Check the Script Editor output for details."
-            % returncode
-        )
-        raise Exception("Pika 2.2 Pikaframes helper failed")
+    returncode, _stdout_lines = runner_util.run_group_helper(
+        nuke, g, extra_args, 'Pika 2.2 Pikaframes'
+    )
 
     if not os.path.isfile(out_path):
         nuke.message("Helper finished, but output file was not found:\n%s" % out_path_nk)

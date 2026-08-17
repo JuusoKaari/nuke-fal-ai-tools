@@ -129,5 +129,50 @@ class TestPickWritableTempDir(unittest.TestCase):
             prerender.pick_writable_temp_dir(nuke, "nuke_fal_output", "nuke_fal_output")
 
 
+class _FakeFormat(object):
+    def __init__(self, width, height, pixel_aspect=1.0):
+        self._width = width
+        self._height = height
+        self._pixel_aspect = pixel_aspect
+
+    def width(self):
+        return self._width
+
+    def height(self):
+        return self._height
+
+    def pixelAspect(self):
+        return self._pixel_aspect
+
+
+class _FakeNode(object):
+    def __init__(self, fmt=None, full=None):
+        self._fmt = fmt
+        self._full = full
+
+    def format(self):
+        return self._fmt
+
+    def fullSizeFormat(self):
+        return self._full
+
+
+class TestFormatSizeFromNode(unittest.TestCase):
+    def test_prefers_full_size_over_proxy_format(self):
+        node = _FakeNode(
+            fmt=_FakeFormat(960, 540),
+            full=_FakeFormat(1920, 1080, 1.0),
+        )
+        self.assertEqual(prerender.format_size_from_node(node), (1920, 1080, 1.0))
+
+    def test_falls_back_to_format(self):
+        node = _FakeNode(fmt=_FakeFormat(1280, 720, 2.0), full=None)
+        self.assertEqual(prerender.format_size_from_node(node), (1280, 720, 2.0))
+
+    def test_none_without_format(self):
+        self.assertIsNone(prerender.format_size_from_node(None))
+        self.assertIsNone(prerender.format_size_from_node(_FakeNode()))
+
+
 if __name__ == "__main__":
     unittest.main()
