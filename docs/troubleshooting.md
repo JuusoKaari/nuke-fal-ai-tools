@@ -99,7 +99,17 @@ ffmpeg -version
 ffprobe -version
 ```
 
-- Restart Nuke after updating `PATH`. Video nodes need this for prerender-to-mp4, probing frame counts, and some input trimming.
+- Restart Nuke after updating `PATH`. Video nodes need this for prerender-to-mp4, probing frame counts (including DWAB EXR sequence conversion), and some input trimming.
+
+## DWAB EXR sequence render failed
+
+**Symptom:** After a video Execute, a popup says the EXR render failed and a Read was spawned on the MP4 instead.
+
+**Fix:**
+
+- Confirm **ffmpeg** and **ffprobe** are on `PATH` (frame count is probed before the Write).
+- Let the Nuke Write finish. Cancelling it falls back to the MP4.
+- If you do not want the extra render, set **Video output** to **MP4** in **fal.ai -> Settings...**.
 
 ## Script not saved
 
@@ -111,7 +121,7 @@ ffprobe -version
 
 **Symptom:** Large folders appearing next to your `.nk` scripts after many runs.
 
-**Expected:** Each Execute adds timestamped subfolders under `nuke_fal_temp/` (scratch) and `nuke_fal_output/` (downloads). Nothing is auto-cleaned. Successful runs also write a `.json` sidecar next to the primary downloaded file.
+**Expected:** Each Execute adds timestamped subfolders under `nuke_fal_temp/` (scratch) and `nuke_fal_output/` (downloads). Video tools that render DWAB EXR sequences (default in Settings) add a `name/` folder of `.exr` frames next to the MP4; those are much larger than the movie. Nothing is auto-cleaned. Successful runs also write a `.json` sidecar next to the primary downloaded file.
 
 **Fix:** Delete old `*_YYYYMMDD_*` subfolders when you no longer need them. Keep folders for runs whose Read nodes still point at those files.
 

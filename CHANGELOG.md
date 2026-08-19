@@ -6,6 +6,7 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- Video tools default to a Nuke-written **DWAB EXR sequence** Read after the fal MP4 download (half float, compression level 200). The MP4 stays on disk. Toggle back to MP4 Reads in **fal.ai -> Settings...**. Shared helper: `nuke_video_output_v1.py`.
 - Seedance 2.5 Image to Video (`fal_seedance_25_image_to_video_v1.nk`) - animates a still into video with optional end frame, 4-30s duration, and synchronized audio via `bytedance/seedance-2.5/image-to-video`. Creates the Seedance submenu next to Seedance 2 I2V.
 - LTX 2.5 Image to Video Pro (`fal_ltx_25_image_to_video_pro_v1.nk`) - animates a still into video with optional end frame, camera motion, and synchronized audio via `lightricks/ltx-2.5/image-to-video/pro`
 - Nano Banana 2 Generate: **Extract selected as Read** and **Clear generation history** buttons. Clear only forgets node history; files on disk are kept.

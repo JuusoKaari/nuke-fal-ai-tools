@@ -40,6 +40,7 @@ class TestFalConfigLoadSave(unittest.TestCase):
         cfg = fal_config.load_config(home=home)
         self.assertEqual(cfg["fal_key"], "")
         self.assertEqual(cfg["output_dir"], "")
+        self.assertEqual(cfg["video_output"], fal_config.VIDEO_OUTPUT_EXR_SEQUENCE)
 
     def test_save_and_load_roundtrip(self):
         home = tempfile.mkdtemp()
@@ -55,6 +56,36 @@ class TestFalConfigLoadSave(unittest.TestCase):
         loaded = fal_config.load_config(home=home)
         self.assertEqual(loaded["fal_key"], "secret-key")
         self.assertEqual(loaded["output_dir"], "C:/outs")
+        self.assertEqual(loaded["video_output"], fal_config.VIDEO_OUTPUT_EXR_SEQUENCE)
+
+    def test_partial_save_preserves_video_output(self):
+        home = tempfile.mkdtemp()
+        fal_config.save_config(
+            {"fal_key": "k", "output_dir": "C:/outs", "video_output": "mp4"},
+            home=home,
+        )
+        fal_config.save_config({"fal_key": "k2"}, home=home)
+        loaded = fal_config.load_config(home=home)
+        self.assertEqual(loaded["fal_key"], "k2")
+        self.assertEqual(loaded["output_dir"], "C:/outs")
+        self.assertEqual(loaded["video_output"], fal_config.VIDEO_OUTPUT_MP4)
+
+    def test_normalize_video_output(self):
+        self.assertEqual(
+            fal_config.normalize_video_output("mp4"), fal_config.VIDEO_OUTPUT_MP4
+        )
+        self.assertEqual(
+            fal_config.normalize_video_output("DWAB EXR"),
+            fal_config.VIDEO_OUTPUT_EXR_SEQUENCE,
+        )
+        self.assertEqual(
+            fal_config.normalize_video_output(""),
+            fal_config.VIDEO_OUTPUT_EXR_SEQUENCE,
+        )
+        self.assertEqual(
+            fal_config.get_video_output(home=tempfile.mkdtemp()),
+            fal_config.VIDEO_OUTPUT_EXR_SEQUENCE,
+        )
 
     def test_invalid_json_returns_defaults(self):
         home = tempfile.mkdtemp()

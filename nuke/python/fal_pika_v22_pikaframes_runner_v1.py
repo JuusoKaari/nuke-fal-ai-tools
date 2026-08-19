@@ -3,7 +3,7 @@
 # - Accepts 2-5 keyframe images on inputs 0-4 (contiguous from keyframe_1; stop at first gap).
 # - If upstream is a suitable Read node, uses its file directly; otherwise pre-renders stills to a temp folder.
 # - Calls the external Python 3 helper `fal_pika_v22_pikaframes_helper.py` via subprocess, then creates
-#   a Read node in the main graph for the downloaded mp4.
+#   a Read for the result (DWAB EXR sequence by default; MP4 if chosen in Settings).
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -22,8 +22,7 @@ import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
 import nuke_fal_runner_util_v1 as runner_util
-import nuke_read_video_frames_v1 as video_frames
-import nuke_spawn_read_position_v1 as spawn_pos
+import nuke_video_output_v1 as video_out
 
 _MAX_KEYFRAMES = 5
 _MAX_TOTAL_TRANSITION_SECONDS = 25
@@ -101,8 +100,6 @@ def main():
     resolution = (g.knob("resolution").value() or "720p").strip()
 
     out_path = os.path.join(out_dir, "pika_v22_pikaframes_%s.mp4" % ts)
-    out_path_nk = prerender.norm_slashes(out_path)
-
 
     extra_args = [
         "--out",
@@ -132,36 +129,12 @@ def main():
         nuke, g, extra_args, 'Pika 2.2 Pikaframes'
     )
 
-    if not os.path.isfile(out_path):
-        nuke.message("Helper finished, but output file was not found:\n%s" % out_path_nk)
-        raise Exception("missing output mp4")
-
-    xpos = int(g.xpos())
-    ypos = int(g.ypos())
-
-    nuke.root().begin()
-    try:
-        fx, fy = spawn_pos.resolve_spawn_xy(nuke, xpos, ypos + 140)
-        r = nuke.nodes.Read(file=out_path_nk)
-        try:
-            r.setName("%s_%s" % (g.name(), ts), unique=True)
-        except Exception:
-            pass
-        try:
-            r.knob("label").setValue("Pika 2.2 Pikaframes\n%s" % out_path_nk)
-        except Exception:
-            pass
-        r.setXpos(fx)
-        r.setYpos(fy)
-        try:
-            video_frames.set_read_frame_range_from_video_file(r, out_path)
-        except Exception:
-            pass
-    finally:
-        nuke.endGroup()
+    display_path = video_out.spawn_video_output_read(
+        nuke, g, out_path, "Pika 2.2 Pikaframes", "%s_%s" % (g.name(), ts)
+    )
 
     if _nuke_runner_launcher.should_show_success_popup(g):
-        nuke.message("Pika 2.2 Pikaframes output created:\n%s" % out_path_nk)
+        nuke.message("Pika 2.2 Pikaframes output created:\n%s" % display_path)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,8 @@
 # Purpose:
 # - Runner for the Nuke Group node `ByteDance_Video_Upscale_v1` (executes inside Nuke / Python 2.7).
 # - Accepts upstream video on input 0; uses Read file when possible, otherwise pre-renders to a temp mp4/mov.
-# - Calls `fal_bytedance_video_upscale_helper.py` (Python 3) via subprocess, then adds a Read for the result.
+# - Calls `fal_bytedance_video_upscale_helper.py` (Python 3) via subprocess, then adds a Read for the result
+#   (DWAB EXR sequence by default; MP4 if chosen in Settings).
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -20,8 +21,7 @@ import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
 import nuke_fal_runner_util_v1 as runner_util
-import nuke_read_video_frames_v1 as video_frames
-import nuke_spawn_read_position_v1 as spawn_pos
+import nuke_video_output_v1 as video_out
 
 
 def main():
@@ -76,8 +76,6 @@ def main():
         raise
 
     out_path = os.path.join(out_dir, "bytedance_video_upscale_%s.mp4" % ts)
-    out_path_nk = prerender.norm_slashes(out_path)
-
 
     extra_args = [
         "--video",
@@ -95,32 +93,12 @@ def main():
         nuke, g, extra_args, 'ByteDance Video Upscale'
     )
 
-    xpos = int(g.xpos())
-    ypos = int(g.ypos())
-
-    nuke.root().begin()
-    try:
-        fx, fy = spawn_pos.resolve_spawn_xy(nuke, xpos, ypos + 140)
-        r = nuke.nodes.Read(file=out_path_nk)
-        try:
-            r.setName("%s_result_%s" % (g.name(), ts), unique=True)
-        except Exception:
-            pass
-        try:
-            r.knob("label").setValue("Bytedance video upscale\n%s" % out_path_nk)
-        except Exception:
-            pass
-        r.setXpos(fx)
-        r.setYpos(fy)
-        try:
-            video_frames.set_read_frame_range_from_video_file(r, out_path)
-        except Exception:
-            pass
-    finally:
-        nuke.endGroup()
+    display_path = video_out.spawn_video_output_read(
+        nuke, g, out_path, "Bytedance video upscale", "%s_result_%s" % (g.name(), ts)
+    )
 
     if _nuke_runner_launcher.should_show_success_popup(g):
-        nuke.message("Bytedance upscale output created:\n%s" % out_path_nk)
+        nuke.message("Bytedance upscale output created:\n%s" % display_path)
 
 
 if __name__ == "__main__":

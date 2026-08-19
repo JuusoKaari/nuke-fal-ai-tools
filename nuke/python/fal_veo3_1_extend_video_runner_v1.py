@@ -3,8 +3,8 @@
 # - Accepts any upstream video input; if it's a suitable Read node, uses its file directly (no re-render),
 #   otherwise pre-renders a temp video from the connected pipe.
 # - Writes a timestamped output mp4 path under a writable temp folder, then calls the external Python 3 helper
-#   `fal_veo3_1_extend_video_helper.py` via subprocess, and finally creates a Read node in the main graph
-#   pointing at the resulting video (frame range set via `nuke_read_video_frames_v1`).
+#   `fal_veo3_1_extend_video_helper.py` via subprocess, and finally creates a Read for the result
+#   (DWAB EXR sequence by default; MP4 if chosen in Settings).
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -26,7 +26,7 @@ import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
 import nuke_read_video_frames_v1 as video_frames
-import nuke_spawn_read_position_v1 as spawn_pos
+import nuke_video_output_v1 as video_out
 
 
 def _reload_runner_modules():
@@ -36,7 +36,7 @@ def _reload_runner_modules():
     """
     import _nuke_py_compat
 
-    for mod in (prerender, video_frames, spawn_pos):
+    for mod in (prerender, video_frames, video_out):
         try:
             _nuke_py_compat.reload_module(mod)
         except Exception:
@@ -224,8 +224,6 @@ def main():
         raise Exception("unsupported input resolution")
 
     out_path = os.path.join(out_dir, "veo3_1_extend_video_%s.mp4" % ts)
-    out_path_nk = prerender.norm_slashes(out_path)
-
 
     extra_args = [
         "--video",
@@ -265,33 +263,13 @@ def main():
         ),
     )
 
-    xpos = int(g.xpos())
-    ypos = int(g.ypos())
-
-    nuke.root().begin()
-    try:
-        fx, fy = spawn_pos.resolve_spawn_xy(nuke, xpos, ypos + 140)
-        r = nuke.nodes.Read(file=out_path_nk)
-        try:
-            r.setName("%s_result_%s" % (g.name(), ts), unique=True)
-        except Exception:
-            pass
-        try:
-            r.knob("label").setValue("Veo 3.1 extend video\n%s" % out_path_nk)
-        except Exception:
-            pass
-        r.setXpos(fx)
-        r.setYpos(fy)
-        try:
-            video_frames.set_read_frame_range_from_video_file(r, out_path)
-        except Exception:
-            pass
-    finally:
-        nuke.endGroup()
+    display_path = video_out.spawn_video_output_read(
+        nuke, g, out_path, "Veo 3.1 extend video", "%s_result_%s" % (g.name(), ts)
+    )
 
     if _nuke_runner_launcher.should_show_success_popup(g):
         extra = ("\n\n%s" % trim_msg) if trim_msg else ""
-        nuke.message("Veo 3.1 extend-video output created:\n%s%s" % (out_path_nk, extra))
+        nuke.message("Veo 3.1 extend-video output created:\n%s%s" % (display_path, extra))
 
 
 if __name__ == "__main__":

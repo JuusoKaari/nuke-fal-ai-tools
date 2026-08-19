@@ -3,7 +3,7 @@
 # - Accepts a start image on input 0; optional end image on input 1 for start/end transition.
 # - If upstream is a suitable Read node, uses its file directly; otherwise pre-renders a still to a temp folder.
 # - Calls the external Python 3 helper `fal_ltx_23_image_to_video_helper.py` via subprocess, then creates
-#   a Read node in the main graph for the downloaded mp4 (frame range set via `nuke_read_video_frames_v1`).
+#   a Read for the result (DWAB EXR sequence by default; MP4 if chosen in Settings).
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -22,8 +22,7 @@ import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
 import nuke_fal_runner_util_v1 as runner_util
-import nuke_read_video_frames_v1 as video_frames
-import nuke_spawn_read_position_v1 as spawn_pos
+import nuke_video_output_v1 as video_out
 
 
 def main():
@@ -81,8 +80,6 @@ def main():
             raise
 
     out_path = os.path.join(out_dir, "ltx_23_i2v_%s.mp4" % ts)
-    out_path_nk = prerender.norm_slashes(out_path)
-
 
     extra_args = [
         "--image",
@@ -114,36 +111,12 @@ def main():
         nuke, g, extra_args, 'LTX 2.3 Image to Video'
     )
 
-    if not os.path.isfile(out_path):
-        nuke.message("Helper finished, but output file was not found:\n%s" % out_path_nk)
-        raise Exception("missing output mp4")
-
-    xpos = int(g.xpos())
-    ypos = int(g.ypos())
-
-    nuke.root().begin()
-    try:
-        fx, fy = spawn_pos.resolve_spawn_xy(nuke, xpos, ypos + 140)
-        r = nuke.nodes.Read(file=out_path_nk)
-        try:
-            r.setName("%s_%s" % (g.name(), ts), unique=True)
-        except Exception:
-            pass
-        try:
-            r.knob("label").setValue("LTX 2.3 image-to-video\n%s" % out_path_nk)
-        except Exception:
-            pass
-        r.setXpos(fx)
-        r.setYpos(fy)
-        try:
-            video_frames.set_read_frame_range_from_video_file(r, out_path)
-        except Exception:
-            pass
-    finally:
-        nuke.endGroup()
+    display_path = video_out.spawn_video_output_read(
+        nuke, g, out_path, "LTX 2.3 image-to-video", "%s_%s" % (g.name(), ts)
+    )
 
     if _nuke_runner_launcher.should_show_success_popup(g):
-        nuke.message("LTX 2.3 image-to-video output created:\n%s" % out_path_nk)
+        nuke.message("LTX 2.3 image-to-video output created:\n%s" % display_path)
 
 
 if __name__ == "__main__":

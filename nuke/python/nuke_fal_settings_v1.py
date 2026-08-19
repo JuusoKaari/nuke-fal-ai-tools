@@ -1,6 +1,7 @@
 # Purpose:
-# - fal.ai Settings panel (API key, optional output dir, connection test).
+# - fal.ai Settings panel (API key, optional output dir, video output mode, connection test).
 # - Output dir is used by runners via make_run_dirs when writable.
+# - Video output chooses DWAB EXR sequence (default) vs MP4 Read after video Executes.
 # - Test connection validates the key via fal platform models list (not a
 #   generative run). Uses nukescripts.PythonPanel; optional Qt resize.
 # - Python 2.7 compatible.
@@ -31,6 +32,13 @@ _OUT_HELP = (
     "keep writing next to the saved Nuke script."
 )
 
+_VIDEO_OUT_HELP = (
+    "Video tools: fal.ai returns an MP4. By default, Execute then renders a "
+    "DWAB EXR sequence in Nuke and spawns a Read on that sequence. The MP4 is "
+    "kept on disk (audio and fallback). Choose MP4 to spawn a Read on the "
+    "movie instead."
+)
+
 _BTN_HELP = (
     "Save -- write the fields above to the config file "
     "(blank API key keeps the existing saved key).\n"
@@ -41,8 +49,14 @@ _BTN_HELP = (
 
 # Comfortable open size so multiline help text is readable without shrinking.
 _SETTINGS_PANEL_WIDTH = 640
-_SETTINGS_PANEL_HEIGHT = 480
+_SETTINGS_PANEL_HEIGHT = 580
 _SETTINGS_PANEL_TITLE = "fal.ai Settings"
+
+_VIDEO_OUTPUT_LABELS = ["DWAB EXR sequence", "MP4"]
+_VIDEO_OUTPUT_VALUES = [
+    fal_config.VIDEO_OUTPUT_EXR_SEQUENCE,
+    fal_config.VIDEO_OUTPUT_MP4,
+]
 
 
 def _import_qt_widgets():
@@ -386,6 +400,7 @@ class FalSettingsPanel(nukescripts.PythonPanel):
         cfg = fal_config.load_config()
         self._saved_key = (cfg.get("fal_key") or "").strip()
         current_out = cfg.get("output_dir") or ""
+        current_video = fal_config.normalize_video_output(cfg.get("video_output"))
 
         self.addKnob(nuke.Text_Knob("key_help", "", _KEY_HELP))
         self._key_status = nuke.Text_Knob("key_status", "", _key_status_text(self._saved_key))
@@ -406,6 +421,26 @@ class FalSettingsPanel(nukescripts.PythonPanel):
             pass
 
         _add_divider(self, "div_after_out")
+
+        self.addKnob(nuke.Text_Knob("video_help", "", _VIDEO_OUT_HELP))
+        self._video_out = nuke.Enumeration_Knob(
+            "video_output", "Video output", _VIDEO_OUTPUT_LABELS
+        )
+        self.addKnob(self._video_out)
+        try:
+            if current_video == fal_config.VIDEO_OUTPUT_MP4:
+                self._video_out.setValue("MP4")
+            else:
+                self._video_out.setValue("DWAB EXR sequence")
+        except Exception:
+            try:
+                self._video_out.setValue(
+                    1 if current_video == fal_config.VIDEO_OUTPUT_MP4 else 0
+                )
+            except Exception:
+                pass
+
+        _add_divider(self, "div_after_video")
 
         self.addKnob(nuke.Text_Knob("btn_help", "", _BTN_HELP))
 
@@ -438,17 +473,46 @@ class FalSettingsPanel(nukescripts.PythonPanel):
             out = self._out.value() or ""
         except Exception:
             out = ""
-        return str(key), str(out)
+        return str(key), str(out), self._read_video_output()
+
+    def _read_video_output(self):
+        default = fal_config.VIDEO_OUTPUT_DEFAULT
+        try:
+            v = self._video_out.value()
+        except Exception:
+            return default
+        if isinstance(v, int):
+            if 0 <= v < len(_VIDEO_OUTPUT_VALUES):
+                return _VIDEO_OUTPUT_VALUES[v]
+            return default
+        s = str(v or "").strip()
+        for label, value in zip(_VIDEO_OUTPUT_LABELS, _VIDEO_OUTPUT_VALUES):
+            if s == label or s == value:
+                return value
+        return fal_config.normalize_video_output(s)
+
+    def _video_output_label(self, value):
+        value = fal_config.normalize_video_output(value)
+        for label, stored in zip(_VIDEO_OUTPUT_LABELS, _VIDEO_OUTPUT_VALUES):
+            if stored == value:
+                return label
+        return _VIDEO_OUTPUT_LABELS[0]
 
     def _on_save(self):
-        panel_key, panel_out = self._read_fields()
+        panel_key, panel_out, panel_video = self._read_fields()
         panel_key = (panel_key or "").strip()
         # Blank password field means keep the existing saved key.
         if panel_key and ("insert your secret" not in panel_key.lower()):
             key_to_save = panel_key
         else:
             key_to_save = self._saved_key
-        fal_config.save_config({"fal_key": key_to_save, "output_dir": panel_out})
+        fal_config.save_config(
+            {
+                "fal_key": key_to_save,
+                "output_dir": panel_out,
+                "video_output": panel_video,
+            }
+        )
         self._saved_key = (key_to_save or "").strip()
         self._refresh_key_status(self._saved_key)
         try:
@@ -459,17 +523,25 @@ class FalSettingsPanel(nukescripts.PythonPanel):
         has_key = bool(self._saved_key)
         has_out = bool((panel_out or "").strip())
         nuke.message(
-            "Settings saved to:\n%s\n\nAPI key: %s\nDefault output folder: %s"
+            "Settings saved to:\n%s\n\nAPI key: %s\nDefault output folder: %s\n"
+            "Video output: %s"
             % (
                 saved,
                 "set" if has_key else "empty",
                 "set" if has_out else "empty (use script folder)",
+                self._video_output_label(panel_video),
             )
         )
 
     def _on_clear(self):
-        _panel_key, panel_out = self._read_fields()
-        fal_config.save_config({"fal_key": "", "output_dir": panel_out})
+        _panel_key, panel_out, panel_video = self._read_fields()
+        fal_config.save_config(
+            {
+                "fal_key": "",
+                "output_dir": panel_out,
+                "video_output": panel_video,
+            }
+        )
         self._saved_key = ""
         self._refresh_key_status("")
         try:
@@ -479,7 +551,7 @@ class FalSettingsPanel(nukescripts.PythonPanel):
         nuke.message("API key cleared from ~/.nuke-fal-ai/config.json.")
 
     def _on_test(self):
-        panel_key, _panel_out = self._read_fields()
+        panel_key, _panel_out, _panel_video = self._read_fields()
         key, source = resolve_key_for_test(panel_key)
         _ok, msg = run_connection_test(key)
         nuke.message("Key source: %s\n\n%s" % (source, msg))

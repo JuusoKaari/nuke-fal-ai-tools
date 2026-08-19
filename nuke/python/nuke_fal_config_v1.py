@@ -1,6 +1,7 @@
 # Purpose:
 # - Read/write artist fal.ai settings from ~/.nuke-fal-ai/config.json.
 # - Resolve optional default output folder for runner temp/output dirs.
+# - Video output mode: DWAB EXR sequence (default) or keep the fal MP4 Read.
 # - Python 2.7 compatible; importable without Nuke for unit tests.
 
 from __future__ import print_function
@@ -12,9 +13,15 @@ import sys
 
 _CONFIG_DIR_NAME = ".nuke-fal-ai"
 _CONFIG_FILE_NAME = "config.json"
+
+VIDEO_OUTPUT_EXR_SEQUENCE = "exr_sequence"
+VIDEO_OUTPUT_MP4 = "mp4"
+VIDEO_OUTPUT_DEFAULT = VIDEO_OUTPUT_EXR_SEQUENCE
+
 _DEFAULTS = {
     "fal_key": "",
     "output_dir": "",
+    "video_output": VIDEO_OUTPUT_DEFAULT,
 }
 
 
@@ -36,6 +43,19 @@ def _coerce_str(value):
     return str(value)
 
 
+def normalize_video_output(value):
+    """
+    Return VIDEO_OUTPUT_EXR_SEQUENCE or VIDEO_OUTPUT_MP4.
+    Unknown / empty values fall back to the default (EXR sequence).
+    """
+    s = _coerce_str(value).strip().lower().replace(" ", "_").replace("-", "_")
+    if s in ("mp4", "movie", "video"):
+        return VIDEO_OUTPUT_MP4
+    if s in ("exr_sequence", "exr", "sequence", "dwab", "dwab_exr"):
+        return VIDEO_OUTPUT_EXR_SEQUENCE
+    return VIDEO_OUTPUT_DEFAULT
+
+
 def normalize_config(data):
     """Return a plain dict with known keys as strings."""
     out = dict(_DEFAULTS)
@@ -45,6 +65,8 @@ def normalize_config(data):
         out["fal_key"] = _coerce_str(data.get("fal_key")).strip()
     if "output_dir" in data:
         out["output_dir"] = _coerce_str(data.get("output_dir")).strip()
+    if "video_output" in data:
+        out["video_output"] = normalize_video_output(data.get("video_output"))
     return out
 
 
@@ -68,13 +90,19 @@ def load_config(home=None, path=None):
 def save_config(data, home=None, path=None):
     """
     Write config.json (creates parent dir). Returns the path written.
-    On Unix, best-effort chmod 0600 after write.
+    Merges provided keys onto the existing file so a partial save does not
+    reset other settings. On Unix, best-effort chmod 0600 after write.
     """
     cfg_path = path if path is not None else config_path(home=home)
     parent = os.path.dirname(cfg_path)
     if parent and (not os.path.isdir(parent)):
         os.makedirs(parent)
-    payload = normalize_config(data)
+    merged = load_config(home=home, path=cfg_path)
+    if isinstance(data, dict):
+        for key in _DEFAULTS:
+            if key in data:
+                merged[key] = data[key]
+    payload = normalize_config(merged)
     text = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=True) + "\n"
     with open(cfg_path, "w") as f:
         f.write(text)
@@ -94,6 +122,12 @@ def get_output_dir(home=None, path=None):
     """Return configured default output folder string (may be empty)."""
     cfg = load_config(home=home, path=path)
     return (cfg.get("output_dir") or "").strip()
+
+
+def get_video_output(home=None, path=None):
+    """Return VIDEO_OUTPUT_EXR_SEQUENCE or VIDEO_OUTPUT_MP4."""
+    cfg = load_config(home=home, path=path)
+    return normalize_video_output(cfg.get("video_output"))
 
 
 def _can_use_dir(path):

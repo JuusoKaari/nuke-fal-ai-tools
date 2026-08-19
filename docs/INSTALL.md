@@ -234,6 +234,8 @@ Each Execute creates timestamped subfolders under:
 
 If **fal.ai -> Settings...** has a **Default output folder** that exists (or can be created) and is writable, both folders are created under that path. Otherwise they live next to your **saved** `.nk` script. Save the script before Execute when using the script-folder fallback. Folders are **not** auto-deleted; remove old `*_YYYYMMDD_*` runs manually when you need disk space.
 
+Video tools also honor **Video output** in Settings. The default is **DWAB EXR sequence**: after the MP4 lands, Nuke Writes a `name.####.exr` sequence next to it and the spawned Read points at the EXRs. Choose **MP4** to spawn a Read on the movie instead. The MP4 is kept either way.
+
 Successful downloads also write a `.json` sidecar next to the primary result (same stem) with non-secret run metadata.
 
 ### Path placeholders
