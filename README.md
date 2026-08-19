@@ -15,7 +15,7 @@
 | Category | Tools |
 |----------|--------|
 | **Image** | GPT Image 2, Hunyuan World, Nano Banana 2, **Qwen** (Inpaint, Layered, Max Edit), **Utility** (BiRefNet still, Depth, Finegrain) |
-| **Video** | DreamActor v2, Kling O3, **LTX** (2.3, 2.5 Pro), Pika v2.2, **Seedance** (2, 2.5), Veo 3.1, **Utility** (BiRefNet, ByteDance upscale) |
+| **Video** | DreamActor v2, Kling O3, **LTX** (2.3, 2.5 Pro), Pika v2.2, **Seedance** (2 I2V, 2 Reference, 2.5), Veo 3.1, **Utility** (BiRefNet, ByteDance upscale) |
 | **3D** | Hunyuan 3D |
 | **Text** | **OpenRouter** (Describe image, Generate text) |
 
