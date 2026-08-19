@@ -9,8 +9,9 @@ import nuke
 import _install_help
 from _fal_tools import (
     _NODES_CATEGORY_LABELS,
-    _TOOLS,
     _TOP_CATEGORY_LABELS,
+    family_menu_label,
+    iter_categorized_menu_entries,
 )
 
 _ROOT = os.path.normpath(os.path.dirname(os.path.abspath(__file__))).replace("\\", "/")
@@ -61,19 +62,29 @@ def _show_settings():
     nuke_fal_settings_v1.show_settings_panel()
 
 
-def _add_tool_commands(parent_menu, categorized=False, category_labels=None, label_prefix=""):
-    category_menus = {}
+def _add_tool_commands(parent_menu, category_labels, label_prefix="", for_nodes=False):
     prefix = label_prefix or ""
 
-    for category, label, group, helper, runner in _TOOLS:
-        target = parent_menu
-        if categorized:
-            if category not in category_menus:
-                menu_label = category_labels[category]
-                category_menus[category] = parent_menu.addMenu(menu_label)
-            target = category_menus[category]
-        cmd_label = "%s%s" % (prefix, label) if prefix else label
-        target.addCommand(cmd_label, _make_creator(group, helper, runner))
+    def _command_label(label):
+        if prefix:
+            return "%s%s" % (prefix, label)
+        return label
+
+    for category, entries in iter_categorized_menu_entries():
+        category_menu = parent_menu.addMenu(category_labels[category])
+        for entry in entries:
+            if entry[0] == "item":
+                _kind, label, group, helper, runner = entry
+                category_menu.addCommand(
+                    _command_label(label), _make_creator(group, helper, runner)
+                )
+            else:
+                _kind, family, tools = entry
+                family_menu = category_menu.addMenu(family_menu_label(family, for_nodes))
+                for label, group, helper, runner in tools:
+                    family_menu.addCommand(
+                        _command_label(label), _make_creator(group, helper, runner)
+                    )
 
 
 def _add_execute_selected(parent_menu):
@@ -94,13 +105,17 @@ _nodes_fal_menu = nuke.menu("Nodes").addMenu("fal.ai")
 _add_settings_command(_nodes_fal_menu, at_top=True)
 _add_tool_commands(
     _nodes_fal_menu,
-    categorized=True,
     category_labels=_NODES_CATEGORY_LABELS,
     label_prefix="fal ",
+    for_nodes=True,
 )
 _add_execute_selected(_nodes_fal_menu)
 
 _top_fal_menu = nuke.menu("Nuke").addMenu("fal.ai")
 _add_settings_command(_top_fal_menu, at_top=True)
-_add_tool_commands(_top_fal_menu, categorized=True, category_labels=_TOP_CATEGORY_LABELS)
+_add_tool_commands(
+    _top_fal_menu,
+    category_labels=_TOP_CATEGORY_LABELS,
+    for_nodes=False,
+)
 _add_execute_selected(_top_fal_menu)

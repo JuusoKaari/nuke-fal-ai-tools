@@ -10,14 +10,14 @@
 
 ## Tools
 
-21 groups under **Nodes -> fal.ai**:
+21 groups under **Nodes -> fal.ai** (families with 2+ tools are submenus; singles stay flat; Utility last):
 
 | Category | Tools |
 |----------|--------|
-| **Image** | Hunyuan World, Nano Banana 2, Qwen Image Max, GPT Image 2, Qwen Inpaint, Finegrain Eraser, BiRefNet v2 Still, Depth Anything v2, Qwen Layered |
-| **Video** | BiRefNet v2, LTX 2.3, LTX 2.5 Pro, Seedance 2, Pika v2.2, Kling O3, Veo 3.1, ByteDance Upscaler, DreamActor v2 |
+| **Image** | GPT Image 2, Hunyuan World, Nano Banana 2, **Qwen** (Inpaint, Layered, Max Edit), **Utility** (BiRefNet still, Depth, Finegrain) |
+| **Video** | DreamActor v2, Kling O3, **LTX** (2.3, 2.5 Pro), Pika v2.2, Seedance 2, Veo 3.1, **Utility** (BiRefNet, ByteDance upscale) |
 | **3D** | Hunyuan 3D |
-| **Text** | Generate text, Describe image |
+| **Text** | **OpenRouter** (Describe image, Generate text) |
 
 ## Quick start
 
