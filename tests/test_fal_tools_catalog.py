@@ -172,6 +172,7 @@ class TestFalToolsCatalog(unittest.TestCase):
         self.assertIn("GPT Image 2 Edit", image_items)
         self.assertIn("Hunyuan World", image_items)
         self.assertIn("Kling O3 V2V Edit", video_items)
+        self.assertIn("MiniMax H3 Image to Video", video_items)
         self.assertIn("Pika v2.2 Pikaframes", video_items)
         self.assertIn("Veo 3.1 Extend Video", video_items)
         self.assertIn("DreamActor v2 Motion Control", video_items)

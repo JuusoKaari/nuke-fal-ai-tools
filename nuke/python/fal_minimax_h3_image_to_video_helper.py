@@ -1,0 +1,184 @@
+# Purpose:
+# - Python 3 helper for Nuke (Python 2.7) to run fal.ai MiniMax H3 *image-to-video*.
+# - Uploads local start (and optional end) images, calls `minimax/h3/image-to-video`, downloads the mp4.
+#
+# Usage (example):
+#   py -3 fal_minimax_h3_image_to_video_helper.py --image "C:/start.png" --prompt "..." --out "C:/temp/out.mp4" --verbose
+#
+# Requirements:
+#   pip install fal-client
+#
+# Auth:
+# - Provide `--fal-key` or set environment variable `FAL_KEY`.
+#
+# Model:
+# - https://fal.ai/models/minimax/h3/image-to-video
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+
+from fal_common import (
+    download,
+    emit_result_summary,
+    ensure_dir,
+    format_fal_error_summary,
+    subscribe_with_retry,
+)
+
+_ENDPOINT_ID = "minimax/h3/image-to-video"
+_DURATION_CHOICES = list(range(5, 16))
+_RESOLUTION_CHOICES = ["480P", "768P", "2K", "4K"]
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        description="Run MiniMax H3 image-to-video via fal.ai and download the resulting mp4."
+    )
+    parser.add_argument("--fal-key", default=None, help="fal.ai API key (otherwise uses FAL_KEY env var).")
+    parser.add_argument("--image", required=True, help="Path to local start frame image.")
+    parser.add_argument("--end-image", default="", help="Optional path to end frame image (transition).")
+    parser.add_argument("--prompt", required=True, help="Text prompt describing the motion / scene.")
+    parser.add_argument("--out", required=True, help="Output path for the downloaded .mp4 file.")
+    parser.add_argument(
+        "--duration",
+        type=int,
+        default=5,
+        choices=_DURATION_CHOICES,
+        help="Duration in seconds (5-15). Default: 5.",
+    )
+    parser.add_argument(
+        "--resolution",
+        default="2K",
+        choices=_RESOLUTION_CHOICES,
+        help="Output resolution. 480P and 768P are native; 2K and 4K upscale 768P. Default: 2K.",
+    )
+    parser.add_argument("--seed", type=int, default=None, help="Optional RNG seed.")
+    parser.add_argument(
+        "--enable-prompt-expansion",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Expand the prompt with a vision language model before generation. Default: true.",
+    )
+    parser.add_argument(
+        "--enable-safety-checker",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable the safety checker. Default: true.",
+    )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=3,
+        help="Max retries for transient fal backend errors. Default: 3.",
+    )
+    parser.add_argument(
+        "--retry-base-seconds",
+        type=float,
+        default=2.0,
+        help="Base backoff seconds for retries. Default: 2.0.",
+    )
+    parser.add_argument("--verbose", action="store_true", help="Print more logs.")
+    args = parser.parse_args(argv)
+
+    fal_key = args.fal_key or os.environ.get("FAL_KEY")
+    if not fal_key:
+        print("ERROR: missing FAL key. Provide --fal-key or set FAL_KEY env var.", file=sys.stderr)
+        return 2
+
+    image_path = os.path.abspath(args.image)
+    if not os.path.isfile(image_path):
+        print("ERROR: start image file not found: %s" % image_path, file=sys.stderr)
+        return 2
+
+    end_image_path = (args.end_image or "").strip()
+    if end_image_path:
+        end_image_path = os.path.abspath(end_image_path)
+        if not os.path.isfile(end_image_path):
+            print("ERROR: end image file not found: %s" % end_image_path, file=sys.stderr)
+            return 2
+
+    out_path = os.path.abspath(args.out)
+    ensure_dir(os.path.dirname(out_path) or ".")
+
+    try:
+        import fal_client
+    except Exception as e:
+        print("ERROR: failed to import fal_client. Did you `pip install fal-client`? (%s)" % (e,), file=sys.stderr)
+        return 3
+
+    client = fal_client.SyncClient(key=fal_key)
+    user_agent = "nuke-fal-minimax-h3-i2v-helper"
+
+    if args.verbose:
+        print("Uploading start image: %s" % image_path)
+    image_url = client.upload_file(image_path)
+
+    end_image_url = None
+    if end_image_path:
+        if args.verbose:
+            print("Uploading end image: %s" % end_image_path)
+        end_image_url = client.upload_file(end_image_path)
+
+    if args.verbose:
+        print("Submitting request: %s" % _ENDPOINT_ID)
+
+    arguments: dict = {
+        "image_url": image_url,
+        "prompt": args.prompt,
+        "duration": int(args.duration),
+        "resolution": args.resolution,
+        "enable_prompt_expansion": bool(args.enable_prompt_expansion),
+        "enable_safety_checker": bool(args.enable_safety_checker),
+    }
+    if end_image_url:
+        arguments["end_image_url"] = end_image_url
+    if args.seed is not None:
+        arguments["seed"] = int(args.seed)
+
+    try:
+        result = subscribe_with_retry(
+            client,
+            _ENDPOINT_ID,
+            arguments,
+            max_retries=args.max_retries,
+            retry_base_seconds=args.retry_base_seconds,
+            verbose=args.verbose,
+        )
+    except Exception as e:
+        print(
+            "ERROR: MiniMax H3 image-to-video request failed.\n%s"
+            % format_fal_error_summary(e),
+            file=sys.stderr,
+        )
+        return 5
+
+    video = None
+    try:
+        video = result["video"]
+    except Exception:
+        video = None
+    if not isinstance(video, dict) or not video.get("url"):
+        print("ERROR: unexpected response shape:\n%s" % json.dumps(result, indent=2), file=sys.stderr)
+        return 4
+
+    url = str(video["url"])
+    if args.verbose:
+        print("Downloading video -> %s" % out_path)
+    download(url, out_path, user_agent=user_agent)
+
+    summary = {
+        "ok": True,
+        "endpoint": _ENDPOINT_ID,
+        "out": out_path,
+        "video": video,
+    }
+    emit_result_summary(summary)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

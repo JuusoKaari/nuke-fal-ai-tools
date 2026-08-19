@@ -1,0 +1,82 @@
+# Purpose:
+# - Nuke Group node that runs fal.ai MiniMax H3 image-to-video on a still (start frame), optional end frame for transitions.
+# - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
+# - Model: https://fal.ai/models/minimax/h3/image-to-video
+
+set cut_paste_input [stack 0]
+version 11.3 v6
+push $cut_paste_input
+Group {
+ name MiniMax_H3_Image_To_Video_v1
+ selected true
+ addUserKnob {20 Settings}
+ addUserKnob {1 prompt l Prompt}
+ prompt "Describe the motion and action for the video (pure generation from the start image, not an edit instruction)"
+ addUserKnob {4 duration l Duration M {5 6 7 8 9 10 11 12 13 14 15 ""}}
+ duration 5
+ addUserKnob {4 resolution l Resolution M {480P 768P 2K 4K ""}}
+ resolution 2K
+ addUserKnob {6 enable_prompt_expansion l "Enable prompt expansion" +STARTLINE}
+ enable_prompt_expansion true
+ addUserKnob {6 enable_safety_checker l "Enable safety checker" +STARTLINE}
+ enable_safety_checker true
+ addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}
+ show_success_popup true
+ addUserKnob {1 seed l "Seed (optional)"}
+ seed ""
+ addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
+ addUserKnob {20 endGroup n -1}
+ addUserKnob {20 Advanced l Advanced +CLOSED}
+ addUserKnob {1 python3_cmd l "Python 3 cmd"}
+ python3_cmd "py -3"
+ addUserKnob {1 FAL}
+ FAL "insert fal key to override for this node"
+ addUserKnob {20 endAdvanced n -1}
+ addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
+ helper_path "__INSTALL_ROOT__/nuke/python/fal_minimax_h3_image_to_video_helper.py"
+ addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
+ runner_path "__INSTALL_ROOT__/nuke/python/fal_minimax_h3_image_to_video_runner_v1.py"
+}
+Text {
+ inputs 0
+ message "Connect start_image (required). Optionally connect end_image for a transition.\nSet prompt and options, then Execute."
+ font C:/Windows/Fonts/arial.ttf
+ yjustify bottom
+ Transform 1
+ box {30 30 1906 1052}
+ center {560 372}
+ name Text1
+ xpos 101
+ ypos 294
+}
+set Nmmh3i2v000 [stack 0]
+Output {
+ name Output1
+ xpos 101
+ ypos 406
+}
+Input {
+ inputs 0
+ name start_image
+ xpos 0
+ ypos -51
+}
+Input {
+ inputs 0
+ name end_image
+ xpos 188
+ ypos -51
+ number 1
+}
+push $Nmmh3i2v000
+Viewer {
+ inputs 1
+ frame_range 0-199
+ fps 25
+ input_number 0
+ name Viewer1
+ selected true
+ xpos 281
+ ypos 412
+}
+end_group

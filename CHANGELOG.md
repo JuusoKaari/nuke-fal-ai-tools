@@ -6,6 +6,7 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- MiniMax H3 Image to Video (`fal_minimax_h3_image_to_video_v1.nk`) - animates a still into video with optional end frame, 5-15s, default 2K via `minimax/h3/image-to-video`. Stays flat under Video until a second MiniMax node ships.
 - FLUX 3 Keyframes to Video (`fal_flux_3_keyframes_to_video_v1.nk`) - 1-10 contiguous stills pinned to 24 fps positions, 5-20s, optional draft endpoint via `blackforestlabs/flux-3/keyframes-to-video`. Creates the FLUX 3 submenu next to First/Last.
 - FLUX 3 First/Last Frame to Video (`fal_flux_3_first_last_frame_to_video_v1.nk`) - required start and end stills, 5-20s, optional draft endpoint via `blackforestlabs/flux-3/first-last-frame-to-video`. Stays flat under Video until FLUX 3 Keyframes ships.
 - Video tools default to a Nuke-written **DWAB EXR sequence** Read after the fal MP4 download (half float, compression level 200). The MP4 stays on disk. Toggle back to MP4 Reads in **fal.ai -> Settings...**. Shared helper: `nuke_video_output_v1.py`.
