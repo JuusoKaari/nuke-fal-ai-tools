@@ -8,8 +8,6 @@ push $cut_paste_input
 Group {
  name GPT_Image_2_Edit_v1
  selected true
- xpos -340
- ypos 120
  addUserKnob {20 Settings}
  addUserKnob {1 prompt l Prompt}
  prompt "Describe the edit you want (or connect a Text node with a message knob to override)"

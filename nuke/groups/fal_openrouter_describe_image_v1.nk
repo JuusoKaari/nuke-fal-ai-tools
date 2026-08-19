@@ -10,8 +10,6 @@ push $cut_paste_input
 Group {
  name OpenRouter_Describe_Image_v1
  selected true
- xpos -331
- ypos 7
  addUserKnob {20 Settings}
  addUserKnob {1 prompt l Prompt}
  prompt "Caption this image for a text-to-image model with as much detail as possible."

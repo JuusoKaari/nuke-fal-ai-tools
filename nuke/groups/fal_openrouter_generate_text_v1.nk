@@ -10,8 +10,6 @@ push $cut_paste_input
 Group {
  name OpenRouter_Generate_Text_v1
  selected true
- xpos -340
- ypos 120
  addUserKnob {20 Settings}
  addUserKnob {1 prompt l Prompt}
  prompt "Write a short story about an AI that learns to dream."

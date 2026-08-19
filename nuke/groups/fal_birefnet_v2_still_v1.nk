@@ -9,8 +9,6 @@ push $cut_paste_input
 Group {
  name BiRefNet_v2_Still_v1
  selected true
- xpos -331
- ypos 7
  addUserKnob {20 Settings}
  addUserKnob {4 model M {"General Use (Light)" "General Use (Light 2K)" "General Use (Heavy)" Matting Portrait "General Use (Dynamic)" ""}}
  model "General Use (Light)"

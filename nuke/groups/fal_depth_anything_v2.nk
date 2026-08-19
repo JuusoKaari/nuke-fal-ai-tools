@@ -11,8 +11,6 @@ push $cut_paste_input
 Group {
  name Depth_Anything_v2
  selected true
- xpos -331
- ypos 7
  addUserKnob {20 Settings}
  addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}
  show_success_popup true

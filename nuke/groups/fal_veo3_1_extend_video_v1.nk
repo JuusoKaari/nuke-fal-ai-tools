@@ -9,8 +9,6 @@ push $cut_paste_input
 Group {
  name Veo_3_1_Extend_Video_v1
  selected true
- xpos -331
- ypos 7
  addUserKnob {20 Settings}
  addUserKnob {4 frame_range l "Input frame range" M {root current custom ""}}
  frame_range root

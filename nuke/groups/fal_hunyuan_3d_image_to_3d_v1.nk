@@ -9,8 +9,6 @@ push $cut_paste_input
 Group {
  name Hunyuan_3D_Image_to_3D_v1
  selected true
- xpos -331
- ypos 7
  addUserKnob {20 Settings}
  addUserKnob {1 face_count l "Face count (40k-1.5M)"}
  face_count "100000"

@@ -9,8 +9,6 @@ push $cut_paste_input
 Group {
  name LTX_25_Image_To_Video_Pro_v1
  selected true
- xpos -331
- ypos 7
  addUserKnob {20 Settings}
  addUserKnob {1 prompt l Prompt}
  prompt "Describe the motion and scene (pure generation from the start image, not an edit instruction)"

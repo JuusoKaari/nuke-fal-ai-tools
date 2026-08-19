@@ -10,8 +10,6 @@ push $cut_paste_input
 Group {
  name Qwen_Image_Layered_v1
  selected true
- xpos -331
- ypos 7
  addUserKnob {20 Settings}
  addUserKnob {1 prompt l "Prompt (optional)"}
  prompt ""
