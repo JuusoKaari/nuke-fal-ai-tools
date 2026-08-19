@@ -2,6 +2,7 @@
 # - Read/write artist fal.ai settings from ~/.nuke-fal-ai/config.json.
 # - Resolve optional default output folder for runner temp/output dirs.
 # - Video output mode: DWAB EXR sequence (default) or keep the fal MP4 Read.
+# - Treat the FAL knob placeholder as empty so Settings / FAL_KEY remain the defaults.
 # - Python 2.7 compatible; importable without Nuke for unit tests.
 
 from __future__ import print_function
@@ -17,6 +18,11 @@ _CONFIG_FILE_NAME = "config.json"
 VIDEO_OUTPUT_EXR_SEQUENCE = "exr_sequence"
 VIDEO_OUTPUT_MP4 = "mp4"
 VIDEO_OUTPUT_DEFAULT = VIDEO_OUTPUT_EXR_SEQUENCE
+
+# Default FAL knob text in group .nk files. Not a real key.
+FAL_KNOB_PLACEHOLDER = "insert fal key to override for this node"
+# Older shipped default; still ignore it so existing scripts keep using Settings/env.
+_OLD_FAL_KNOB_PLACEHOLDER_MARKER = "insert your secret"
 
 _DEFAULTS = {
     "fal_key": "",
@@ -191,6 +197,19 @@ def resolve_usable_output_base(configured=None, home=None, path=None):
     return ""
 
 
+def is_placeholder_fal_key(value):
+    """True when the FAL knob is empty or still the shipped placeholder."""
+    text = _coerce_str(value).strip()
+    if not text:
+        return True
+    lowered = text.lower()
+    if lowered == FAL_KNOB_PLACEHOLDER.lower():
+        return True
+    if _OLD_FAL_KNOB_PLACEHOLDER_MARKER in lowered:
+        return True
+    return False
+
+
 def resolve_fal_key(knob_value=None, env=None, home=None, config_file=None):
     """
     Resolve FAL_KEY with cascade (highest first):
@@ -201,7 +220,7 @@ def resolve_fal_key(knob_value=None, env=None, home=None, config_file=None):
     if env is None:
         env = os.environ
     knob = _coerce_str(knob_value).strip() if knob_value is not None else ""
-    if knob and ("insert your secret" not in knob.lower()):
+    if knob and not is_placeholder_fal_key(knob):
         return knob
     cfg_key = get_fal_key_from_config(home=home, path=config_file)
     if cfg_key:

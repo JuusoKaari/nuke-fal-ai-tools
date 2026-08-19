@@ -55,13 +55,11 @@ def helper_env_from_group(group_node, home=None, config_file=None):
         fal_knob = (group_node.knob("FAL").value() or "").strip()
     except Exception:
         fal_knob = ""
-    if fal_knob and ("insert your secret" not in fal_knob.lower()):
-        env["FAL_KEY"] = fal_knob
-        return env
-    cfg_key = fal_config.get_fal_key_from_config(home=home, path=config_file)
-    if cfg_key:
-        env["FAL_KEY"] = cfg_key
-        return env
+    fal_key = fal_config.resolve_fal_key(
+        knob_value=fal_knob, env=env, home=home, config_file=config_file
+    )
+    if fal_key:
+        env["FAL_KEY"] = fal_key
     return env
 
 

@@ -181,7 +181,7 @@ def resolve_key_for_test(panel_key):
     Does not use a per-node knob (settings has no group context).
     """
     panel_key = (panel_key or "").strip()
-    if panel_key and ("insert your secret" not in panel_key.lower()):
+    if panel_key and not fal_config.is_placeholder_fal_key(panel_key):
         return panel_key, "settings panel"
     cfg_key = fal_config.get_fal_key_from_config()
     if cfg_key:
@@ -502,7 +502,7 @@ class FalSettingsPanel(nukescripts.PythonPanel):
         panel_key, panel_out, panel_video = self._read_fields()
         panel_key = (panel_key or "").strip()
         # Blank password field means keep the existing saved key.
-        if panel_key and ("insert your secret" not in panel_key.lower()):
+        if panel_key and not fal_config.is_placeholder_fal_key(panel_key):
             key_to_save = panel_key
         else:
             key_to_save = self._saved_key

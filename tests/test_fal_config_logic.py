@@ -96,6 +96,17 @@ class TestFalConfigLoadSave(unittest.TestCase):
         cfg = fal_config.load_config(home=home)
         self.assertEqual(cfg["fal_key"], "")
 
+    def test_is_placeholder_fal_key(self):
+        self.assertTrue(fal_config.is_placeholder_fal_key(""))
+        self.assertTrue(fal_config.is_placeholder_fal_key("   "))
+        self.assertTrue(fal_config.is_placeholder_fal_key(fal_config.FAL_KNOB_PLACEHOLDER))
+        self.assertTrue(
+            fal_config.is_placeholder_fal_key(
+                "insert your secret key here or use env variable FAL_KEY"
+            )
+        )
+        self.assertFalse(fal_config.is_placeholder_fal_key("from-knob"))
+
     def test_resolve_fal_key_precedence(self):
         home = tempfile.mkdtemp()
         fal_config.save_config({"fal_key": "from-config"}, home=home)
@@ -113,6 +124,15 @@ class TestFalConfigLoadSave(unittest.TestCase):
         self.assertEqual(
             fal_config.resolve_fal_key(
                 knob_value="insert your secret here",
+                env={"FAL_KEY": "from-env"},
+                home=home,
+                config_file=cfg_path,
+            ),
+            "from-config",
+        )
+        self.assertEqual(
+            fal_config.resolve_fal_key(
+                knob_value=fal_config.FAL_KNOB_PLACEHOLDER,
                 env={"FAL_KEY": "from-env"},
                 home=home,
                 config_file=cfg_path,
@@ -184,7 +204,7 @@ class TestHelperEnvPrecedence(unittest.TestCase):
 
     def test_env_used_when_knob_and_config_missing(self):
         home = tempfile.mkdtemp()
-        g = _FakeGroup({"FAL": _FakeKnob("insert your secret")})
+        g = _FakeGroup({"FAL": _FakeKnob(fal_config.FAL_KNOB_PLACEHOLDER)})
         old = os.environ.get("FAL_KEY")
         os.environ["FAL_KEY"] = "from-env"
         try:
@@ -201,7 +221,7 @@ class TestHelperEnvPrecedence(unittest.TestCase):
     def test_config_used_when_knob_and_env_missing(self):
         home = tempfile.mkdtemp()
         fal_config.save_config({"fal_key": "from-config"}, home=home)
-        g = _FakeGroup({"FAL": _FakeKnob("insert your secret")})
+        g = _FakeGroup({"FAL": _FakeKnob(fal_config.FAL_KNOB_PLACEHOLDER)})
         old = os.environ.get("FAL_KEY")
         os.environ.pop("FAL_KEY", None)
         try:

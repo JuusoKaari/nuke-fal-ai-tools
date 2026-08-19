@@ -22,7 +22,7 @@ Group {
  addUserKnob {1 python3_cmd l "Python 3 cmd"}
  python3_cmd "py -3"
  addUserKnob {1 FAL}
- FAL "insert your secret key here or use env variable FAL_KEY"
+ FAL "insert fal key to override for this node"
  addUserKnob {20 endAdvanced n -1}
  addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
  helper_path "__INSTALL_ROOT__/nuke/python/fal_hunyuan_world_helper.py"
