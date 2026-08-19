@@ -1,0 +1,88 @@
+# Purpose:
+# - Nuke Group node that upscales a still via fal.ai Topaz Precision (Gigapixel).
+# - Model: topaz/upscale/image/precision - https://fal.ai/models/fal-ai/topaz/upscale/image/precision
+# - One still in, one still out. Image Utility, not a Topaz family.
+# - Delegates logic to Python runners in `nuke/python/`.
+
+set cut_paste_input [stack 0]
+version 11.3 v6
+push $cut_paste_input
+Group {
+ name Topaz_Upscale_Image_Precision_v1
+ selected true
+ addUserKnob {20 Settings}
+ addUserKnob {4 model M {"Standard V2" "High Fidelity V3" "High Fidelity V2" "Low Resolution V2" CGI "Text Refine" ""}}
+ model "Standard V2"
+ addUserKnob {7 upscale_factor l "Upscale factor" R 1 4}
+ upscale_factor 2
+ addUserKnob {4 output_format l "Output format" M {jpeg png ""}}
+ output_format png
+ addUserKnob {6 crop_to_fill l "Crop to fill" +STARTLINE}
+ crop_to_fill false
+ addUserKnob {4 subject_detection l "Subject detection" M {All Foreground Background ""}}
+ subject_detection All
+ addUserKnob {6 face_enhancement l "Face enhancement" +STARTLINE}
+ face_enhancement true
+ addUserKnob {7 face_enhancement_creativity l "Face enhancement creativity" R 0 1}
+ face_enhancement_creativity 0
+ addUserKnob {7 face_enhancement_strength l "Face enhancement strength" R 0 1}
+ face_enhancement_strength 0.8
+ addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}
+ show_success_popup true
+ addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
+ addUserKnob {20 endGroup n -1}
+ addUserKnob {20 Advanced l Advanced +CLOSED}
+ addUserKnob {1 python3_cmd l "Python 3 cmd"}
+ python3_cmd "py -3"
+ addUserKnob {1 FAL}
+ FAL "insert fal key to override for this node"
+ addUserKnob {1 sharpen l "Sharpen (optional, 0-1)"}
+ sharpen ""
+ addUserKnob {1 denoise l "Denoise (optional, 0-1)"}
+ denoise ""
+ addUserKnob {1 fix_compression l "Fix compression (optional, 0-1)"}
+ fix_compression ""
+ addUserKnob {1 strength l "Strength (Text Refine, optional)"}
+ strength ""
+ addUserKnob {20 endAdvanced n -1}
+ addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
+ helper_path "__INSTALL_ROOT__/nuke/python/fal_topaz_upscale_image_precision_helper.py"
+ addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
+ runner_path "__INSTALL_ROOT__/nuke/python/fal_topaz_upscale_image_precision_runner_v1.py"
+}
+Text {
+ inputs 0
+ message "Connect a still to source_image. Set model and upscale factor, then Execute.\nOptional sharpen/denoise/fix compression/strength (Text Refine) live in Advanced; leave empty for model defaults."
+ font C:/Windows/Fonts/arial.ttf
+ yjustify bottom
+ Transform 1
+ box {30 30 1906 1052}
+ center {560 372}
+ name Text1
+ xpos 101
+ ypos 294
+}
+set Nfaltopazup1 [stack 0]
+Output {
+ name Output1
+ xpos 101
+ ypos 406
+}
+Input {
+ inputs 0
+ name source_image
+ xpos 0
+ ypos -51
+}
+push $Nfaltopazup1
+Viewer {
+ inputs 1
+ frame_range 0-199
+ fps 25
+ input_number 0
+ name Viewer1
+ selected true
+ xpos 281
+ ypos 412
+}
+end_group

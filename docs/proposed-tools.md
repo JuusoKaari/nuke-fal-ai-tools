@@ -4,7 +4,7 @@ Wishlist of fal.ai models to add to the Nuke toolset. Sourced from the live cata
 
 Implement **one unchecked tool per agent turn**. Check it off, commit, then stop. Clone the listed existing files instead of inventing a new node shape.
 
-Current coverage (do not duplicate): Nano Banana 2 generate+edit, GPT Image 2 edit, Qwen Max edit / inpaint / layered, Finegrain eraser, BiRefNet still+video, Depth Anything v2, Hunyuan World, Seedance 2.0 I2V, Seedance 2.0 Reference, Seedance 2.5 I2V, FLUX 3 First/Last + Keyframes, LTX 2.3 + LTX 2.5 Pro I2V, MiniMax H3 I2V, Pika 2.2 Pikaframes, Kling O3 V2V edit, Veo 3.1 extend, ByteDance video upscale, DreamActor v2, Hunyuan 3D v3.1 Pro.
+Current coverage (do not duplicate): Nano Banana 2 generate+edit, GPT Image 2 edit, Qwen Max edit / inpaint / layered, Finegrain eraser, BiRefNet still+video, Depth Anything v2, Topaz Precision still upscale, Hunyuan World, Seedance 2.0 I2V, Seedance 2.0 Reference, Seedance 2.5 I2V, FLUX 3 First/Last + Keyframes, LTX 2.3 + LTX 2.5 Pro I2V, MiniMax H3 I2V, Pika 2.2 Pikaframes, Kling O3 V2V edit, Veo 3.1 extend, ByteDance video upscale, DreamActor v2, Hunyuan 3D v3.1 Pro.
 
 ## Menu families
 
@@ -24,7 +24,7 @@ Image
   Hunyuan World             family hunyuan-world (flat)
   Nano Banana 2 Generate    family nano-banana (flat)
   Qwen                      Inpaint, Layered, Max Edit
-  Utility                   BiRefNet still, Depth, Finegrain
+  Utility                   BiRefNet still, Depth, Finegrain, Topaz Precision
 Video
   DreamActor v2             family dreamactor (flat)
   FLUX 3                    First/Last, Keyframes
@@ -127,7 +127,7 @@ Highest Nuke value. Implement in this order.
 - [x] **FLUX 3 First/Last Frame to Video** -- `blackforestlabs/flux-3/first-last-frame-to-video` -- family `flux` / video -- start+end stills; optional draft endpoint as a knob
 - [x] **FLUX 3 Keyframes to Video** -- `blackforestlabs/flux-3/keyframes-to-video` -- family `flux` / video -- multi-keyframe; modern Pikaframes
 - [x] **MiniMax H3 Image to Video** -- `minimax/h3/image-to-video` -- family `minimax` / video -- frontier I2V; native 2K; optional last frame
-- [ ] **Image upscale (Topaz Precision)** -- `topaz/upscale/image/precision` -- family `utility` / image -- still upscale (video upscale already exists)
+- [x] **Image upscale (Topaz Precision)** -- `topaz/upscale/image/precision` -- family `utility` / image -- still upscale (video upscale already exists)
 - [ ] **Seedream 5.0 Pro Edit** -- `bytedance/seedream/v5/pro/edit` -- family `seedream` / image -- region-precise edit, layer separation, up to 10 refs
 
 FLUX 3 single-image I2V (`blackforestlabs/flux-3/image-to-video`) is not a separate queue item. First/last and keyframes cover the Nuke-shaped FLUX 3 work.

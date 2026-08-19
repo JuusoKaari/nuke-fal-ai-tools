@@ -50,6 +50,7 @@ _TOOLS = sorted(
         ("image", "utility", "BiRefNet v2 Still", "fal_birefnet_v2_still_v1.nk", "fal_birefnet_v2_still_helper.py", "fal_birefnet_v2_still_runner_v1.py"),
         ("image", "utility", "Depth Anything v2", "fal_depth_anything_v2.nk", "fal_depth_anything_v2_helper.py", "fal_depth_anything_v2_runner_v1.py"),
         ("image", "utility", "Finegrain Eraser", "fal_finegrain_eraser_v1.nk", "fal_finegrain_eraser_helper.py", "fal_finegrain_eraser_runner_v1.py"),
+        ("image", "utility", "Image upscale (Topaz Precision)", "fal_topaz_upscale_image_precision_v1.nk", "fal_topaz_upscale_image_precision_helper.py", "fal_topaz_upscale_image_precision_runner_v1.py"),
         ("image", "gpt-image", "GPT Image 2 Edit", "fal_gpt_image_2_edit_v1.nk", "fal_gpt_image_2_edit_helper.py", "fal_gpt_image_2_edit_runner_v1.py"),
         ("image", "hunyuan-world", "Hunyuan World", "fal_hunyuan_world_v1.nk", "fal_hunyuan_world_helper.py", "fal_hunyuan_world_runner_v1.py"),
         ("image", "nano-banana", "Nano Banana 2 Generate", "fal_nano_banana_2_generate_v1.nk", "fal_nano_banana_2_generate_helper.py", "fal_nano_banana_2_generate_runner_v1.py"),
