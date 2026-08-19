@@ -21,6 +21,14 @@
 
 ## Quick start
 
+Ask Claude, Codex, or Cursor to set it up:
+
+```text
+Help me install this toolset on my Nuke: https://github.com/JuusoKaari/nuke-fal-ai-tools
+```
+
+Or do it yourself:
+
 1. Download the [latest release](https://github.com/JuusoKaari/nuke-fal-ai-tools/releases/latest) or `git clone`.
 2. Point Nuke at the install **root** (folder with `init.py`, not the inner `nuke/`):
    - Artists: add one line to `~/.nuke/init.py`:

@@ -2,6 +2,8 @@
 
 Setup guide for **nuke-fal-ai-tools**.
 
+If an AI agent is installing this for a user: follow this document exactly. Point Nuke at the folder that contains `init.py` (not the inner `nuke/` folder). Use system Python 3 for pip (`py -3` on Windows, `python3` elsewhere), not Nuke's embedded Python. Ask before editing `~/.nuke/init.py` or replacing an existing `NUKE_PATH`. Do not write the API key into a `.nk` script or a committed file; leave that to **fal.ai -> Settings...** or `FAL_KEY`.
+
 **Platform support:** Developed and tested on **Windows** only. macOS and Linux should work with the same env vars and folder layout, but path separators, Python launchers, and Nuke installs differ -- see [macOS / Linux](#macos--linux) below. Report platform-specific issues on GitHub.
 
 ## Requirements
