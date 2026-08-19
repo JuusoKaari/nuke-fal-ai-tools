@@ -1,0 +1,143 @@
+# Purpose:
+# - Nuke Group node that runs fal.ai FLUX 3 keyframes-to-video from 1-10 contiguous keyframe stills.
+# - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
+# - Model: https://fal.ai/models/blackforestlabs/flux-3/keyframes-to-video
+# - Draft: https://fal.ai/models/blackforestlabs/flux-3/keyframes-to-video/draft
+
+set cut_paste_input [stack 0]
+version 11.3 v6
+push $cut_paste_input
+Group {
+ name FLUX_3_Keyframes_To_Video_v1
+ selected true
+ addUserKnob {20 Settings}
+ addUserKnob {1 prompt l Prompt}
+ prompt "Describe the motion and action across the keyframes"
+ addUserKnob {4 duration l Duration M {5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 ""}}
+ duration 5
+ addUserKnob {4 resolution l Resolution M {720p 1080p ""}}
+ resolution 720p
+ addUserKnob {4 aspect_ratio l "Aspect ratio" M {auto 21:9 2:1 16:9 4:3 1:1 3:4 9:16 ""}}
+ aspect_ratio auto
+ addUserKnob {4 safety_tolerance l "Safety tolerance (0=strict, 4=permissive)" M {0 1 2 3 4 ""}}
+ safety_tolerance 2
+ addUserKnob {1 frame_indices l "Frame indices (optional)"}
+ frame_indices ""
+ addUserKnob {6 generate_audio l "Generate audio" +STARTLINE}
+ generate_audio true
+ addUserKnob {6 use_draft l "Use draft endpoint" +STARTLINE}
+ use_draft false
+ addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}
+ show_success_popup true
+ addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
+ addUserKnob {20 endGroup n -1}
+ addUserKnob {20 Advanced l Advanced +CLOSED}
+ addUserKnob {1 python3_cmd l "Python 3 cmd"}
+ python3_cmd "py -3"
+ addUserKnob {1 FAL}
+ FAL "insert fal key to override for this node"
+ addUserKnob {20 endAdvanced n -1}
+ addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
+ helper_path "__INSTALL_ROOT__/nuke/python/fal_flux_3_keyframes_to_video_helper.py"
+ addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
+ runner_path "__INSTALL_ROOT__/nuke/python/fal_flux_3_keyframes_to_video_runner_v1.py"
+}
+Text {
+ inputs 0
+ message "Connect 1-10 keyframes in order (keyframe_1 .. keyframe_10). Stop at the first gap.\nEmpty Frame indices spaces them evenly from 0 to duration*24 (24 fps). Or set e.g. 0,48,120.\nSet prompt and options, then Execute. Draft endpoint skips resolution."
+ font C:/Windows/Fonts/arial.ttf
+ yjustify bottom
+ Transform 1
+ box {30 30 1906 1052}
+ center {560 372}
+ name Text1
+ xpos 101
+ ypos 294
+}
+set Nfx3kf000 [stack 0]
+Output {
+ name Output1
+ xpos 101
+ ypos 406
+}
+Input {
+ inputs 0
+ name keyframe_1
+ xpos 0
+ ypos -51
+}
+Input {
+ inputs 0
+ name keyframe_2
+ xpos 94
+ ypos -51
+ number 1
+}
+Input {
+ inputs 0
+ name keyframe_3
+ xpos 188
+ ypos -51
+ number 2
+}
+Input {
+ inputs 0
+ name keyframe_4
+ xpos 282
+ ypos -51
+ number 3
+}
+Input {
+ inputs 0
+ name keyframe_5
+ xpos 376
+ ypos -51
+ number 4
+}
+Input {
+ inputs 0
+ name keyframe_6
+ xpos 470
+ ypos -51
+ number 5
+}
+Input {
+ inputs 0
+ name keyframe_7
+ xpos 564
+ ypos -51
+ number 6
+}
+Input {
+ inputs 0
+ name keyframe_8
+ xpos 658
+ ypos -51
+ number 7
+}
+Input {
+ inputs 0
+ name keyframe_9
+ xpos 752
+ ypos -51
+ number 8
+}
+Input {
+ inputs 0
+ name keyframe_10
+ xpos 846
+ ypos -51
+ number 9
+}
+push $Nfx3kf000
+Viewer {
+ inputs 1
+ frame_range 0-199
+ fps 25
+ input_number 0
+ name Viewer1
+ selected true
+ xpos 281
+ ypos 412
+}
+end_group

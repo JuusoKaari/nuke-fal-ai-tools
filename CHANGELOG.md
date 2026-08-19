@@ -6,6 +6,7 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- FLUX 3 Keyframes to Video (`fal_flux_3_keyframes_to_video_v1.nk`) - 1-10 contiguous stills pinned to 24 fps positions, 5-20s, optional draft endpoint via `blackforestlabs/flux-3/keyframes-to-video`. Creates the FLUX 3 submenu next to First/Last.
 - FLUX 3 First/Last Frame to Video (`fal_flux_3_first_last_frame_to_video_v1.nk`) - required start and end stills, 5-20s, optional draft endpoint via `blackforestlabs/flux-3/first-last-frame-to-video`. Stays flat under Video until FLUX 3 Keyframes ships.
 - Video tools default to a Nuke-written **DWAB EXR sequence** Read after the fal MP4 download (half float, compression level 200). The MP4 stays on disk. Toggle back to MP4 Reads in **fal.ai -> Settings...**. Shared helper: `nuke_video_output_v1.py`.
 - Seedance 2 Reference to Video (`fal_seedance_2_reference_to_video_v1.nk`) - character/set lock from up to 9 stills, 3 videos, and 3 audio files via `bytedance/seedance-2.0/reference-to-video`. Joins the existing Seedance submenu.

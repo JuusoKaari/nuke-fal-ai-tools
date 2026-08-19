@@ -151,6 +151,10 @@ class TestFalToolsCatalog(unittest.TestCase):
             ["LTX 2.3 Image to Video", "LTX 2.5 Image to Video Pro"],
         )
         self.assertEqual(
+            video_sub["flux"],
+            ["FLUX 3 First/Last Frame to Video", "FLUX 3 Keyframes to Video"],
+        )
+        self.assertEqual(
             video_sub["seedance"],
             ["Seedance 2 Image to Video", "Seedance 2 Reference to Video", "Seedance 2.5 Image to Video"],
         )
@@ -167,7 +171,6 @@ class TestFalToolsCatalog(unittest.TestCase):
         self.assertIn("Nano Banana 2 Generate", image_items)
         self.assertIn("GPT Image 2 Edit", image_items)
         self.assertIn("Hunyuan World", image_items)
-        self.assertIn("FLUX 3 First/Last Frame to Video", video_items)
         self.assertIn("Kling O3 V2V Edit", video_items)
         self.assertIn("Pika v2.2 Pikaframes", video_items)
         self.assertIn("Veo 3.1 Extend Video", video_items)
