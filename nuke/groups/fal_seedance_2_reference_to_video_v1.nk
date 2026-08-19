@@ -1,0 +1,164 @@
+# Purpose:
+# - Nuke Group node that runs fal.ai ByteDance Seedance 2.0 reference-to-video from stills, optional videos, and optional audio files.
+# - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
+# - Model: https://fal.ai/models/bytedance/seedance-2.0/reference-to-video
+
+set cut_paste_input [stack 0]
+version 11.3 v6
+push $cut_paste_input
+Group {
+ name Seedance_2_Reference_To_Video_v1
+ selected true
+ addUserKnob {20 Settings}
+ addUserKnob {4 frame_range l "Input frame range" M {root current custom ""}}
+ frame_range root
+ addUserKnob {1 custom_start l "Custom start"}
+ custom_start "1"
+ addUserKnob {1 custom_end l "Custom end"}
+ custom_end "1"
+ addUserKnob {1 prompt l Prompt}
+ prompt "Describe the motion. Refer to inputs as @Image1, @Video1, @Audio1, ..."
+ addUserKnob {4 duration l Duration M {auto 4 5 6 7 8 9 10 11 12 13 14 15 ""}}
+ duration auto
+ addUserKnob {4 resolution l Resolution M {480p 720p 1080p 4k ""}}
+ resolution 720p
+ addUserKnob {4 aspect_ratio l "Aspect ratio" M {auto 21:9 16:9 4:3 1:1 3:4 9:16 ""}}
+ aspect_ratio auto
+ addUserKnob {4 bitrate_mode l "Bitrate mode" M {standard high ""}}
+ bitrate_mode standard
+ addUserKnob {6 generate_audio l "Generate audio" +STARTLINE}
+ generate_audio true
+ addUserKnob {1 audio_1 l "Audio 1 (mp3/wav)"}
+ audio_1 ""
+ addUserKnob {1 audio_2 l "Audio 2 (mp3/wav)"}
+ audio_2 ""
+ addUserKnob {1 audio_3 l "Audio 3 (mp3/wav)"}
+ audio_3 ""
+ addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}
+ show_success_popup true
+ addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
+ addUserKnob {20 endGroup n -1}
+ addUserKnob {20 Advanced l Advanced +CLOSED}
+ addUserKnob {1 python3_cmd l "Python 3 cmd"}
+ python3_cmd "py -3"
+ addUserKnob {1 FAL}
+ FAL "insert fal key to override for this node"
+ addUserKnob {20 endAdvanced n -1}
+ addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
+ helper_path "__INSTALL_ROOT__/nuke/python/fal_seedance_2_reference_to_video_helper.py"
+ addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
+ runner_path "__INSTALL_ROOT__/nuke/python/fal_seedance_2_reference_to_video_runner_v1.py"
+}
+Text {
+ inputs 0
+ message "Connect stills to image_1..image_9 and/or videos to video_1..video_3.\nOptional audio paths (mp3/wav) in Settings. Total files across all modalities max 12.\nPrompt uses @Image1, @Video1, @Audio1 in connection order. Then Execute."
+ font C:/Windows/Fonts/arial.ttf
+ yjustify bottom
+ Transform 1
+ box {30 30 1906 1052}
+ center {560 372}
+ name Text1
+ xpos 101
+ ypos 294
+}
+set Nsd2r2v000 [stack 0]
+Output {
+ name Output1
+ xpos 101
+ ypos 406
+}
+Input {
+ inputs 0
+ name image_1
+ xpos 0
+ ypos -51
+}
+Input {
+ inputs 0
+ name image_2
+ xpos 94
+ ypos -51
+ number 1
+}
+Input {
+ inputs 0
+ name image_3
+ xpos 188
+ ypos -51
+ number 2
+}
+Input {
+ inputs 0
+ name image_4
+ xpos 282
+ ypos -51
+ number 3
+}
+Input {
+ inputs 0
+ name image_5
+ xpos 376
+ ypos -51
+ number 4
+}
+Input {
+ inputs 0
+ name image_6
+ xpos 470
+ ypos -51
+ number 5
+}
+Input {
+ inputs 0
+ name image_7
+ xpos 564
+ ypos -51
+ number 6
+}
+Input {
+ inputs 0
+ name image_8
+ xpos 658
+ ypos -51
+ number 7
+}
+Input {
+ inputs 0
+ name image_9
+ xpos 752
+ ypos -51
+ number 8
+}
+Input {
+ inputs 0
+ name video_1
+ xpos 0
+ ypos -160
+ number 9
+}
+Input {
+ inputs 0
+ name video_2
+ xpos 94
+ ypos -160
+ number 10
+}
+Input {
+ inputs 0
+ name video_3
+ xpos 188
+ ypos -160
+ number 11
+}
+push $Nsd2r2v000
+Viewer {
+ inputs 1
+ frame_range 0-199
+ fps 25
+ input_number 0
+ name Viewer1
+ selected true
+ xpos 281
+ ypos 412
+}
+end_group

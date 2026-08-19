@@ -65,6 +65,7 @@ _TOOLS = sorted(
         ("video", "ltx", "LTX 2.5 Image to Video Pro", "fal_ltx_25_image_to_video_pro_v1.nk", "fal_ltx_25_image_to_video_pro_helper.py", "fal_ltx_25_image_to_video_pro_runner_v1.py"),
         ("video", "pika", "Pika v2.2 Pikaframes", "fal_pika_v22_pikaframes_v1.nk", "fal_pika_v22_pikaframes_helper.py", "fal_pika_v22_pikaframes_runner_v1.py"),
         ("video", "seedance", "Seedance 2 Image to Video", "fal_seedance_2_image_to_video_v1.nk", "fal_seedance_2_image_to_video_helper.py", "fal_seedance_2_image_to_video_runner_v1.py"),
+        ("video", "seedance", "Seedance 2 Reference to Video", "fal_seedance_2_reference_to_video_v1.nk", "fal_seedance_2_reference_to_video_helper.py", "fal_seedance_2_reference_to_video_runner_v1.py"),
         ("video", "seedance", "Seedance 2.5 Image to Video", "fal_seedance_25_image_to_video_v1.nk", "fal_seedance_25_image_to_video_helper.py", "fal_seedance_25_image_to_video_runner_v1.py"),
         ("video", "veo", "Veo 3.1 Extend Video", "fal_veo3_1_extend_video_v1.nk", "fal_veo3_1_extend_video_helper.py", "fal_veo3_1_extend_video_runner_v1.py"),
         ("text", "openrouter", "Describe image", "fal_openrouter_describe_image_v1.nk", "fal_openrouter_describe_image_helper.py", "fal_openrouter_describe_image_runner_v1.py"),
