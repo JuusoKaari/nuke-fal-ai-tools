@@ -1,0 +1,145 @@
+# Purpose:
+# - Nuke Group node that runs ByteDance Seedream 5.0 Pro edit (fal.ai) on reference stills and creates Read node(s).
+# - Inputs: 0 image_1 (primary plate), 1-9 image_2..image_10 (optional extra refs), 10 prompt_text.
+# - Schema has no mask field; extra refs are stills only. Cap is 10 (API last-10 rule).
+# - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
+# - Model: https://fal.ai/models/bytedance/seedream/v5/pro/edit
+
+set cut_paste_input [stack 0]
+version 11.3 v6
+push $cut_paste_input
+Group {
+ name Seedream_5_Pro_Edit_v1
+ selected true
+ addUserKnob {20 Settings}
+ addUserKnob {1 prompt l Prompt}
+ prompt "Describe the edit. Refer to connected stills as Figure 1, Figure 2, ... (or connect a Text node to prompt_text)"
+ addUserKnob {1 num_images l "Num images (1-6)"}
+ num_images "1"
+ addUserKnob {4 image_size l "Image size" M {auto_2K auto_1K square_hd square portrait_4_3 portrait_16_9 landscape_4_3 landscape_16_9 ""}}
+ image_size auto_2K
+ addUserKnob {4 output_format l "Output format" M {png jpeg ""}}
+ output_format png
+ addUserKnob {6 enable_safety_checker l "Enable safety checker" +STARTLINE}
+ enable_safety_checker true
+ addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}
+ show_success_popup true
+ addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
+ addUserKnob {20 endGroup n -1}
+ addUserKnob {20 Advanced l Advanced +CLOSED}
+ addUserKnob {1 python3_cmd l "Python 3 cmd"}
+ python3_cmd "py -3"
+ addUserKnob {1 FAL}
+ FAL "insert fal key to override for this node"
+ addUserKnob {20 endAdvanced n -1}
+ addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
+ helper_path "__INSTALL_ROOT__/nuke/python/fal_seedream_5_pro_edit_helper.py"
+ addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
+ runner_path "__INSTALL_ROOT__/nuke/python/fal_seedream_5_pro_edit_runner_v1.py"
+}
+Text {
+ inputs 0
+ message "Connect a still to image_1 (input 0). Optional extra refs on image_2..image_10 (up to 10 total).\nOptional Text node on prompt_text overrides Prompt. Refer to stills as Figure 1, Figure 2, ...\nThen press execute."
+ font C:/Windows/Fonts/arial.ttf
+ yjustify bottom
+ Transform 1
+ box {30 30 1906 1052}
+ center {560 372}
+ name Text1
+ xpos 96
+ ypos 301
+}
+set Nseedream5pe [stack 0]
+Output {
+ name Output1
+ xpos 96
+ ypos 409
+}
+Input {
+ inputs 0
+ name image_1
+ xpos 0
+ ypos -51
+}
+Input {
+ inputs 0
+ name image_2
+ xpos 94
+ ypos -51
+ number 1
+}
+Input {
+ inputs 0
+ name image_3
+ xpos 188
+ ypos -51
+ number 2
+}
+Input {
+ inputs 0
+ name image_4
+ xpos 282
+ ypos -51
+ number 3
+}
+Input {
+ inputs 0
+ name image_5
+ xpos 376
+ ypos -51
+ number 4
+}
+Input {
+ inputs 0
+ name image_6
+ xpos 470
+ ypos -51
+ number 5
+}
+Input {
+ inputs 0
+ name image_7
+ xpos 564
+ ypos -51
+ number 6
+}
+Input {
+ inputs 0
+ name image_8
+ xpos 658
+ ypos -51
+ number 7
+}
+Input {
+ inputs 0
+ name image_9
+ xpos 752
+ ypos -51
+ number 8
+}
+Input {
+ inputs 0
+ name image_10
+ xpos 846
+ ypos -51
+ number 9
+}
+Input {
+ inputs 0
+ name prompt_text
+ xpos 0
+ ypos -160
+ number 10
+}
+push $Nseedream5pe
+Viewer {
+ inputs 1
+ frame_range 0-199
+ fps 25
+ input_number 0
+ name Viewer1
+ selected true
+ xpos 396
+ ypos 412
+}
+end_group

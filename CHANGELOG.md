@@ -6,6 +6,7 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- Seedream 5.0 Pro Edit (`fal_seedream_5_pro_edit_v1.nk`) - prompted still edit from a primary plate plus up to 9 extra refs (10 stills total) via `bytedance/seedream/v5/pro/edit`. Stays flat under Image until a second Seedream node ships.
 - Image upscale (Topaz Precision) (`fal_topaz_upscale_image_precision_v1.nk`) - still upscale with model and scale knobs via `topaz/upscale/image/precision`. Joins Image Utility (not a Topaz family).
 - MiniMax H3 Image to Video (`fal_minimax_h3_image_to_video_v1.nk`) - animates a still into video with optional end frame, 5-15s, default 2K via `minimax/h3/image-to-video`. Stays flat under Video until a second MiniMax node ships.
 - FLUX 3 Keyframes to Video (`fal_flux_3_keyframes_to_video_v1.nk`) - 1-10 contiguous stills pinned to 24 fps positions, 5-20s, optional draft endpoint via `blackforestlabs/flux-3/keyframes-to-video`. Creates the FLUX 3 submenu next to First/Last.
