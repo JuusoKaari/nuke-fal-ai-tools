@@ -1,9 +1,10 @@
 # Purpose:
 # - Runner script for the Nuke Group node `GPT_Image_2_Edit_v1` (executes inside Nuke / Python 2.7).
-# - Reads edit settings from the Group knobs; optionally overrides prompt from Input 0 when a Text node
-#   (`message` knob) is connected, including through Dot nodes. Collects reference image(s) from inputs
-#   1-2 (required) and optional
-#   mask from input 3. Calls the external Python 3 helper, then creates Read node(s) in the main graph.
+# - Reads edit settings from the Group knobs; optionally overrides prompt from `prompt_text` when a Text
+#   node (`message` knob) is connected, including through Dot nodes. Collects reference image(s) from
+#   `ref_image_a` / `ref_image_b` (at least one required) and optional mask from `mask`. Pipe indexes are
+#   resolved by Input name (primary image is input 0). Calls the external Python 3 helper, then creates
+#   Read node(s) in the main graph.
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -27,19 +28,40 @@ import nuke_prompt_input_v1 as prompt_input
 import nuke_spawn_read_position_v1 as spawn_pos
 
 
+_REF_IMAGE_INPUTS = (
+    ("ref_image_a", 0),
+    ("ref_image_b", 1),
+)
+_PROMPT_INPUT = ("prompt_text", 2)
+_MASK_INPUT = ("mask", 3)
+
+
+def _named_input_index(group_node, input_name, fallback):
+    try:
+        return int(group_node.inputIndex(input_name))
+    except Exception:
+        return int(fallback)
+
+
+def _named_input_node(group_node, input_name, fallback):
+    idx = _named_input_index(group_node, input_name, fallback)
+    try:
+        return group_node.input(idx)
+    except Exception:
+        return None
+
+
 def _collect_reference_images(nuke_module, group_node, frame, temp_dir):
     """
-    Collect 1..2 reference image paths from external inputs 1 and 2.
+    Collect 1..2 reference image paths from ref_image_a and ref_image_b.
     If the input is a suitable Read, use its resolved file directly; otherwise pre-render a still.
     """
     images = []
-    for idx in (1, 2):
-        try:
-            n = group_node.input(idx)
-        except Exception:
-            n = None
+    for input_name, fallback in _REF_IMAGE_INPUTS:
+        n = _named_input_node(group_node, input_name, fallback)
         if n is None:
             continue
+        idx = _named_input_index(group_node, input_name, fallback)
         try:
             images.append(
                 prerender.prepare_still_input_path(
@@ -47,11 +69,11 @@ def _collect_reference_images(nuke_module, group_node, frame, temp_dir):
                     src_node=n,
                     frame=frame,
                     run_dir=temp_dir,
-                    base_name="ref_image_%d" % idx,
+                    base_name=input_name,
                 )
             )
         except Exception as e:
-            raise Exception("Reference image input %d error: %s" % (idx, str(e)))
+            raise Exception("Reference image %s (input %d) error: %s" % (input_name, idx, str(e)))
     return images
 
 
@@ -62,7 +84,10 @@ def main():
         nuke, caller_globals=globals()
     )
 
-    prompt = prompt_input.get_prompt_from_input_or_group(nuke, g)
+    prompt_idx = _named_input_index(g, _PROMPT_INPUT[0], _PROMPT_INPUT[1])
+    prompt = prompt_input.get_prompt_from_input_or_group(
+        nuke, g, input_index=prompt_idx, input_label=_PROMPT_INPUT[0]
+    )
     if not prompt:
         nuke.message("Prompt is empty (and no input Text node message found).")
         raise Exception("missing prompt")
@@ -89,22 +114,16 @@ def main():
     if not ref_images:
         nuke.message(
             "At least one reference image is required.\n\n"
-            "Connect a still image to input 1 (ref_image_a), and optionally input 2 (ref_image_b)."
+            "Connect a still image to input 0 (ref_image_a), and optionally input 1 (ref_image_b)."
         )
         raise Exception("missing reference image")
 
     mask_path = None
-    try:
-        mask_node = g.input(3)
-    except Exception:
-        mask_node = None
+    mask_node = _named_input_node(g, _MASK_INPUT[0], _MASK_INPUT[1])
     if mask_node is not None:
         match_node = None
-        for idx in (1, 2):
-            try:
-                n = g.input(idx)
-            except Exception:
-                n = None
+        for input_name, fallback in _REF_IMAGE_INPUTS:
+            n = _named_input_node(g, input_name, fallback)
             if n is not None:
                 match_node = n
                 break

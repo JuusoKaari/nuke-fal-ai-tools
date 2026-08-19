@@ -1,5 +1,6 @@
 # Purpose:
 # - Nuke Group node that runs OpenAI GPT Image 2 edit (fal.ai) on reference image(s) and creates Read node(s).
+# - Inputs: 0 ref_image_a (primary), 1 ref_image_b, 2 prompt_text, 3 mask.
 # - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
 
 set cut_paste_input [stack 0]
@@ -36,7 +37,7 @@ Group {
 }
 Text {
  inputs 0
- message "Input 0: optional Text node (has a 'message' knob) to override Prompt.\\nInput 1-2: reference images (at least one required). Input 3: optional mask.\\nThen press execute."
+ message "Input 0: reference image (required). Input 1: optional second reference.\\nInput 2: optional Text node (has a 'message' knob) to override Prompt. Input 3: optional mask.\\nThen press execute."
  font C:/Windows/Fonts/arial.ttf
  yjustify bottom
  Transform 1
@@ -54,20 +55,21 @@ Output {
 }
 Input {
  inputs 0
- name prompt_text
+ name ref_image_a
  xpos 0
  ypos -51
+ number 0
 }
 Input {
  inputs 0
- name ref_image_a
+ name ref_image_b
  xpos 120
  ypos -51
  number 1
 }
 Input {
  inputs 0
- name ref_image_b
+ name prompt_text
  xpos 240
  ypos -51
  number 2

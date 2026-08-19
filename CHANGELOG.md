@@ -9,6 +9,10 @@ All notable changes to this project are documented here.
 - LTX 2.5 Image to Video Pro (`fal_ltx_25_image_to_video_pro_v1.nk`) - animates a still into video with optional end frame, camera motion, and synchronized audio via `lightricks/ltx-2.5/image-to-video/pro`
 - Nano Banana 2 Generate: **Extract selected as Read** and **Clear generation history** buttons. Clear only forgets node history; files on disk are kept.
 
+### Changed
+
+- GPT Image 2 Edit: primary reference image is now input 0 (`ref_image_a`) so creating the node after a plate auto-connects correctly. Optional second image, prompt Text, and mask follow on inputs 1-3.
+
 ## [1.0.2] - 2026-06-16
 
 ### Added
