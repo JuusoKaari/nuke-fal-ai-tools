@@ -167,6 +167,7 @@ class TestFalToolsCatalog(unittest.TestCase):
         self.assertIn("Nano Banana 2 Generate", image_items)
         self.assertIn("GPT Image 2 Edit", image_items)
         self.assertIn("Hunyuan World", image_items)
+        self.assertIn("FLUX 3 First/Last Frame to Video", video_items)
         self.assertIn("Kling O3 V2V Edit", video_items)
         self.assertIn("Pika v2.2 Pikaframes", video_items)
         self.assertIn("Veo 3.1 Extend Video", video_items)

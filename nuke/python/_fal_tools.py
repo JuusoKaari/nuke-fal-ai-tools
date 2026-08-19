@@ -60,6 +60,7 @@ _TOOLS = sorted(
         ("video", "utility", "BiRefNet v2", "fal_birefnet_v2.nk", "fal_birefnet_v2_helper.py", "fal_birefnet_v2_runner_v2.py"),
         ("video", "utility", "ByteDance Video Upscale", "fal_bytedance_video_upscale_v1.nk", "fal_bytedance_video_upscale_helper.py", "fal_bytedance_video_upscale_runner_v1.py"),
         ("video", "dreamactor", "DreamActor v2 Motion Control", "fal_dreamactor_v2_motion_control_v1.nk", "fal_dreamactor_v2_helper.py", "fal_dreamactor_v2_motion_control_runner_v1.py"),
+        ("video", "flux", "FLUX 3 First/Last Frame to Video", "fal_flux_3_first_last_frame_to_video_v1.nk", "fal_flux_3_first_last_frame_to_video_helper.py", "fal_flux_3_first_last_frame_to_video_runner_v1.py"),
         ("video", "kling", "Kling O3 V2V Edit", "fal_kling_o3_v2v_edit_v1.nk", "fal_kling_o3_v2v_edit_helper.py", "fal_kling_o3_v2v_edit_runner_v1.py"),
         ("video", "ltx", "LTX 2.3 Image to Video", "fal_ltx_23_image_to_video_v1.nk", "fal_ltx_23_image_to_video_helper.py", "fal_ltx_23_image_to_video_runner_v1.py"),
         ("video", "ltx", "LTX 2.5 Image to Video Pro", "fal_ltx_25_image_to_video_pro_v1.nk", "fal_ltx_25_image_to_video_pro_helper.py", "fal_ltx_25_image_to_video_pro_runner_v1.py"),
