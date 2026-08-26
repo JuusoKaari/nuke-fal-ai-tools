@@ -68,6 +68,7 @@ _TOOLS = sorted(
         ("video", "ltx", "LTX 2.3 Image to Video", "fal_ltx_23_image_to_video_v1.nk", "fal_ltx_23_image_to_video_helper.py", "fal_ltx_23_image_to_video_runner_v1.py"),
         ("video", "ltx", "LTX 2.5 Image to Video Pro", "fal_ltx_25_image_to_video_pro_v1.nk", "fal_ltx_25_image_to_video_pro_helper.py", "fal_ltx_25_image_to_video_pro_runner_v1.py"),
         ("video", "minimax", "MiniMax H3 Image to Video", "fal_minimax_h3_image_to_video_v1.nk", "fal_minimax_h3_image_to_video_helper.py", "fal_minimax_h3_image_to_video_runner_v1.py"),
+        ("video", "minimax", "MiniMax H3 Max Image to Video", "fal_minimax_h3_max_image_to_video_v1.nk", "fal_minimax_h3_max_image_to_video_helper.py", "fal_minimax_h3_max_image_to_video_runner_v1.py"),
         ("video", "pika", "Pika v2.2 Pikaframes", "fal_pika_v22_pikaframes_v1.nk", "fal_pika_v22_pikaframes_helper.py", "fal_pika_v22_pikaframes_runner_v1.py"),
         ("video", "seedance", "Seedance 2 Image to Video", "fal_seedance_2_image_to_video_v1.nk", "fal_seedance_2_image_to_video_helper.py", "fal_seedance_2_image_to_video_runner_v1.py"),
         ("video", "seedance", "Seedance 2 Reference to Video", "fal_seedance_2_reference_to_video_v1.nk", "fal_seedance_2_reference_to_video_helper.py", "fal_seedance_2_reference_to_video_runner_v1.py"),

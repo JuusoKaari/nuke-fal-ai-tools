@@ -4,7 +4,7 @@ Wishlist of fal.ai models to add to the Nuke toolset. Sourced from the live cata
 
 Implement **one unchecked tool per agent turn**. Check it off, commit, then stop. Clone the listed existing files instead of inventing a new node shape.
 
-Current coverage (do not duplicate): Nano Banana 2 generate+edit, GPT Image 2 edit, Qwen Max edit / inpaint / layered, Finegrain eraser, BiRefNet still+video, Depth Anything v2, Topaz Precision still upscale, Seedream 5.0 Pro Edit, Hunyuan World, Seedance 2.0 I2V, Seedance 2.0 Reference, Seedance 2.5 I2V, FLUX 3 First/Last + Keyframes, LTX 2.3 + LTX 2.5 Pro I2V, MiniMax H3 I2V, Pika 2.2 Pikaframes, Kling O3 V2V edit, Veo 3.1 extend, ByteDance video upscale, DreamActor v2, Hunyuan 3D v3.1 Pro.
+Current coverage (do not duplicate): Nano Banana 2 generate+edit, GPT Image 2 edit, Qwen Max edit / inpaint / layered, Finegrain eraser, BiRefNet still+video, Depth Anything v2, Topaz Precision still upscale, Seedream 5.0 Pro Edit, Hunyuan World, Seedance 2.0 I2V, Seedance 2.0 Reference, Seedance 2.5 I2V, FLUX 3 First/Last + Keyframes, LTX 2.3 + LTX 2.5 Pro I2V, MiniMax H3 + H3 Max I2V, Pika 2.2 Pikaframes, Kling O3 V2V edit, Veo 3.1 extend, ByteDance video upscale, DreamActor v2, Hunyuan 3D v3.1 Pro.
 
 ## Menu families
 
@@ -31,7 +31,7 @@ Video
   FLUX 3                    First/Last, Keyframes
   Kling O3 V2V Edit         family kling (flat)
   LTX                       2.3, 2.5 Pro
-  MiniMax H3 Image to Video family minimax (flat)
+  MiniMax                   H3 I2V, H3 Max I2V
   Pika v2.2 Pikaframes      family pika (flat)
   Seedance                  2 I2V, 2 Reference, 2.5 I2V
   Veo 3.1 Extend            family veo (flat until first/last)
@@ -101,7 +101,8 @@ Copy these files. Steal I/O and knob patterns from the clone, then change endpoi
 | Seedance 2.0 Reference to Video | `seedance` (video) | Helper/knobs/output from Seedance 2.0 I2V. Multi-image inputs from `fal_pika_v22_pikaframes_*`. Video inputs from `fal_bytedance_video_upscale_*` or `fal_dreamactor_v2_*` | Repeated still inputs + optional video (and audio if schema has it), one fal mp4 then `spawn_video_output_read` | Schema first: up to 9 images, 3 videos, 3 audio. Do not invent 9+3+3 pipes if the API uses arrays. Named inputs like GPT Image 2 Edit (`fal_gpt_image_2_edit_*`) if labels matter more than order. |
 | FLUX 3 First/Last Frame to Video | `flux` (video) | Seedance 2.0 I2V trio | Two stills in, fal mp4 then `spawn_video_output_read` | Optional draft endpoint as a knob (`.../first-last-frame-to-video/draft`), not a second node. Keep first/last as its own node (do not merge with single-image FLUX 3 I2V). Flat until keyframes ships. |
 | FLUX 3 Keyframes to Video | `flux` (video) | `fal_pika_v22_pikaframes_{helper.py,runner_v1.py}` + `fal_pika_v22_pikaframes_v1.nk` | Contiguous keyframe inputs 0-N, stop at first gap, fal mp4 then `spawn_video_output_read` | Confirm max keyframe count from schema. Optional draft knob. Creates the FLUX 3 submenu. Pika can stay until this ships. |
-| MiniMax H3 Image to Video | `minimax` (video) | Seedance 2.0 I2V trio (or LTX 2.5 Pro: `fal_ltx_25_image_to_video_pro_*`) | Start still, optional end still, fal mp4 then `spawn_video_output_read` | Resolution defaults toward 2K if schema allows. Same start/end layout as Seedance. Stays flat until a second MiniMax node. |
+| MiniMax H3 Image to Video | `minimax` (video) | Seedance 2.0 I2V trio (or LTX 2.5 Pro: `fal_ltx_25_image_to_video_pro_*`) | Start still, optional end still, fal mp4 then `spawn_video_output_read` | Resolution defaults toward 2K if schema allows. Same start/end layout as Seedance. Nested under MiniMax with H3 Max. |
+| MiniMax H3 Max Image to Video | `minimax` (video) | `fal_minimax_h3_image_to_video_*` | Same start/end layout as H3 | Endpoint `minimax/h3-max/image-to-video`. Native 480P/768P only. `prompt_expansion_mode` enum, not a boolean. Creates the MiniMax submenu. |
 | Image upscale (Topaz Precision) | `utility` (image) | Still I/O from `fal_depth_anything_v2_*`. Enum knobs from `fal_bytedance_video_upscale_*` | One still in, one still out, scale/model enums, no prompt required | Endpoint: `topaz/upscale/image/precision`. Image Utility, not a Topaz family. Skip SeedVR2 unless Topaz schema is a poor Nuke fit. |
 | Seedream 5.0 Pro Edit | `seedream` (image) | `fal_gpt_image_2_edit_*` (multi-ref + optional mask) and `fal_qwen_image_max_edit_*` (prompted still edit) | Primary plate on input 0, extra refs, optional mask, prompt, stills out | Cap extra refs at what the group can show cleanly (schema allows up to 10). Stays flat until a second Seedream node. |
 | Seedance 2.5 Reference to Video | `seedance` (video) | **If Seedance 2.0 Reference already exists, clone that.** Else Seedance 2.0 I2V + Pikaframes + video-input from ByteDance upscale | Same multimodal-ref idea, longer take (up to 30s), more refs | Heavier UI. Schema first (up to 50 files). Do not clone 2.0 Reference until that commit exists. |
@@ -128,6 +129,7 @@ Highest Nuke value. Implement in this order.
 - [x] **FLUX 3 First/Last Frame to Video** -- `blackforestlabs/flux-3/first-last-frame-to-video` -- family `flux` / video -- start+end stills; optional draft endpoint as a knob
 - [x] **FLUX 3 Keyframes to Video** -- `blackforestlabs/flux-3/keyframes-to-video` -- family `flux` / video -- multi-keyframe; modern Pikaframes
 - [x] **MiniMax H3 Image to Video** -- `minimax/h3/image-to-video` -- family `minimax` / video -- frontier I2V; native 2K; optional last frame
+- [x] **MiniMax H3 Max Image to Video** -- `minimax/h3-max/image-to-video` -- family `minimax` / video -- post-trained H3; native 480P/768P; prompt expansion enum; optional last frame
 - [x] **Image upscale (Topaz Precision)** -- `topaz/upscale/image/precision` -- family `utility` / image -- still upscale (video upscale already exists)
 - [x] **Seedream 5.0 Pro Edit** -- `bytedance/seedream/v5/pro/edit` -- family `seedream` / image -- region-precise edit, layer separation, up to 10 refs
 

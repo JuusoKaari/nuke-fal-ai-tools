@@ -6,6 +6,7 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- MiniMax H3 Max Image to Video (`fal_minimax_h3_max_image_to_video_v1.nk`) - post-trained H3 variant with stronger prompt adherence, 5-15s, native 480P/768P via `minimax/h3-max/image-to-video`. Creates the MiniMax submenu next to MiniMax H3 I2V.
 - Seedream 5.0 Pro Edit (`fal_seedream_5_pro_edit_v1.nk`) - prompted still edit from a primary plate plus up to 9 extra refs (10 stills total) via `bytedance/seedream/v5/pro/edit`. Stays flat under Image until a second Seedream node ships.
 - Image upscale (Topaz Precision) (`fal_topaz_upscale_image_precision_v1.nk`) - still upscale with model and scale knobs via `topaz/upscale/image/precision`. Joins Image Utility (not a Topaz family).
 - MiniMax H3 Image to Video (`fal_minimax_h3_image_to_video_v1.nk`) - animates a still into video with optional end frame, 5-15s, default 2K via `minimax/h3/image-to-video`. Stays flat under Video until a second MiniMax node ships.

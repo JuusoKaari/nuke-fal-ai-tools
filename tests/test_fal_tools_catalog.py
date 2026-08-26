@@ -155,6 +155,10 @@ class TestFalToolsCatalog(unittest.TestCase):
             ["FLUX 3 First/Last Frame to Video", "FLUX 3 Keyframes to Video"],
         )
         self.assertEqual(
+            video_sub["minimax"],
+            ["MiniMax H3 Image to Video", "MiniMax H3 Max Image to Video"],
+        )
+        self.assertEqual(
             video_sub["seedance"],
             ["Seedance 2 Image to Video", "Seedance 2 Reference to Video", "Seedance 2.5 Image to Video"],
         )
@@ -173,7 +177,6 @@ class TestFalToolsCatalog(unittest.TestCase):
         self.assertIn("Hunyuan World", image_items)
         self.assertIn("Seedream 5.0 Pro Edit", image_items)
         self.assertIn("Kling O3 V2V Edit", video_items)
-        self.assertIn("MiniMax H3 Image to Video", video_items)
         self.assertIn("Pika v2.2 Pikaframes", video_items)
         self.assertIn("Veo 3.1 Extend Video", video_items)
         self.assertIn("DreamActor v2 Motion Control", video_items)
