@@ -1,7 +1,8 @@
 # Purpose:
 # - Runner script for the Nuke Group node `Hunyuan_3D_Image_to_3D_v1` (executes inside Nuke / Python 2.7).
 # - Accepts a front-view still on input 0; pre-renders if needed, calls the Python 3 helper, then spawns
-#   Read nodes for texture/preview and a ReadGeo2 for the OBJ (texture piped to img when available).
+#   Read nodes for extracted PBR maps (and fal texture/preview) plus ReadGeo2 for the OBJ.
+#   Albedo (baseColor) is piped to ReadGeo img; fal's single texture URL is often the normal map.
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -37,6 +38,28 @@ def _parse_helper_summary(stdout_lines):
         except Exception:
             pass
     return None
+
+
+def _extracted_texture_items(summary):
+    if not isinstance(summary, dict):
+        return []
+    items = summary.get("extracted_textures") or []
+    out = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        path = item.get("path")
+        if not path:
+            continue
+        out.append(item)
+    return out
+
+
+def _albedo_path(extracted_items, fallback_path):
+    for item in extracted_items:
+        if item.get("role") == "baseColor" and item.get("path"):
+            return item.get("path")
+    return fallback_path
 
 
 def main():
@@ -131,6 +154,10 @@ def main():
     preview_path = downloaded.get("preview") or os.path.join(out_dir, "preview.png")
     preview_path_nk = prerender.norm_slashes(preview_path) if os.path.isfile(preview_path) else None
 
+    extracted_items = _extracted_texture_items(summary)
+    albedo_path = _albedo_path(extracted_items, texture_path)
+    albedo_path_nk = prerender.norm_slashes(albedo_path) if albedo_path and os.path.isfile(albedo_path) else None
+
     xpos = int(g.xpos())
     ypos = int(g.ypos())
     placed = []
@@ -159,8 +186,42 @@ def main():
         finally:
             nuke.endGroup()
 
-    texture_read = _spawn_read(texture_path_nk, "Hunyuan 3D texture", "texture", 0)
-    _spawn_read(preview_path_nk, "Hunyuan 3D preview", "preview", 120)
+    x_offset = 0
+    albedo_read = None
+    extracted_paths = {}
+    for item in extracted_items:
+        item_path = item.get("path")
+        if not item_path or not os.path.isfile(item_path):
+            continue
+        item_path_nk = prerender.norm_slashes(item_path)
+        role = item.get("role") or "texture"
+        extracted_paths[os.path.normcase(os.path.abspath(item_path))] = True
+        spawned = _spawn_read(
+            item_path_nk, "Hunyuan 3D %s" % role, str(role), x_offset
+        )
+        if role == "baseColor" and spawned is not None:
+            albedo_read = spawned
+        x_offset += 120
+
+    fal_texture_abs = ""
+    if texture_path and os.path.isfile(texture_path):
+        fal_texture_abs = os.path.normcase(os.path.abspath(texture_path))
+    if not extracted_items:
+        texture_read = _spawn_read(texture_path_nk, "Hunyuan 3D texture", "texture", x_offset)
+        if texture_read is not None:
+            x_offset += 120
+    elif fal_texture_abs and fal_texture_abs not in extracted_paths:
+        _spawn_read(texture_path_nk, "Hunyuan 3D fal texture", "fal_texture", x_offset)
+        x_offset += 120
+
+    if albedo_read is not None:
+        texture_read = albedo_read
+    elif texture_read is None and albedo_path_nk:
+        texture_read = _spawn_read(albedo_path_nk, "Hunyuan 3D texture", "texture", x_offset)
+        if texture_read is not None:
+            x_offset += 120
+
+    _spawn_read(preview_path_nk, "Hunyuan 3D preview", "preview", x_offset)
 
     readgeo_node = None
     if obj_path_nk and download_obj:
@@ -183,7 +244,13 @@ def main():
             print("WARNING: failed to spawn ReadGeo2: %s" % str(e))
 
     msg_lines = ["3D model generated:", "", "GLB: %s" % glb_path_nk]
-    if texture_path_nk:
+    if extracted_items:
+        for item in extracted_items:
+            item_path = item.get("path")
+            if not item_path:
+                continue
+            msg_lines.append("%s: %s" % (item.get("role") or "texture", prerender.norm_slashes(item_path)))
+    elif texture_path_nk:
         msg_lines.append("Texture: %s" % texture_path_nk)
     if mtl_path_nk:
         msg_lines.append("MTL: %s" % mtl_path_nk)

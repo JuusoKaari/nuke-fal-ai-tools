@@ -1,6 +1,6 @@
 # Purpose:
 # - Nuke Group node that runs fal.ai Hunyuan 3D Pro image-to-3D on a single front-view still image.
-# - Downloads GLB (and optionally OBJ) plus a preview thumbnail; spawns a Read for the preview.
+# - Downloads GLB (and optionally OBJ) plus a preview thumbnail; extracts PBR maps from the GLB.
 # - Model: https://fal.ai/models/fal-ai/hunyuan-3d/v3.1/pro/image-to-3d
 
 set cut_paste_input [stack 0]
@@ -35,7 +35,7 @@ Group {
 }
 Text {
  inputs 0
- message "Connect a front-view still (single object, simple background) and press Execute.\nOutputs: model.glb, texture PNG, material.mtl (+ optional OBJ) in one folder.\nSpawns Read (texture/preview) and ReadGeo2 (OBJ); texture Read pipes to ReadGeo img.\nView mesh in 3D Viewer (Viewer mode: 3D); wire ReadGeo into your Scene/ScanlineRender."
+ message "Connect a front-view still (single object, simple background) and press Execute.\nOutputs: model.glb, extracted PBR maps (albedo / metallic-roughness / normal), material.mtl (+ optional OBJ).\nfal only returns one texture URL; extra maps are pulled out of the GLB.\nSpawns Read nodes per map and ReadGeo2 (OBJ); albedo pipes to ReadGeo img.\nView mesh in 3D Viewer (Viewer mode: 3D); wire ReadGeo into your Scene/ScanlineRender."
  font C:/Windows/Fonts/arial.ttf
  yjustify bottom
  Transform 1

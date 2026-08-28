@@ -167,6 +167,13 @@ class TestFalToolsCatalog(unittest.TestCase):
             ["BiRefNet v2", "ByteDance Video Upscale"],
         )
         self.assertEqual(text_sub["openrouter"], ["Describe image", "Generate text"])
+        three_d_sub = dict(
+            (row[1], row[2]) for row in menu["3d"] if row[0] == "submenu"
+        )
+        self.assertEqual(
+            three_d_sub["hunyuan-3d"],
+            ["Hunyuan 3D Image to 3D", "Hunyuan 3D Part"],
+        )
 
     def test_single_family_tools_stay_flat(self):
         menu = _menu_map()

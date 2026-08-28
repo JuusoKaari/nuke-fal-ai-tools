@@ -1,7 +1,9 @@
 # Purpose:
 # - Python 3 helper for Nuke (Python 2.7) to run fal.ai Hunyuan 3D Pro image-to-3D on a still image.
 # - Uploads a local front-view image, calls `fal-ai/hunyuan-3d/v3.1/pro/image-to-3d`,
-#   downloads GLB, texture PNG, MTL, OBJ (optional), and preview thumbnail into one output folder.
+#   downloads GLB, fal's single texture PNG, MTL, OBJ (optional), and preview thumbnail.
+#   Then extracts PBR maps (albedo / metallic-roughness / normal) from the GLB. fal's
+#   model_urls.texture is one file and is often the normal map when enable_pbr is on.
 #
 # Usage (example):
 #   py -3 fal_hunyuan_3d_image_to_3d_helper.py --image "C:/in.png" --out-dir "C:/temp/run" --verbose
@@ -28,6 +30,10 @@ from fal_common import (
     format_fal_error_summary,
     subscribe_with_retry,
 )
+from fal_glb_textures import extract_glb_textures
+
+_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp")
+_SKIP_MODEL_KEYS = ("glb", "obj", "fbx", "usdz", "mtl", "texture")
 
 _ENDPOINT_ID = "fal-ai/hunyuan-3d/v3.1/pro/image-to-3d"
 _FACE_COUNT_MIN = 40000
@@ -79,6 +85,37 @@ def _download_model_urls(
     for key in keys:
         file_obj = model_urls.get(key)
         if not isinstance(file_obj, dict):
+            continue
+        out_path = _out_path_for_model_url(key, file_obj, out_dir)
+        if skip_if_exists and os.path.isfile(out_path):
+            downloaded[key] = out_path
+            continue
+        saved = _download_file_obj(file_obj, out_path, user_agent, verbose)
+        if saved:
+            downloaded[key] = saved
+
+
+def _looks_like_image(key: str, file_obj: dict) -> bool:
+    ctype = str(file_obj.get("content_type") or "").lower()
+    if ctype.startswith("image/"):
+        return True
+    name = str(file_obj.get("file_name") or key or "").lower()
+    return name.endswith(_IMAGE_EXTS)
+
+
+def _download_extra_image_urls(
+    model_urls: dict,
+    out_dir: str,
+    user_agent: str,
+    verbose: bool,
+    downloaded: dict[str, str],
+    skip_if_exists: bool = True,
+) -> None:
+    """Download any extra image File objects if fal adds PBR map URLs later."""
+    for key, file_obj in model_urls.items():
+        if key in _SKIP_MODEL_KEYS or key in downloaded:
+            continue
+        if not isinstance(file_obj, dict) or not _looks_like_image(key, file_obj):
             continue
         out_path = _out_path_for_model_url(key, file_obj, out_dir)
         if skip_if_exists and os.path.isfile(out_path):
@@ -243,6 +280,17 @@ def main(argv: list[str]) -> int:
                 keys=("obj", "fbx", "usdz"),
                 downloaded=downloaded,
             )
+        _download_extra_image_urls(
+            model_urls,
+            out_dir,
+            user_agent,
+            args.verbose,
+            downloaded=downloaded,
+        )
+
+    extracted_textures = extract_glb_textures(
+        downloaded["glb"], out_dir, verbose=args.verbose
+    )
 
     thumb_obj = result.get("thumbnail")
     preview_path = os.path.join(out_dir, "preview.png")
@@ -257,6 +305,7 @@ def main(argv: list[str]) -> int:
         "generate_type": args.generate_type,
         "enable_pbr": bool(args.enable_pbr and args.generate_type != "Geometry"),
         "downloaded": downloaded,
+        "extracted_textures": extracted_textures,
         "seed": result.get("seed"),
     }
     emit_result_summary(summary)

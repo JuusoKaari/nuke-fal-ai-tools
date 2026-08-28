@@ -59,6 +59,7 @@ _TOOLS = sorted(
         ("image", "qwen", "Qwen Image Max Edit", "fal_qwen_image_max_edit_v1.nk", "fal_qwen_image_max_edit_helper.py", "fal_qwen_image_max_edit_runner_v1.py"),
         ("image", "seedream", "Seedream 5.0 Pro Edit", "fal_seedream_5_pro_edit_v1.nk", "fal_seedream_5_pro_edit_helper.py", "fal_seedream_5_pro_edit_runner_v1.py"),
         ("3d", "hunyuan-3d", "Hunyuan 3D Image to 3D", "fal_hunyuan_3d_image_to_3d_v1.nk", "fal_hunyuan_3d_image_to_3d_helper.py", "fal_hunyuan_3d_image_to_3d_runner_v1.py"),
+        ("3d", "hunyuan-3d", "Hunyuan 3D Part", "fal_hunyuan_3d_part_v1.nk", "fal_hunyuan_3d_part_helper.py", "fal_hunyuan_3d_part_runner_v1.py"),
         ("video", "utility", "BiRefNet v2", "fal_birefnet_v2.nk", "fal_birefnet_v2_helper.py", "fal_birefnet_v2_runner_v2.py"),
         ("video", "utility", "ByteDance Video Upscale", "fal_bytedance_video_upscale_v1.nk", "fal_bytedance_video_upscale_helper.py", "fal_bytedance_video_upscale_runner_v1.py"),
         ("video", "dreamactor", "DreamActor v2 Motion Control", "fal_dreamactor_v2_motion_control_v1.nk", "fal_dreamactor_v2_helper.py", "fal_dreamactor_v2_motion_control_runner_v1.py"),

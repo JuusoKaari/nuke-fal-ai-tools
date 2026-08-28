@@ -4,7 +4,7 @@ Wishlist of fal.ai models to add to the Nuke toolset. Sourced from the live cata
 
 Implement **one unchecked tool per agent turn**. Check it off, commit, then stop. Clone the listed existing files instead of inventing a new node shape.
 
-Current coverage (do not duplicate): Nano Banana 2 generate+edit, GPT Image 2 edit, Qwen Max edit / inpaint / layered, Finegrain eraser, BiRefNet still+video, Depth Anything v2, Topaz Precision still upscale, Seedream 5.0 Pro Edit, Hunyuan World, Seedance 2.0 I2V, Seedance 2.0 Reference, Seedance 2.5 I2V, FLUX 3 First/Last + Keyframes, LTX 2.3 + LTX 2.5 Pro I2V, MiniMax H3 + H3 Max I2V, Pika 2.2 Pikaframes, Kling O3 V2V edit, Veo 3.1 extend, ByteDance video upscale, DreamActor v2, Hunyuan 3D v3.1 Pro.
+Current coverage (do not duplicate): Nano Banana 2 generate+edit, GPT Image 2 edit, Qwen Max edit / inpaint / layered, Finegrain eraser, BiRefNet still+video, Depth Anything v2, Topaz Precision still upscale, Seedream 5.0 Pro Edit, Hunyuan World, Seedance 2.0 I2V, Seedance 2.0 Reference, Seedance 2.5 I2V, FLUX 3 First/Last + Keyframes, LTX 2.3 + LTX 2.5 Pro I2V, MiniMax H3 + H3 Max I2V, Pika 2.2 Pikaframes, Kling O3 V2V edit, Veo 3.1 extend, ByteDance video upscale, DreamActor v2, Hunyuan 3D v3.1 Pro image-to-3D, Hunyuan 3D v3.1 Part.
 
 ## Menu families
 
@@ -37,7 +37,7 @@ Video
   Veo 3.1 Extend            family veo (flat until first/last)
   Utility                   BiRefNet, ByteDance upscale
 3D
-  Hunyuan 3D Image to 3D    family hunyuan-3d (flat)
+  Hunyuan 3D                Image to 3D, Part
 Text
   OpenRouter                Describe image, Generate text
 ```
