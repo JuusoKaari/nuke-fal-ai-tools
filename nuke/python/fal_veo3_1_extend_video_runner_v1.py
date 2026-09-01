@@ -123,22 +123,6 @@ def _trim_video_tail_if_needed(in_path, temp_dir, base_name, max_seconds):
     return out_path, msg
 
 
-def _summarize_helper_failure(lines):
-    err_lines = []
-    for ln in lines or []:
-        s = (ln or "").strip()
-        if not s:
-            continue
-        if s.startswith("ERROR:") or s.startswith("WARNING:"):
-            err_lines.append(s)
-    if err_lines:
-        return "\n".join(err_lines[-12:])
-    tail = [ln for ln in (lines or []) if (ln or "").strip()][-8:]
-    if tail:
-        return "\n".join(tail)
-    return "No helper output captured. Check Script Editor."
-
-
 def main():
     import nuke  # imported inside for Nuke environment
 
@@ -252,15 +236,8 @@ def main():
     if seed_val is not None:
         extra_args += ["--seed", str(seed_val)]
 
-    returncode, helper_lines = runner_util.run_group_helper(
-        nuke,
-        g,
-        extra_args,
-        'Veo 3.1 Extend Video',
-        failure_formatter=lambda code, lines: (
-            "Veo 3.1 extend-video helper failed (exit %d).\n\n%s"
-            % (code, _summarize_helper_failure(lines))
-        ),
+    returncode, _helper_lines = runner_util.run_group_helper(
+        nuke, g, extra_args, 'Veo 3.1 Extend Video'
     )
 
     display_path = video_out.spawn_video_output_read(

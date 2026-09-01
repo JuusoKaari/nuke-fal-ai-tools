@@ -259,5 +259,35 @@ class TestResultSidecar(unittest.TestCase):
             self.assertTrue(os.path.isfile(sidecar))
 
 
+class TestFormatFalErrorSummary(unittest.TestCase):
+    def test_unwraps_nested_detail_json(self):
+        body = {
+            "detail": 'Erase API error: {"error":"premium mode has been removed from the API"}\n'
+        }
+        err = Exception(json.dumps(body))
+        text = fal_common.format_fal_error_summary(err)
+        self.assertIn("premium mode has been removed from the API", text)
+        self.assertNotIn('\\"error\\"', text)
+
+    def test_reads_errors_attr_dict(self):
+        err = Exception("wrapper")
+        err.errors = {"detail": "mask and image sizes do not match"}
+        text = fal_common.format_fal_error_summary(err)
+        self.assertEqual(text, "mask and image sizes do not match")
+
+    def test_prefers_msg_on_validation_items(self):
+        err = Exception("validation")
+        err.errors = [
+            {
+                "type": "enum",
+                "loc": ["body", "mode"],
+                "msg": "Input should be 'express' or 'standard'",
+                "input": "premium",
+            }
+        ]
+        text = fal_common.format_fal_error_summary(err)
+        self.assertEqual(text, "Input should be 'express' or 'standard'")
+
+
 if __name__ == "__main__":
     unittest.main()

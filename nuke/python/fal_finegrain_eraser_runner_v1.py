@@ -3,6 +3,7 @@
 # - Input 0: source plate; input 1: mask (white = region to erase). Pre-renders stills if needed.
 # - Mask prerender is reformatted to the source node's format (not the script root format).
 # - Calls `fal_finegrain_eraser_helper.py` (Python 3), then spawns a Read node for the downloaded output.
+# - fal.ai removed premium mode; that knob value is remapped to standard.
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -42,6 +43,11 @@ def main():
         raise Exception("missing input 1")
 
     mode = (g.knob("mode").value() or "standard").strip().lower()
+    if mode == "premium":
+        print("Finegrain premium mode was removed by fal.ai. Using standard.")
+        mode = "standard"
+    if mode not in ("express", "standard"):
+        mode = "standard"
     seed_s = (g.knob("seed").value() or "").strip()
 
     temp_dir, out_dir, ts = prerender.make_run_dirs(

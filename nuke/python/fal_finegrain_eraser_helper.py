@@ -1,6 +1,7 @@
 # Purpose:
 # - Python 3 helper for Nuke (Python 2.7) to run fal.ai Finegrain Eraser (mask) object removal on a still image.
 # - Uploads local image and mask to fal storage, calls `fal-ai/finegrain-eraser/mask`, downloads result image.
+# - Mode is express or standard. fal.ai removed premium; that value is remapped to standard.
 #
 # Usage (example):
 #   py -3 fal_finegrain_eraser_helper.py --image "C:/in.png" --mask "C:/mask.png" --out-dir "C:/temp/run" --verbose
@@ -41,7 +42,7 @@ def main(argv: list[str]) -> int:
         "--mode",
         default="standard",
         choices=["express", "standard", "premium"],
-        help="Erase quality mode. Default: standard.",
+        help="Erase quality mode (express or standard). premium is accepted then mapped to standard; fal.ai removed it.",
     )
     parser.add_argument(
         "--seed",
@@ -105,13 +106,21 @@ def main(argv: list[str]) -> int:
         print("Uploading mask: %s" % mask_path)
     mask_url = client.upload_file(mask_path)
 
+    mode = (args.mode or "standard").strip().lower()
+    if mode == "premium":
+        print(
+            "WARNING: Finegrain premium mode was removed by fal.ai. Using standard.",
+            file=sys.stderr,
+        )
+        mode = "standard"
+
     if args.verbose:
-        print("Submitting request: %s (mode=%s)" % (_ENDPOINT_ID, args.mode))
+        print("Submitting request: %s (mode=%s)" % (_ENDPOINT_ID, mode))
 
     arguments: dict = {
         "image_url": image_url,
         "mask_url": mask_url,
-        "mode": args.mode,
+        "mode": mode,
     }
     if args.seed is not None:
         arguments["seed"] = int(args.seed)
@@ -163,7 +172,7 @@ def main(argv: list[str]) -> int:
         "out_dir": out_dir,
         "downloaded": out_path,
         "used_seed": result.get("used_seed"),
-        "mode": args.mode,
+        "mode": mode,
     }
     emit_result_summary(summary)
     return 0

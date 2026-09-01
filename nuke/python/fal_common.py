@@ -1,7 +1,7 @@
 # Purpose:
 # - Shared Python 3 utilities used by multiple `fal_*.py` helper scripts in this folder.
 # - Centralizes common logic like: creating directories, atomic downloads with timeout/retry,
-#   fal-client subscribe retry, error parsing, retry heuristics, and result sidecars.
+#   fal-client subscribe retry, nested fal error unwrapping, retry heuristics, and result sidecars.
 # - Helpers do not stream fal queue logs to Nuke (noisy tqdm bars).
 
 from __future__ import annotations
@@ -82,25 +82,108 @@ def download(url: str, out_path: str, user_agent: str, timeout_seconds: float = 
     raise RuntimeError("download: no result")
 
 
+def _parse_jsonish(text):
+    """Parse a JSON object/array, or the first JSON blob inside a longer string."""
+    if not isinstance(text, str):
+        return None
+    s = text.strip()
+    if not s:
+        return None
+    if s[0] in "{[":
+        try:
+            return json.loads(s)
+        except Exception:
+            pass
+    brace = s.find("{")
+    bracket = s.find("[")
+    starts = [i for i in (brace, bracket) if i >= 0]
+    if not starts:
+        return None
+    try:
+        return json.loads(s[min(starts) :])
+    except Exception:
+        return None
+
+
+def _dict_items_from_payload(payload) -> list[dict]:
+    if isinstance(payload, dict):
+        return [payload]
+    if isinstance(payload, list):
+        return [e for e in payload if isinstance(e, dict)]
+    if isinstance(payload, str):
+        parsed = _parse_jsonish(payload)
+        if parsed is not None:
+            return _dict_items_from_payload(parsed)
+    return []
+
+
 def extract_fal_error_items(exc: BaseException) -> list[dict]:
     """
     Best-effort extraction of fal error payloads.
     fal_client may store errors on `exc.errors` or as the first arg.
     """
     errors = getattr(exc, "errors", None)
-    if isinstance(errors, list):
-        return [e for e in errors if isinstance(e, dict)]
+    items = _dict_items_from_payload(errors)
+    if items:
+        return items
 
     if getattr(exc, "args", None) and isinstance(exc.args, tuple) and exc.args:
-        first = exc.args[0]
-        if isinstance(first, list):
-            return [e for e in first if isinstance(e, dict)]
+        items = _dict_items_from_payload(exc.args[0])
+        if items:
+            return items
 
-    return []
+    return _dict_items_from_payload(str(exc))
+
+
+def _humanize_fal_payload(obj, depth: int = 0):
+    """
+    Pull a readable message out of fal error JSON.
+    Unwraps nested blobs like:
+    {"detail": "Erase API error: {\\"error\\":\\"premium mode has been removed from the API\\"}"}
+    """
+    if depth > 8:
+        return None
+    if obj is None:
+        return None
+    if isinstance(obj, str):
+        parsed = _parse_jsonish(obj)
+        if parsed is not None:
+            inner = _humanize_fal_payload(parsed, depth + 1)
+            if inner:
+                prefix = obj.strip()
+                cut = min((i for i in (prefix.find("{"), prefix.find("[")) if i >= 0), default=-1)
+                if cut > 0:
+                    prefix = prefix[:cut].strip().rstrip(":").strip()
+                    if prefix and inner.lower() not in prefix.lower():
+                        return "%s: %s" % (prefix, inner)
+                return inner
+        stripped = obj.strip()
+        return stripped or None
+    if isinstance(obj, dict):
+        for key in ("error", "detail", "msg", "message"):
+            if key not in obj:
+                continue
+            found = _humanize_fal_payload(obj[key], depth + 1)
+            if found:
+                return found
+        return None
+    if isinstance(obj, (list, tuple)):
+        parts = []
+        for item in obj:
+            found = _humanize_fal_payload(item, depth + 1)
+            if found and found not in parts:
+                parts.append(found)
+        if parts:
+            return "\n".join(parts)
+        return None
+    return str(obj)
 
 
 def format_fal_error_summary(exc: BaseException) -> str:
     items = extract_fal_error_items(exc)
+    human = _humanize_fal_payload(items) if items else _humanize_fal_payload(str(exc))
+    if human:
+        return human
     if items:
         try:
             return json.dumps(items, indent=2)

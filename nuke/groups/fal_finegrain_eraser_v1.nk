@@ -2,6 +2,7 @@
 # - Nuke Group node that runs fal.ai Finegrain Eraser (mask) object removal on a still plate + mask.
 # - Model: https://fal.ai/models/fal-ai/finegrain-eraser/mask
 # - White (high) in the mask = region to erase; black keeps the original plate.
+# - Mode is express or standard (fal.ai removed premium).
 
 set cut_paste_input [stack 0]
 version 11.3 v6
@@ -10,7 +11,7 @@ Group {
  name Finegrain_Eraser_v1
  selected true
  addUserKnob {20 Settings}
- addUserKnob {4 mode M {express standard premium ""}}
+ addUserKnob {4 mode M {express standard}}
  mode standard
  addUserKnob {1 seed l "Seed (optional, 0-999)"}
  seed ""

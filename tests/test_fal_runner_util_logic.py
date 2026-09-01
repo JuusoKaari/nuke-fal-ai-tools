@@ -106,5 +106,35 @@ class TestFrameRangeFromKnobs(unittest.TestCase):
         self.assertEqual(runner_util.frame_range_from_knobs(g, nuke), (1, 24))
 
 
+class TestSummarizeHelperOutput(unittest.TestCase):
+    def test_includes_json_body_after_error_line(self):
+        lines = [
+            "Uploading image: C:/tmp/source.png",
+            "Submitting request: fal-ai/finegrain-eraser/mask (mode=premium)",
+            "ERROR: Finegrain Eraser request failed.",
+            "Erase API error: premium mode has been removed from the API",
+        ]
+        text = runner_util.summarize_helper_output(lines)
+        self.assertTrue(text.startswith("ERROR: Finegrain Eraser request failed."))
+        self.assertIn("premium mode has been removed from the API", text)
+        self.assertNotIn("Uploading image", text)
+
+    def test_falls_back_to_tail_when_no_error_line(self):
+        lines = ["one", "", "two", "three"]
+        self.assertEqual(runner_util.summarize_helper_output(lines), "one\ntwo\nthree")
+
+    def test_empty_output_mentions_script_editor(self):
+        self.assertIn("Script Editor", runner_util.summarize_helper_output([]))
+
+    def test_failure_message_includes_exit_code_and_error(self):
+        msg = runner_util.format_helper_failure_message(
+            "Finegrain Eraser",
+            5,
+            ["ERROR: Finegrain Eraser request failed.", "premium mode has been removed from the API"],
+        )
+        self.assertIn("Finegrain Eraser helper failed (exit 5).", msg)
+        self.assertIn("premium mode has been removed from the API", msg)
+
+
 if __name__ == "__main__":
     unittest.main()

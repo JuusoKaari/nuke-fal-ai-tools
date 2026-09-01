@@ -2,6 +2,7 @@
 # - Shared Nuke-side (Python 2.7) helpers for fal group runners: python3 argv, FAL env,
 #   helper path, subprocess run, and frame range knobs.
 # - FAL_KEY cascade: node knob -> ~/.nuke-fal-ai/config.json -> process env.
+# - Failed helpers surface ERROR lines in the Nuke message dialog, not only Script Editor.
 # - Importable without Nuke for unit tests (pass nuke_module where needed).
 
 from __future__ import print_function
@@ -72,6 +73,51 @@ def helper_path_from_group(nuke_module, group_node):
     return _install_help.require_helper_path(nuke_module, raw)
 
 
+_MAX_HELPER_FAILURE_CHARS = 1800
+
+
+def summarize_helper_output(lines):
+    """
+    Pick the helper log chunk to show in a Nuke failure dialog.
+    Prefers the last ERROR: line plus anything after it (JSON body, nested
+    fal detail). Falls back to the last non-empty lines.
+    """
+    cleaned = []
+    for ln in lines or []:
+        if ln is None:
+            continue
+        try:
+            s = ln if isinstance(ln, str) else str(ln)
+        except Exception:
+            continue
+        s = s.replace("\r", "").rstrip()
+        if s:
+            cleaned.append(s)
+    if not cleaned:
+        return "No helper output captured. Check the Script Editor."
+
+    start = None
+    for i, s in enumerate(cleaned):
+        if s.startswith("ERROR:"):
+            start = i
+    if start is None:
+        chunk = cleaned[-12:]
+    else:
+        chunk = cleaned[start:]
+    text = "\n".join(chunk)
+    if len(text) > _MAX_HELPER_FAILURE_CHARS:
+        text = text[:_MAX_HELPER_FAILURE_CHARS] + "\n..."
+    return text
+
+
+def format_helper_failure_message(title, returncode, stdout_lines):
+    return "%s helper failed (exit %d).\n\n%s" % (
+        title,
+        returncode,
+        summarize_helper_output(stdout_lines),
+    )
+
+
 def run_group_helper(nuke_module, group_node, extra_args, title, failure_formatter=None):
     argv = resolve_python3_cmd(group_node) + [helper_path_from_group(nuke_module, group_node)]
     if extra_args:
@@ -90,8 +136,7 @@ def run_group_helper(nuke_module, group_node, extra_args, title, failure_formatt
             nuke_module.message(failure_formatter(returncode, stdout_lines))
         else:
             nuke_module.message(
-                "%s helper failed (exit %d). Check the Script Editor output for details."
-                % (title, returncode)
+                format_helper_failure_message(title, returncode, stdout_lines)
             )
         raise Exception("%s helper failed" % title)
     return (returncode, stdout_lines)

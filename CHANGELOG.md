@@ -21,7 +21,8 @@ All notable changes to this project are documented here.
 
 ### Changed
 
-- Hunyuan 3D Image to 3D extracts albedo, metallic-roughness, and normal maps from the GLB after download. fal only returns one `texture` URL, and with PBR on that file is often the normal map. Albedo is the Read piped to ReadGeo.
+- Helper failures now show the fal.ai error text in the Nuke popup, not only Script Editor. Nested JSON detail/error blobs are unwrapped to the inner message.
+- Finegrain Eraser: fal.ai removed premium mode. New nodes offer express/standard; existing premium knobs remap to standard.
 - FAL knob placeholder now says to insert a fal key to override for this node. Settings and `FAL_KEY` remain the defaults; the old "secret key / env variable" wording is still ignored so existing scripts keep working.
 - GPT Image 2 Edit: primary reference image is now input 0 (`ref_image_a`) so creating the node after a plate auto-connects correctly. Optional second image, prompt Text, and mask follow on inputs 1-3.
 - Menu groups by model family under Image / Video / 3D / Text. Families with 2+ tools become a submenu (Qwen, LTX, Utility, OpenRouter). Single-node families stay flat (Nano Banana 2, Seedance 2, Kling, ...). Utility is last in Image and Video.
