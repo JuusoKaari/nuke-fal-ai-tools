@@ -21,6 +21,7 @@ All notable changes to this project are documented here.
 
 ### Changed
 
+- Video prerender (PNG sequence to mp4) snaps odd width/height down by 1px so libx264 can encode formats like 1280x557.
 - Helper failures now show the fal.ai error text in the Nuke popup, not only Script Editor. Nested JSON detail/error blobs are unwrapped to the inner message.
 - Finegrain Eraser: fal.ai removed premium mode. New nodes offer express/standard; existing premium knobs remap to standard.
 - FAL knob placeholder now says to insert a fal key to override for this node. Settings and `FAL_KEY` remain the defaults; the old "secret key / env variable" wording is still ignored so existing scripts keep working.
