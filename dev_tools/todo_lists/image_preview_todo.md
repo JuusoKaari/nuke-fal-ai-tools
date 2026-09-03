@@ -79,7 +79,7 @@ Do not call fal.ai. Do not launch Nuke. Do not copy ROI nodes onto any tool exce
 
 ## Wave 5 - Image utilities (filter preview)
 
-- [ ] **P8** - BiRefNet v2 Still filter preview
+- [x] **P8** - BiRefNet v2 Still filter preview
   - Where: `nuke/python/nuke_group_output_preview_config_v1.py`, `nuke/groups/fal_birefnet_v2_still_v1.nk`, `nuke/python/fal_birefnet_v2_still_runner_v1.py`, tests
   - Do: `preview_kind` filter. Look-through `source_image`. After Execute the Group output is the matte/result. Viewer modes Input + Generated only. No history knobs, no ROI, spawn Reads default off. Runner `wire_group_outputs` with the single output path.
   - Done when: BiRefNet still `.nk` has `viewer_mode` with Input and Generated only, `generated_read_01`, no `preview_index` / extract / clear / ROI; config `preview_kind` is `filter`.

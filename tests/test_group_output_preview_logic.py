@@ -189,6 +189,7 @@ class TestPreviewConfigKinds(unittest.TestCase):
                 "Qwen_Image_Edit_Inpaint_v1",
                 "Hunyuan_World_v1",
                 "Qwen_Image_Layered_v1",
+                "BiRefNet_v2_Still_v1",
             ],
         )
 
@@ -578,6 +579,84 @@ class TestQwenImageLayeredPreview(unittest.TestCase):
         self.assertFalse(cfg.get("supports_roi"))
         self.assertFalse(preview.wants_roi_knobs(cfg))
         self.assertTrue(preview.spawn_reads_in_graph_default(cfg))
+
+
+class TestBirefnetV2StillPreview(unittest.TestCase):
+    def _birefnet_nk_text(self):
+        path = os.path.join(_ROOT, "nuke", "groups", "fal_birefnet_v2_still_v1.nk")
+        with open(path, "r") as f:
+            return f.read()
+
+    def _birefnet_runner_text(self):
+        path = os.path.join(
+            _ROOT, "nuke", "python", "fal_birefnet_v2_still_runner_v1.py"
+        )
+        with open(path, "r") as f:
+            return f.read()
+
+    def test_birefnet_config_is_filter_without_history_or_roi(self):
+        cfg = preview.TOOL_PREVIEW_CONFIG.get("BiRefNet_v2_Still_v1")
+        self.assertIsNotNone(cfg)
+        self.assertEqual(preview.preview_kind_for_config(cfg), "filter")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 1)
+        self.assertFalse(cfg.get("supports_generated_grid"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertFalse(preview.wants_history_knobs(cfg))
+        self.assertFalse(cfg.get("accumulate_outputs"))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg), ["Input", "Generated"]
+        )
+        self.assertNotIn("Generated grid", preview.viewer_modes_for_config(cfg))
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertIn("viewer_mode", knobs)
+        self.assertIn("spawn_reads_in_graph", knobs)
+        self.assertNotIn("preview_index", knobs)
+        self.assertNotIn(preview.EXTRACT_SELECTED_KNOB, knobs)
+        self.assertNotIn(preview.CLEAR_HISTORY_KNOB, knobs)
+        self.assertNotIn(preview.OUTPUT_PATHS_REGISTRY_KNOB, knobs)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+
+    def test_birefnet_nk_has_filter_preview_without_history_or_roi(self):
+        text = self._birefnet_nk_text()
+        self.assertIn("viewer_mode_switch", text)
+        self.assertIn("M {Input Generated \"\"}", text)
+        self.assertIn("generated_read_01", text)
+        self.assertIn("name preview_source_01", text)
+        self.assertIn("fal_tool_id BiRefNet_v2_Still_v1", text)
+        self.assertIn("name source_image", text)
+        self.assertIn("spawn_reads_in_graph false", text)
+        self.assertNotIn("Generated grid", text)
+        self.assertNotIn("preview_index", text)
+        self.assertNotIn("extract_selected_generation", text)
+        self.assertNotIn("clear_generated_outputs", text)
+        self.assertNotIn("generated_output_paths", text)
+        self.assertNotIn("generated_read_02", text)
+        self.assertNotIn("generated_contactsheet", text)
+        self.assertNotIn("ROI_rectangle", text)
+        self.assertNotIn("use_roi", text)
+        self.assertNotIn("roi_area", text)
+        self.assertNotIn("name Text1", text)
+
+    def test_resolve_birefnet_runner_basename(self):
+        tool_id = preview.resolve_tool_id_from_runner_path(
+            "__INSTALL_ROOT__/nuke/python/fal_birefnet_v2_still_runner_v1.py"
+        )
+        self.assertEqual(tool_id, "BiRefNet_v2_Still_v1")
+        cfg = preview.TOOL_PREVIEW_CONFIG[tool_id]
+        self.assertEqual(preview.preview_kind_for_config(cfg), "filter")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 1)
+        self.assertFalse(cfg.get("accumulate_outputs"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertFalse(preview.wants_history_knobs(cfg))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        self.assertIn("wire_group_outputs", self._birefnet_runner_text())
 
 
 class TestOutputRegistry(unittest.TestCase):
