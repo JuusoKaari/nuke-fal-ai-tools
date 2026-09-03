@@ -80,7 +80,7 @@ TOOL_PREVIEW_CONFIG = {
         "max_stored_outputs": DEFAULT_MAX_STORED_OUTPUTS,
         "supports_ai_input_grid": False,
         "supports_generated_grid": True,
-        "supports_roi": False,
+        "supports_roi": True,
         "accumulate_outputs": True,
     },
     "Qwen_Image_Max_Edit_v1": {

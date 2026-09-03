@@ -145,7 +145,7 @@ Video generation and upscaling can take several minutes. Watch the Script Editor
 
 Image Groups look through the connected plate on `Output1`. Video, 3D, and Text nodes still spawn result Reads (or Geo/Text) after Execute. Re-create the node from **Nodes -> fal.ai** after updating. Older Groups keep the old graph until you do.
 
-**ROI** (`use_roi`, `roi_area`) is Nano Banana 2 Generate only. Other Image nodes do not get those knobs. Qwen Image Inpaint already has a mask input; that is not ROI.
+**ROI** (`use_roi`, `roi_area`) is on Nano Banana 2 Generate and GPT Image 2 Edit. It crops the primary plate to a rectangle, sends that crop, and pastes the result back. Qwen Image Inpaint's mask input is not ROI. GPT's optional `mask` input still works; with Use ROI on, the mask is cropped to the same box.
 
 **Editor.** GPT Image 2 Edit, Qwen Image Max Edit, Seedream 5.0 Pro Edit, Qwen Image Inpaint, Hunyuan World, and Nano Banana 2 Generate.
 
@@ -163,7 +163,7 @@ Image Groups look through the connected plate on `Output1`. Video, 3D, and Text 
 - Re-create the node from **Nodes -> fal.ai** after updating the plugin (older nodes may lack preview knobs or use the wrong callback style).
 - Preview switching uses Nuke expressions on internal Switch nodes (`parent.viewer_mode`, etc.). The preview graph is baked into each Image Group `.nk`. There is no Python graph build on create.
 - Older nodes created before the baked graph may still rely on `ensure_group_preview_graph()`. Re-create from the menu for the full graph.
-- Inside a new Group you should see `viewer_mode_switch` and `generated_read_01` immediately after create. Nano Banana 2 also has ROI nodes (`ROI_rectangle`, `ROI_switch`).
+- Inside a new Group you should see `viewer_mode_switch` and `generated_read_01` immediately after create. Nano Banana 2 and GPT Image 2 also have ROI nodes (`ROI_rectangle`, `ROI_switch`).
 - If internal Read paths break after moving a script to another machine, re-execute or relink like any other Read node.
 
 ## Still stuck?

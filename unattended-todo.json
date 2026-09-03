@@ -7,7 +7,7 @@
     "Nuke Python in nuke/python and .nk files must be ASCII only. No em dashes or other non-ASCII. Python 2.7 compatible (from __future__ import print_function, no f-strings in nuke/python).",
     "Do not call fal.ai, OpenRouter, or any network. Tests stay Nuke-free (unittest on helper/config logic and .nk text).",
     "Do not launch Nuke or hython. Bake preview graphs by editing .nk text, copying from fal_nano_banana_2_generate_v1.nk and stripping ROI.",
-    "Do not copy ROI_rectangle, merge_roi, ROI_switch, use_roi, or roi_area onto any tool except Nano Banana 2 Generate.",
+    "Do not copy ROI_rectangle, merge_roi, ROI_switch, use_roi, or roi_area onto any tool except Nano Banana 2 Generate and GPT Image 2 Edit.",
     "Do not change Video, 3D, or Text nodes. Do not add Nano Banana Pro.",
     "Keep existing Group Input names and runner input collection. After helper success, call preview.wire_group_outputs. Spawn root Reads only when spawn_reads_in_graph is on (Layered defaults on; editors and filters default off).",
     "Do not rewrite old artist Groups on load. New preview is baked into the .nk for nodes created from the menu.",

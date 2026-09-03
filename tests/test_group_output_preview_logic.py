@@ -268,9 +268,9 @@ class TestToolIdResolution(unittest.TestCase):
         )
         self.assertEqual(tool_id, "GPT_Image_2_Edit_v1")
         cfg = preview.TOOL_PREVIEW_CONFIG[tool_id]
-        self.assertFalse(cfg.get("supports_roi"))
-        self.assertFalse(preview.config_supports_roi(cfg))
-        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertTrue(cfg.get("supports_roi"))
+        self.assertTrue(preview.config_supports_roi(cfg))
+        self.assertTrue(preview.wants_roi_knobs(cfg))
 
 
 class TestGptImage2EditPreview(unittest.TestCase):
@@ -279,27 +279,32 @@ class TestGptImage2EditPreview(unittest.TestCase):
         with open(path, "r") as f:
             return f.read()
 
-    def test_gpt_config_is_editor_without_roi(self):
+    def test_gpt_config_is_editor_with_roi(self):
         cfg = preview.TOOL_PREVIEW_CONFIG.get("GPT_Image_2_Edit_v1")
         self.assertIsNotNone(cfg)
         self.assertEqual(preview.preview_kind_for_config(cfg), "editor")
         self.assertEqual(cfg["preview_inputs"], ["ref_image_a", "ref_image_b"])
         self.assertEqual(cfg["max_outputs"], 4)
-        self.assertFalse(cfg.get("supports_roi"))
+        self.assertTrue(cfg.get("supports_roi"))
+        self.assertTrue(preview.config_supports_roi(cfg))
+        self.assertTrue(preview.wants_roi_knobs(cfg))
         self.assertTrue(cfg.get("accumulate_outputs"))
         self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
         knobs = preview.requested_preview_knob_names(cfg)
-        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
-        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+        self.assertIn(preview.USE_ROI_KNOB, knobs)
+        self.assertIn(preview.ROI_AREA_KNOB, knobs)
         self.assertIn("preview_index", knobs)
 
-    def test_gpt_nk_has_baked_preview_without_roi(self):
+    def test_gpt_nk_has_baked_preview_with_roi(self):
         text = self._gpt_nk_text()
         self.assertIn("viewer_mode_switch", text)
         self.assertIn("generated_read_01", text)
         self.assertIn("fal_tool_id GPT_Image_2_Edit_v1", text)
-        self.assertNotIn("ROI_rectangle", text)
-        self.assertNotIn("use_roi", text)
+        self.assertIn("ROI_rectangle", text)
+        self.assertIn("ROI_switch", text)
+        self.assertIn("merge_roi", text)
+        self.assertIn("use_roi", text)
+        self.assertIn("roi_area", text)
         self.assertIn("name ref_image_a", text)
         self.assertIn("name ref_image_b", text)
         self.assertIn("name prompt_text", text)
