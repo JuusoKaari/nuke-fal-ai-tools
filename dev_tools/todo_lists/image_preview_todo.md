@@ -41,7 +41,7 @@ Do not call fal.ai. Do not launch Nuke. Do not copy ROI nodes onto any tool exce
 
 ## Wave 3 - remaining variant editors
 
-- [ ] **P3** - Qwen Image Max Edit in-group preview
+- [x] **P3** - Qwen Image Max Edit in-group preview
   - Where: `nuke/python/nuke_group_output_preview_config_v1.py`, `nuke/groups/fal_qwen_image_max_edit_v1.nk`, `nuke/python/fal_qwen_image_max_edit_runner_v1.py`, tests
   - Do: Same editor pattern as P2. Look-through `source_image`. `max_outputs` 6 (knob is 1-6). No ROI. Keep Input name `source_image`. Runner keeps current still export; add `wire_group_outputs`; spawn Reads only when the knob is on (default off).
   - Done when: Qwen Max `.nk` has baked preview without ROI; config maps `fal_qwen_image_max_edit_runner_v1.py` to `Qwen_Image_Max_Edit_v1` with `max_outputs` 6 and `supports_roi` false.
