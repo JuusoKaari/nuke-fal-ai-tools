@@ -45,6 +45,7 @@ DEFAULT_MAX_STORED_OUTPUTS = 128
 # Maps runner script basename -> TOOL_PREVIEW_CONFIG key (stable across display renames).
 RUNNER_BASENAME_TO_TOOL_ID = {
     "fal_nano_banana_2_generate_runner_v1.py": "Nano_Banana_2_Generate_v1",
+    "fal_gpt_image_2_edit_runner_v1.py": "GPT_Image_2_Edit_v1",
 }
 
 
@@ -60,6 +61,17 @@ TOOL_PREVIEW_CONFIG = {
         "supports_ai_input_grid": False,
         "supports_generated_grid": True,
         "supports_roi": True,
+        "accumulate_outputs": True,
+    },
+    "GPT_Image_2_Edit_v1": {
+        "preview_kind": PREVIEW_KIND_EDITOR,
+        "preview_inputs": ["ref_image_a", "ref_image_b"],
+        "max_ai_inputs": 2,
+        "max_outputs": 4,
+        "max_stored_outputs": DEFAULT_MAX_STORED_OUTPUTS,
+        "supports_ai_input_grid": False,
+        "supports_generated_grid": True,
+        "supports_roi": False,
         "accumulate_outputs": True,
     },
 }

@@ -31,7 +31,7 @@ Do not call fal.ai. Do not launch Nuke. Do not copy ROI nodes onto any tool exce
 
 ## Wave 2 - first editor
 
-- [ ] **P2** - GPT Image 2 Edit in-group preview
+- [x] **P2** - GPT Image 2 Edit in-group preview
   - Where: `nuke/python/nuke_group_output_preview_config_v1.py`, `nuke/groups/fal_gpt_image_2_edit_v1.nk`, `nuke/python/fal_gpt_image_2_edit_runner_v1.py`, `tests/test_group_output_preview_logic.py`
   - Do: Add `GPT_Image_2_Edit_v1` as `preview_kind` editor, `preview_inputs` `ref_image_a` and `ref_image_b`, `max_outputs` 4, `supports_roi` false, `spawn_reads_in_graph` default false, accumulate true. Map `fal_gpt_image_2_edit_runner_v1.py` in `RUNNER_BASENAME_TO_TOOL_ID`. Bake look-through + generated reads + `viewer_mode_switch` from the Nano Banana 2 `.nk` as text; strip every ROI node; keep Inputs `ref_image_a`, `ref_image_b`, `prompt_text`, `mask`; delete the Text placeholder on `Output1`. Hidden `fal_tool_id` and `knobChanged` like NB2. Runner keeps `_collect_reference_images` and mask export. After helper success, `wire_group_outputs`, then spawn root Reads only if `spawn_reads_in_graph` is on.
   - Done when: the GPT `.nk` text contains `viewer_mode_switch`, `generated_read_01`, `fal_tool_id GPT_Image_2_Edit_v1`, and does not contain `ROI_rectangle` or `use_roi`. Tests resolve the GPT runner basename to that config with `supports_roi` false.
