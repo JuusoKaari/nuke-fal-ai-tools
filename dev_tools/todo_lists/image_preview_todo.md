@@ -91,7 +91,7 @@ Do not call fal.ai. Do not launch Nuke. Do not copy ROI nodes onto any tool exce
   - Done when: Depth `.nk` matches the filter bake (look-through + generated, no history/ROI) and the runner wires in-group output.
   - Tests: `py -3 -m unittest tests.test_group_output_preview_logic`.
 
-- [ ] **P10** - Finegrain Eraser filter preview
+- [x] **P10** - Finegrain Eraser filter preview
   - Where: `nuke/python/nuke_group_output_preview_config_v1.py`, `nuke/groups/fal_finegrain_eraser_v1.nk`, `nuke/python/fal_finegrain_eraser_runner_v1.py`, tests
   - Do: Same filter pattern. Look-through `source_image`, not `mask`. Keep the mask Input. No ROI rectangle.
   - Done when: Finegrain `.nk` looks through `source_image`, still has `mask`, has no ROI, and the runner wires the processed still onto the Group.

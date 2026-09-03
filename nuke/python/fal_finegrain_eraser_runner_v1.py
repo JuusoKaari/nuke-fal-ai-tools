@@ -2,7 +2,8 @@
 # - Runner script for the Nuke Group node `Finegrain_Eraser_v1` (executes inside Nuke / Python 2.7).
 # - Input 0: source plate; input 1: mask (white = region to erase). Pre-renders stills if needed.
 # - Mask prerender is reformatted to the source node's format (not the script root format).
-# - Calls `fal_finegrain_eraser_helper.py` (Python 3), then spawns a Read node for the downloaded output.
+# - Calls `fal_finegrain_eraser_helper.py` (Python 3), then wires the erased still into the baked
+#   in-group preview. Root Reads spawn only when spawn_reads_in_graph is on.
 # - fal.ai removed premium mode; that knob value is remapped to standard.
 #
 # Notes:
@@ -19,6 +20,7 @@ if _THIS_DIR not in sys.path:
 
 import _nuke_runner_launcher
 
+import nuke_group_output_preview_v1 as preview
 import nuke_prerender_v1 as prerender
 import nuke_fal_runner_util_v1 as runner_util
 import nuke_spawn_read_position_v1 as spawn_pos
@@ -95,9 +97,6 @@ def main():
         nuke, g, extra_args, 'Finegrain Eraser'
     )
 
-    xpos = int(g.xpos())
-    ypos = int(g.ypos())
-
     out_path = os.path.join(out_dir, "erased.jpg")
     if not os.path.isfile(out_path):
         out_path = os.path.join(out_dir, "erased.png")
@@ -108,23 +107,41 @@ def main():
         raise Exception("no output")
 
     out_path_nk = prerender.norm_slashes(out_path)
+    created = [out_path_nk]
 
-    nuke.root().begin()
     try:
-        fx, fy = spawn_pos.resolve_spawn_xy(nuke, xpos, ypos + 140)
-        r = nuke.nodes.Read(file=out_path_nk)
+        preview.wire_group_outputs(g, created)
+    except Exception as e:
+        nuke.message("Failed to wire in-group preview outputs:\n%s" % str(e))
+        raise
+
+    spawn_reads = False
+    try:
+        sk = g.knob("spawn_reads_in_graph")
+        if sk is not None:
+            spawn_reads = bool(sk.value())
+    except Exception:
+        spawn_reads = False
+
+    if spawn_reads:
+        xpos = int(g.xpos())
+        ypos = int(g.ypos())
+        nuke.root().begin()
         try:
-            r.setName("%s_%s" % (g.name(), ts), unique=True)
-        except Exception:
-            pass
-        try:
-            r.knob("label").setValue("Finegrain Eraser\n%s" % out_path_nk)
-        except Exception:
-            pass
-        r.setXpos(fx)
-        r.setYpos(fy)
-    finally:
-        nuke.endGroup()
+            fx, fy = spawn_pos.resolve_spawn_xy(nuke, xpos, ypos + 140)
+            r = nuke.nodes.Read(file=out_path_nk)
+            try:
+                r.setName("%s_%s" % (g.name(), ts), unique=True)
+            except Exception:
+                pass
+            try:
+                r.knob("label").setValue("Finegrain Eraser\n%s" % out_path_nk)
+            except Exception:
+                pass
+            r.setXpos(fx)
+            r.setYpos(fy)
+        finally:
+            nuke.endGroup()
 
     if _nuke_runner_launcher.should_show_success_popup(g):
         nuke.message("Finegrain Eraser output created:\n%s" % out_path_nk)
