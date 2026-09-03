@@ -52,6 +52,7 @@ RUNNER_BASENAME_TO_TOOL_ID = {
     "fal_hunyuan_world_runner_v1.py": "Hunyuan_World_v1",
     "fal_qwen_image_layered_runner_v1.py": "Qwen_Image_Layered_v1",
     "fal_birefnet_v2_still_runner_v1.py": "BiRefNet_v2_Still_v1",
+    "fal_depth_anything_v2_runner_v1.py": "Depth_Anything_v2",
 }
 
 
@@ -137,6 +138,18 @@ TOOL_PREVIEW_CONFIG = {
         "accumulate_outputs": False,
     },
     "BiRefNet_v2_Still_v1": {
+        "preview_kind": PREVIEW_KIND_FILTER,
+        "preview_inputs": ["source_image"],
+        "max_ai_inputs": 1,
+        "max_outputs": 1,
+        "max_stored_outputs": DEFAULT_MAX_STORED_OUTPUTS,
+        "supports_ai_input_grid": False,
+        "supports_generated_grid": False,
+        "supports_roi": False,
+        "accumulate_outputs": False,
+        "viewer_modes": ["Input", "Generated"],
+    },
+    "Depth_Anything_v2": {
         "preview_kind": PREVIEW_KIND_FILTER,
         "preview_inputs": ["source_image"],
         "max_ai_inputs": 1,

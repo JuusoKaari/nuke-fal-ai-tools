@@ -85,7 +85,7 @@ Do not call fal.ai. Do not launch Nuke. Do not copy ROI nodes onto any tool exce
   - Done when: BiRefNet still `.nk` has `viewer_mode` with Input and Generated only, `generated_read_01`, no `preview_index` / extract / clear / ROI; config `preview_kind` is `filter`.
   - Tests: `py -3 -m unittest tests.test_group_output_preview_logic`.
 
-- [ ] **P9** - Depth Anything v2 filter preview
+- [x] **P9** - Depth Anything v2 filter preview
   - Where: `nuke/python/nuke_group_output_preview_config_v1.py`, `nuke/groups/fal_depth_anything_v2.nk`, `nuke/python/fal_depth_anything_v2_runner_v1.py`, tests
   - Do: Same filter pattern as P8. Keep the existing Depth knobs and `source_image` Input. No ROI.
   - Done when: Depth `.nk` matches the filter bake (look-through + generated, no history/ROI) and the runner wires in-group output.

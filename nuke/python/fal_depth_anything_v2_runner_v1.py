@@ -2,8 +2,8 @@
 # - Runner script for the Nuke Group node `Depth_Anything_v2` (executes inside Nuke / Python 2.7).
 # - Accepts any upstream image input; if it's a suitable Read node, uses its file directly (no re-render),
 #   otherwise pre-renders a still to a temp folder.
-# - Calls the external Python 3 helper `fal_depth_anything_v2_helper.py` via subprocess, then creates
-#   a Read node in the main graph for the downloaded depth map image.
+# - Calls the external Python 3 helper `fal_depth_anything_v2_helper.py` via subprocess, then wires the
+#   depth map into the baked in-group preview. Root Reads spawn only when spawn_reads_in_graph is on.
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -12,7 +12,6 @@
 from __future__ import print_function
 
 import os
-
 import sys
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -21,6 +20,7 @@ if _THIS_DIR not in sys.path:
 
 import _nuke_runner_launcher
 
+import nuke_group_output_preview_v1 as preview
 import nuke_prerender_v1 as prerender
 import nuke_fal_runner_util_v1 as runner_util
 import nuke_spawn_read_position_v1 as spawn_pos
@@ -36,7 +36,7 @@ def main():
     frame = int(nuke.frame())
     src_node = g.input(0)
     if not src_node:
-        nuke.message("Input 0 is not connected.")
+        nuke.message("Input 0 (source_image) is not connected.")
         raise Exception("missing input 0")
 
     temp_dir, out_dir, ts = prerender.make_run_dirs(
@@ -66,10 +66,6 @@ def main():
         nuke, g, extra_args, 'Depth Anything v2'
     )
 
-    # Create Read node in the main node graph (not inside the group)
-    xpos = int(g.xpos())
-    ypos = int(g.ypos())
-
     # Helper outputs depth_map.png (or depth_map.<ext>)
     out_path = os.path.join(out_dir, "depth_map.png")
     if not os.path.isfile(out_path):
@@ -81,23 +77,41 @@ def main():
         raise Exception("no output")
 
     out_path_nk = prerender.norm_slashes(out_path)
+    created = [out_path_nk]
 
-    nuke.root().begin()
     try:
-        fx, fy = spawn_pos.resolve_spawn_xy(nuke, xpos, ypos + 140)
-        r = nuke.nodes.Read(file=out_path_nk)
+        preview.wire_group_outputs(g, created)
+    except Exception as e:
+        nuke.message("Failed to wire in-group preview outputs:\n%s" % str(e))
+        raise
+
+    spawn_reads = False
+    try:
+        sk = g.knob("spawn_reads_in_graph")
+        if sk is not None:
+            spawn_reads = bool(sk.value())
+    except Exception:
+        spawn_reads = False
+
+    if spawn_reads:
+        xpos = int(g.xpos())
+        ypos = int(g.ypos())
+        nuke.root().begin()
         try:
-            r.setName("%s_%s" % (g.name(), ts), unique=True)
-        except Exception:
-            pass
-        try:
-            r.knob("label").setValue("Depth Anything v2\n%s" % out_path_nk)
-        except Exception:
-            pass
-        r.setXpos(fx)
-        r.setYpos(fy)
-    finally:
-        nuke.endGroup()
+            fx, fy = spawn_pos.resolve_spawn_xy(nuke, xpos, ypos + 140)
+            r = nuke.nodes.Read(file=out_path_nk)
+            try:
+                r.setName("%s_%s" % (g.name(), ts), unique=True)
+            except Exception:
+                pass
+            try:
+                r.knob("label").setValue("Depth Anything v2\n%s" % out_path_nk)
+            except Exception:
+                pass
+            r.setXpos(fx)
+            r.setYpos(fy)
+        finally:
+            nuke.endGroup()
 
     if _nuke_runner_launcher.should_show_success_popup(g):
         nuke.message("Depth map output created:\n%s" % out_path_nk)

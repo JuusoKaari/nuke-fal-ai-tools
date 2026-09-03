@@ -1,6 +1,9 @@
 # Purpose:
 # - Nuke Group node that runs Depth Anything v2 preprocessor (fal.ai) on a single still image
-#   and creates a Read node for the depth map output.
+#   with in-group output preview.
+# - Input: 0 source_image (look-through). After Execute, Generated is the depth map. No grid, history knobs, or ROI.
+# - Preview graph is baked (look-through + generated_read_01 + viewer_mode_switch). Spawn Reads default off.
+# - Hidden fal_tool_id identifies the tool type; display name may be v1, v2, v3, etc.
 # - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
 #
 # API: https://fal.ai/models/fal-ai/image-preprocessors/depth-anything/v2
@@ -9,11 +12,23 @@ set cut_paste_input [stack 0]
 version 11.3 v6
 push $cut_paste_input
 Group {
+ inputs 1
  name Depth_Anything_v2
+ knobChanged "\nimport nuke_group_output_preview_v1 as _gop\n_gop.on_knob_changed_ui()\n"
  selected true
  addUserKnob {20 Settings}
  addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}
  show_success_popup true
+ addUserKnob {26 preview_separator l "" +STARTLINE}
+ addUserKnob {4 viewer_mode l "Viewer mode" M {Input Generated ""}}
+ viewer_mode Input
+ addUserKnob {6 spawn_reads_in_graph l "Spawn reads in graph" +STARTLINE}
+ spawn_reads_in_graph false
+ addUserKnob {6 match_input_resolution l "Match input resolution" +STARTLINE}
+ match_input_resolution true
+ addUserKnob {6 has_generated_output -STARTLINE +DISABLED +INVISIBLE}
+ has_generated_output false
+ addUserKnob {26 generated_output_count l "Generated outputs:" T "0"}
  addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
  addUserKnob {20 endGroup n -1}
  addUserKnob {20 Advanced l Advanced +CLOSED}
@@ -26,40 +41,88 @@ Group {
  helper_path "__INSTALL_ROOT__/nuke/python/fal_depth_anything_v2_helper.py"
  addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
  runner_path "__INSTALL_ROOT__/nuke/python/fal_depth_anything_v2_runner_v1.py"
+ addUserKnob {1 fal_tool_id l "fal tool id" +INVISIBLE}
+ fal_tool_id Depth_Anything_v2
 }
-Text {
- inputs 0
- message "Connect a Read (still image) and press execute"
- font C:/Windows/Fonts/arial.ttf
- yjustify bottom
- Transform 1
- box {30 30 1906 1052}
- center {560 372}
- name Text1
- xpos 101
- ypos 294
-}
-set N0b22a001 [stack 0]
-Output {
- name Output1
- xpos 101
- ypos 406
-}
-Input {
- inputs 0
- name source_image
- xpos 0
- ypos -51
-}
-push $N0b22a001
-Viewer {
- inputs 1
- frame_range 0-199
- fps 25
- input_number 0
- name Viewer1
- selected true
- xpos 281
- ypos 412
-}
+ Read {
+  inputs 0
+  file_type png
+  file ""
+  format "1408 768 0 0 1408 768 1 "
+  origset true
+  name generated_read_01
+  label "F: \[value first]-\[value last] \[python \{\}] \nDUR: \[python \{nuke.thisNode()\['last'].value()-nuke.thisNode()\['first'].value()+1\}] \n|\[python \{nuke.thisNode()\['file'].value()\[0].upper()\}]|"
+  xpos 1732
+  ypos -261
+ }
+set N85c2da80 [stack 0]
+push $N85c2da80
+ Switch {
+  inputs 1
+  which 0
+  name generated_switch
+  xpos 1642
+  ypos 183
+ }
+set Ndb7c200 [stack 0]
+ Input {
+  inputs 0
+  name source_image
+  xpos 77
+  ypos -667
+ }
+ NoOp {
+  name preview_source_01
+  xpos 77
+  ypos -292
+ }
+set N16c9200 [stack 0]
+push $N16c9200
+ Switch {
+  inputs 1
+  which 0
+  name ai_input_switch
+  xpos 538
+  ypos 386
+ }
+set Ndb7c300 [stack 0]
+push $Ndb7c200
+ Reformat {
+  type "to box"
+  box_width {{preview_source_01.width}}
+  box_height {{preview_source_01.height}}
+  box_fixed true
+  resize fit
+  center false
+  disable {{1-parent.match_input_resolution}}
+  name generated_output_reformat
+  xpos 1642
+  ypos 213
+ }
+set Ndb7c210 [stack 0]
+push $Ndb7c210
+push $Ndb7c300
+ Switch {
+  inputs 2
+  which {{parent.viewer_mode}}
+  name viewer_mode_switch
+  xpos 858
+  ypos 1020
+ }
+set Nf9827200 [stack 0]
+ Output {
+  name Output1
+  xpos 858
+  ypos 1285
+ }
+push $Nf9827200
+ Viewer {
+  inputs 1
+  frame_range 0-199
+  fps 25
+  input_number 0
+  name Viewer1
+  xpos -646
+  ypos 1786
+ }
 end_group
