@@ -188,6 +188,7 @@ class TestPreviewConfigKinds(unittest.TestCase):
                 "Seedream_5_Pro_Edit_v1",
                 "Qwen_Image_Edit_Inpaint_v1",
                 "Hunyuan_World_v1",
+                "Qwen_Image_Layered_v1",
             ],
         )
 
@@ -516,6 +517,67 @@ class TestHunyuanWorldPreview(unittest.TestCase):
         self.assertEqual(
             preview.viewer_modes_for_config(cfg), ["Input", "Generated"]
         )
+
+
+class TestQwenImageLayeredPreview(unittest.TestCase):
+    def _layered_nk_text(self):
+        path = os.path.join(_ROOT, "nuke", "groups", "fal_qwen_image_layered_v1.nk")
+        with open(path, "r") as f:
+            return f.read()
+
+    def test_layered_config_is_layers_without_roi(self):
+        cfg = preview.TOOL_PREVIEW_CONFIG.get("Qwen_Image_Layered_v1")
+        self.assertIsNotNone(cfg)
+        self.assertEqual(preview.preview_kind_for_config(cfg), "layers")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 10)
+        self.assertTrue(cfg.get("supports_generated_grid"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertFalse(cfg.get("accumulate_outputs"))
+        self.assertTrue(preview.wants_history_knobs(cfg))
+        self.assertTrue(preview.spawn_reads_in_graph_default(cfg))
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg),
+            ["Input", "Generated", "Generated grid"],
+        )
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+        self.assertIn("preview_index", knobs)
+        self.assertIn("spawn_reads_in_graph", knobs)
+
+    def test_layered_nk_has_baked_preview_without_roi(self):
+        text = self._layered_nk_text()
+        self.assertIn("viewer_mode_switch", text)
+        self.assertIn("generated_contactsheet", text)
+        self.assertIn("fal_tool_id Qwen_Image_Layered_v1", text)
+        self.assertIn("name source_image", text)
+        self.assertIn("name preview_source_01", text)
+        self.assertIn("spawn_reads_in_graph true", text)
+        self.assertIn("Generated grid", text)
+        for i in range(1, 11):
+            self.assertIn("generated_read_%02d" % i, text)
+        self.assertNotIn("generated_read_11", text)
+        self.assertNotIn("ROI_rectangle", text)
+        self.assertNotIn("use_roi", text)
+        self.assertNotIn("roi_area", text)
+        self.assertNotIn("name Text1", text)
+
+    def test_resolve_layered_runner_basename(self):
+        tool_id = preview.resolve_tool_id_from_runner_path(
+            "__INSTALL_ROOT__/nuke/python/fal_qwen_image_layered_runner_v1.py"
+        )
+        self.assertEqual(tool_id, "Qwen_Image_Layered_v1")
+        cfg = preview.TOOL_PREVIEW_CONFIG[tool_id]
+        self.assertEqual(preview.preview_kind_for_config(cfg), "layers")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 10)
+        self.assertFalse(cfg.get("accumulate_outputs"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertTrue(preview.spawn_reads_in_graph_default(cfg))
 
 
 class TestOutputRegistry(unittest.TestCase):

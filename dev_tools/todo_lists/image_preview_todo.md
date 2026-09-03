@@ -69,7 +69,7 @@ Do not call fal.ai. Do not launch Nuke. Do not copy ROI nodes onto any tool exce
   - Done when: Hunyuan World `.nk` has look-through + `generated_read_01`, no Generated grid enum, no ROI, no merge-back nodes.
   - Tests: `py -3 -m unittest tests.test_group_output_preview_logic`.
 
-- [ ] **P7** - Qwen Image Layered in-group preview
+- [x] **P7** - Qwen Image Layered in-group preview
   - Where: `nuke/python/nuke_group_output_preview_config_v1.py`, `nuke/groups/fal_qwen_image_layered_v1.nk`, `nuke/python/fal_qwen_image_layered_runner_v1.py`, tests
   - Do: `preview_kind` layers. Look-through `source_image`. `max_outputs` 10. Generated grid for the layer stack. `spawn_reads_in_graph` default **true**. `accumulate_outputs` false (each Execute replaces the layer set). No ROI. Runner still writes one Read per layer when spawn is on; also `wire_group_outputs` so the Group shows the stack.
   - Done when: layered `.nk` has `spawn_reads_in_graph` true, `generated_read_01` through `generated_read_10` (or equivalent baked count), no ROI; config `preview_kind` is `layers`.

@@ -50,6 +50,7 @@ RUNNER_BASENAME_TO_TOOL_ID = {
     "fal_seedream_5_pro_edit_runner_v1.py": "Seedream_5_Pro_Edit_v1",
     "fal_qwen_image_inpaint_runner_v1.py": "Qwen_Image_Edit_Inpaint_v1",
     "fal_hunyuan_world_runner_v1.py": "Hunyuan_World_v1",
+    "fal_qwen_image_layered_runner_v1.py": "Qwen_Image_Layered_v1",
 }
 
 
@@ -122,6 +123,17 @@ TOOL_PREVIEW_CONFIG = {
         "supports_roi": False,
         "accumulate_outputs": True,
         "viewer_modes": ["Input", "Generated"],
+    },
+    "Qwen_Image_Layered_v1": {
+        "preview_kind": PREVIEW_KIND_LAYERS,
+        "preview_inputs": ["source_image"],
+        "max_ai_inputs": 1,
+        "max_outputs": 10,
+        "max_stored_outputs": DEFAULT_MAX_STORED_OUTPUTS,
+        "supports_ai_input_grid": False,
+        "supports_generated_grid": True,
+        "supports_roi": False,
+        "accumulate_outputs": False,
     },
 }
 

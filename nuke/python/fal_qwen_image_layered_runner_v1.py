@@ -3,7 +3,8 @@
 # - Accepts any upstream image input; if it's a suitable Read node, uses its file at the current frame directly
 #   (no re-render), otherwise pre-renders a still to a temp folder.
 # - Calls the external Python 3 helper `fal_qwen_image_layered_helper.py` to decompose the image into
-#   RGBA layers via fal.ai, and creates multiple Read nodes (one per layer) in the main graph.
+#   RGBA layers via fal.ai, then wires the layer stack into the baked in-group preview.
+# - Root Reads spawn one per layer when spawn_reads_in_graph is on (default on). Each Execute replaces the layer set.
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -21,6 +22,7 @@ if _THIS_DIR not in sys.path:
 
 import _nuke_runner_launcher
 
+import nuke_group_output_preview_v1 as preview
 import nuke_prerender_v1 as prerender
 import nuke_fal_runner_util_v1 as runner_util
 import nuke_spawn_read_position_v1 as spawn_pos
@@ -121,46 +123,64 @@ def main():
                 pass
     layer_indices.sort()
 
-    xpos = int(g.xpos())
-    ypos = int(g.ypos())
+    created = []
+    layer_paths = []
+    for layer_idx in layer_indices:
+        layer_dir = os.path.join(out_dir, "layer_%d" % layer_idx)
+        out_path = _layer_output_path(layer_dir, output_format)
+        if not os.path.isfile(out_path):
+            continue
+        out_path_nk = prerender.norm_slashes(out_path)
+        created.append(out_path_nk)
+        layer_paths.append((layer_idx, out_path_nk))
 
-    nuke.root().begin()
+    if not created:
+        nuke.message("No layer output found. Check the helper script output.")
+        raise Exception("no outputs")
+
     try:
-        read_nodes = []
-        for layer_idx in layer_indices:
-            layer_dir = os.path.join(out_dir, "layer_%d" % layer_idx)
-            out_path = _layer_output_path(layer_dir, output_format)
-            out_path_nk = prerender.norm_slashes(out_path)
+        preview.wire_group_outputs(g, created)
+    except Exception as e:
+        nuke.message("Failed to wire in-group preview outputs:\n%s" % str(e))
+        raise
 
-            if not os.path.isfile(out_path):
-                continue
+    spawn_reads = True
+    try:
+        sk = g.knob("spawn_reads_in_graph")
+        if sk is not None:
+            spawn_reads = bool(sk.value())
+    except Exception:
+        spawn_reads = True
 
-            bx = xpos + (layer_idx * 120)
-            by = ypos + 140
-            fx, fy = spawn_pos.resolve_spawn_xy(nuke, bx, by, exclude_nodes=read_nodes)
-            r = nuke.nodes.Read(file=out_path_nk)
-            try:
-                r.setName("%s_layer_%d_%s" % (g.name(), layer_idx, ts), unique=True)
-            except Exception:
-                pass
-            try:
-                r.knob("label").setValue("Layer %d\n%s" % (layer_idx, out_path_nk))
-            except Exception:
-                pass
-            r.setXpos(fx)
-            r.setYpos(fy)
-            read_nodes.append(r)
-
-        if not read_nodes:
-            nuke.message("No layer output found. Check the helper script output.")
-
-    finally:
-        nuke.endGroup()
+    if spawn_reads:
+        xpos = int(g.xpos())
+        ypos = int(g.ypos())
+        nuke.root().begin()
+        try:
+            read_nodes = []
+            for layer_idx, out_path_nk in layer_paths:
+                bx = xpos + (layer_idx * 120)
+                by = ypos + 140
+                fx, fy = spawn_pos.resolve_spawn_xy(nuke, bx, by, exclude_nodes=read_nodes)
+                r = nuke.nodes.Read(file=out_path_nk)
+                try:
+                    r.setName("%s_layer_%d_%s" % (g.name(), layer_idx, ts), unique=True)
+                except Exception:
+                    pass
+                try:
+                    r.knob("label").setValue("Layer %d\n%s" % (layer_idx, out_path_nk))
+                except Exception:
+                    pass
+                r.setXpos(fx)
+                r.setYpos(fy)
+                read_nodes.append(r)
+        finally:
+            nuke.endGroup()
 
     if _nuke_runner_launcher.should_show_success_popup(g):
         nuke.message(
-            "Qwen Image Layered: created %d Read node(s).\n%s"
-            % (len(read_nodes), prerender.norm_slashes(out_dir))
+            "Qwen Image Layered: %d layer(s).\n%s"
+            % (len(created), prerender.norm_slashes(out_dir))
         )
 
 
