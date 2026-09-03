@@ -83,6 +83,93 @@ class TestToolConfig(unittest.TestCase):
         self.assertEqual(cfg["max_outputs"], 4)
         self.assertTrue(cfg.get("supports_roi"))
         self.assertTrue(cfg.get("accumulate_outputs"))
+        self.assertEqual(preview.preview_kind_for_config(cfg), "editor")
+        self.assertTrue(preview.wants_roi_knobs(cfg))
+        self.assertTrue(preview.wants_history_knobs(cfg))
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg),
+            ["Input", "Generated", "Generated grid"],
+        )
+        self.assertEqual(preview.VIEWER_MODES, ["Input", "Generated", "Generated grid"])
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertIn(preview.USE_ROI_KNOB, knobs)
+        self.assertIn("preview_index", knobs)
+        self.assertIn(preview.OUTPUT_PATHS_REGISTRY_KNOB, knobs)
+
+
+class TestPreviewConfigKinds(unittest.TestCase):
+    def test_fake_filter_skips_history_and_roi_knobs(self):
+        cfg = {
+            "preview_kind": "filter",
+            "preview_inputs": ["source_image"],
+            "max_outputs": 1,
+            "viewer_modes": ["Input", "Generated"],
+        }
+        self.assertEqual(preview.preview_kind_for_config(cfg), "filter")
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertFalse(preview.wants_history_knobs(cfg))
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg), ["Input", "Generated"]
+        )
+        self.assertEqual(preview.VIEWER_MODES, ["Input", "Generated", "Generated grid"])
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertNotIn("preview_index", knobs)
+        self.assertNotIn(preview.EXTRACT_SELECTED_KNOB, knobs)
+        self.assertNotIn(preview.CLEAR_HISTORY_KNOB, knobs)
+        self.assertNotIn(preview.OUTPUT_PATHS_REGISTRY_KNOB, knobs)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+
+    def test_filter_without_viewer_modes_still_skips_grid(self):
+        cfg = {"preview_kind": "filter", "preview_inputs": ["source_image"]}
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg), preview.FILTER_VIEWER_MODES
+        )
+        self.assertNotIn("Generated grid", preview.viewer_modes_for_config(cfg))
+
+    def test_fake_editor_without_supports_roi_skips_roi_knobs(self):
+        cfg = {
+            "preview_inputs": ["ref_image_a"],
+            "max_outputs": 4,
+            "accumulate_outputs": True,
+        }
+        self.assertEqual(preview.preview_kind_for_config(cfg), "editor")
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertTrue(preview.wants_history_knobs(cfg))
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+        self.assertIn("preview_index", knobs)
+        self.assertIn(preview.EXTRACT_SELECTED_KNOB, knobs)
+        self.assertIn(preview.CLEAR_HISTORY_KNOB, knobs)
+        self.assertIn(preview.OUTPUT_PATHS_REGISTRY_KNOB, knobs)
+
+    def test_layers_skips_roi_keeps_history(self):
+        cfg = {
+            "preview_kind": "layers",
+            "preview_inputs": ["source_image"],
+            "max_outputs": 10,
+            "supports_roi": True,
+        }
+        self.assertEqual(preview.preview_kind_for_config(cfg), "layers")
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertTrue(preview.wants_history_knobs(cfg))
+        self.assertTrue(preview.spawn_reads_in_graph_default(cfg))
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertIn("preview_index", knobs)
+
+    def test_unknown_preview_kind_defaults_to_editor(self):
+        cfg = {"preview_kind": "video"}
+        self.assertEqual(preview.preview_kind_for_config(cfg), "editor")
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+
+    def test_production_config_has_only_nano_banana(self):
+        self.assertEqual(
+            list(preview.TOOL_PREVIEW_CONFIG.keys()),
+            ["Nano_Banana_2_Generate_v1"],
+        )
 
 
 class TestToolIdResolution(unittest.TestCase):

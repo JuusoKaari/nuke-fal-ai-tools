@@ -1,5 +1,6 @@
 # Purpose:
 # - Shared constants, tool preview config, and pure helpers for in-group output preview.
+# - Preview kinds (editor / layers / filter) control ROI knobs, history knobs, and viewer modes.
 # - No Nuke import: unit tests can load this module (and the wrapper) without Nuke.
 # - Tool lookup is keyed by stable fal_tool_id / runner_path, not the display name.
 #
@@ -17,6 +18,15 @@ VIEWER_MODES = [
     "Input",
     "Generated",
     "Generated grid",
+]
+
+PREVIEW_KIND_EDITOR = "editor"
+PREVIEW_KIND_LAYERS = "layers"
+PREVIEW_KIND_FILTER = "filter"
+PREVIEW_KINDS = (PREVIEW_KIND_EDITOR, PREVIEW_KIND_LAYERS, PREVIEW_KIND_FILTER)
+FILTER_VIEWER_MODES = [
+    "Input",
+    "Generated",
 ]
 
 OUTPUT_PATHS_REGISTRY_KNOB = "generated_output_paths"
@@ -53,6 +63,78 @@ TOOL_PREVIEW_CONFIG = {
         "accumulate_outputs": True,
     },
 }
+
+
+def preview_kind_for_config(config):
+    """Return preview_kind; omitted or unknown values default to editor."""
+    if not config:
+        return PREVIEW_KIND_EDITOR
+    kind = (config.get("preview_kind") or PREVIEW_KIND_EDITOR)
+    try:
+        kind = str(kind).strip().lower()
+    except Exception:
+        return PREVIEW_KIND_EDITOR
+    if kind not in PREVIEW_KINDS:
+        return PREVIEW_KIND_EDITOR
+    return kind
+
+
+def config_supports_roi(config):
+    """ROI is opt-in. Omitted supports_roi is false."""
+    if not config:
+        return False
+    return bool(config.get("supports_roi"))
+
+
+def wants_roi_knobs(config):
+    """ROI knobs only for editor tools that set supports_roi. Filter and layers never get ROI."""
+    if preview_kind_for_config(config) in (PREVIEW_KIND_FILTER, PREVIEW_KIND_LAYERS):
+        return False
+    return config_supports_roi(config)
+
+
+def wants_history_knobs(config):
+    """Filter preview skips preview_index, extract, clear, and the generated-path registry."""
+    return preview_kind_for_config(config) != PREVIEW_KIND_FILTER
+
+
+def viewer_modes_for_config(config):
+    """Per-tool viewer_modes, else filter Input+Generated, else the global editor list."""
+    if config is not None:
+        custom = config.get("viewer_modes")
+        if custom:
+            return list(custom)
+        if preview_kind_for_config(config) == PREVIEW_KIND_FILTER:
+            return list(FILTER_VIEWER_MODES)
+    return list(VIEWER_MODES)
+
+
+def spawn_reads_in_graph_default(config):
+    """Layers spawn root Reads by default; editors and filters do not."""
+    return preview_kind_for_config(config) == PREVIEW_KIND_LAYERS
+
+
+def requested_preview_knob_names(config):
+    """Knob names _ensure_group_knobs would add for this config."""
+    names = [
+        "viewer_mode",
+        "spawn_reads_in_graph",
+        "has_generated_output",
+        MATCH_INPUT_RESOLUTION_KNOB,
+        OUTPUT_COUNT_KNOB,
+    ]
+    if wants_history_knobs(config):
+        names.extend(
+            [
+                "preview_index",
+                OUTPUT_PATHS_REGISTRY_KNOB,
+                EXTRACT_SELECTED_KNOB,
+                CLEAR_HISTORY_KNOB,
+            ]
+        )
+    if wants_roi_knobs(config):
+        names.extend([USE_ROI_KNOB, ROI_AREA_KNOB])
+    return names
 
 
 def viewer_mode_to_switch_index(mode):

@@ -21,7 +21,7 @@ Do not call fal.ai. Do not launch Nuke. Do not copy ROI nodes onto any tool exce
 
 ## Wave 1 - config without baking other nodes
 
-- [ ] **P1** - Preview config kinds and optional ROI/history
+- [x] **P1** - Preview config kinds and optional ROI/history
   - Where: `nuke/python/nuke_group_output_preview_config_v1.py`, `nuke/python/nuke_group_output_preview_graph_v1.py`, `tests/test_group_output_preview_logic.py`
   - Do: Keep Nano Banana 2's existing config and tests green. Add optional `preview_kind` (`editor` / `layers` / `filter`; default `editor` so NB2 stays valid). `supports_roi` defaults false when omitted. Filter kind does not add ROI knobs, `preview_index`, extract, clear, or generated-path registry. Layers kind does not add ROI. Allow a per-tool `viewer_modes` list so filter can be Input + Generated only; do not change the global editor list that NB2 uses. If `nuke_group_output_preview_graph_v1.py` would go past 500 lines, split instead of growing it. Do not edit any `.nk` except if a comment in the Python files needs an ASCII-only tweak. Do not add production `TOOL_PREVIEW_CONFIG` rows for GPT/Qwen/etc yet.
   - Done when: unit tests show NB2 still has ROI + accumulate; a fake filter config skips history/ROI knobs; a fake editor config without `supports_roi` does not request ROI knobs; unknown tools still resolve to None.

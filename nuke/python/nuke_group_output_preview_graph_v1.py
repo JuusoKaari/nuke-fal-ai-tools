@@ -18,9 +18,12 @@ from nuke_group_output_preview_config_v1 import (
     OUTPUT_PATHS_REGISTRY_KNOB,
     ROI_AREA_KNOB,
     USE_ROI_KNOB,
-    VIEWER_MODES,
     contactsheet_rows_cols,
     get_config_for_group,
+    spawn_reads_in_graph_default,
+    viewer_modes_for_config,
+    wants_history_knobs,
+    wants_roi_knobs,
 )
 from nuke_group_output_preview_nodes_v1 import (
     _gather_preview_connection_state,
@@ -54,15 +57,16 @@ def on_group_create():
 def _ensure_group_knobs(group, config):
     import nuke
 
+    modes = viewer_modes_for_config(config)
     if group.knob("viewer_mode") is None:
-        k = nuke.Enumeration_Knob("viewer_mode", "Viewer mode", VIEWER_MODES)
+        k = nuke.Enumeration_Knob("viewer_mode", "Viewer mode", modes)
         try:
             k.setValue("Input")
         except Exception:
             pass
         group.addKnob(k)
 
-    if group.knob("preview_index") is None:
+    if wants_history_knobs(config) and group.knob("preview_index") is None:
         k = nuke.Int_Knob("preview_index", "Preview index")
         try:
             k.setValue(1)
@@ -73,7 +77,7 @@ def _ensure_group_knobs(group, config):
     if group.knob("spawn_reads_in_graph") is None:
         k = nuke.Boolean_Knob("spawn_reads_in_graph", "Spawn reads in graph")
         try:
-            k.setValue(False)
+            k.setValue(bool(spawn_reads_in_graph_default(config)))
         except Exception:
             pass
         group.addKnob(k)
@@ -90,7 +94,7 @@ def _ensure_group_knobs(group, config):
             pass
         group.addKnob(k)
 
-    if group.knob(OUTPUT_PATHS_REGISTRY_KNOB) is None:
+    if wants_history_knobs(config) and group.knob(OUTPUT_PATHS_REGISTRY_KNOB) is None:
         k = nuke.String_Knob(OUTPUT_PATHS_REGISTRY_KNOB, "generated output paths")
         try:
             k.setFlag(nuke.INVISIBLE)
@@ -110,7 +114,7 @@ def _ensure_group_knobs(group, config):
             pass
         group.addKnob(k)
 
-    if group.knob(EXTRACT_SELECTED_KNOB) is None:
+    if wants_history_knobs(config) and group.knob(EXTRACT_SELECTED_KNOB) is None:
         k = nuke.PyScript_Knob(
             EXTRACT_SELECTED_KNOB,
             "Extract selected as Read",
@@ -130,7 +134,7 @@ def _ensure_group_knobs(group, config):
             pass
         group.addKnob(k)
 
-    if group.knob(CLEAR_HISTORY_KNOB) is None:
+    if wants_history_knobs(config) and group.knob(CLEAR_HISTORY_KNOB) is None:
         k = nuke.PyScript_Knob(
             CLEAR_HISTORY_KNOB,
             "Clear generation history",
@@ -153,7 +157,7 @@ def _ensure_group_knobs(group, config):
             pass
         group.addKnob(k)
 
-    if config and config.get("supports_roi"):
+    if wants_roi_knobs(config):
         if group.knob(USE_ROI_KNOB) is None:
             k = nuke.Boolean_Knob(USE_ROI_KNOB, "Use ROI")
             try:
@@ -354,24 +358,28 @@ def _apply_preview_switch_expressions(group, config):
     import nuke
 
     _set_switch_expression(nuke.toNode("viewer_mode_switch"), "parent.viewer_mode")
-    _set_switch_expression(nuke.toNode("ai_input_switch"), "parent.preview_index - 1")
-    _set_switch_expression(nuke.toNode("generated_switch"), "parent.preview_index - 1")
-    _set_switch_expression(
-        nuke.toNode("ROI_switch"),
-        "parent.use_roi ? 1 : 0",
-    )
+    if wants_history_knobs(config):
+        _set_switch_expression(nuke.toNode("ai_input_switch"), "parent.preview_index - 1")
+        _set_switch_expression(nuke.toNode("generated_switch"), "parent.preview_index - 1")
     _set_disable_expression(
         nuke.toNode("generated_output_reformat"),
         "1-parent.%s" % MATCH_INPUT_RESOLUTION_KNOB,
     )
-    _set_disable_expression(nuke.toNode("generated_reformat_to_ROI"), "!parent.use_roi")
-    _set_disable_expression(
-        nuke.toNode("generated_reposition_to_ROI"),
-        "!parent.use_roi",
-    )
-    _set_disable_expression(nuke.toNode("merge_roi"), "!parent.use_roi")
-    _set_disable_expression(nuke.toNode("ROI_rectangle"), "!parent.use_roi")
-    _link_roi_rectangle_area(group)
+    if wants_roi_knobs(config):
+        _set_switch_expression(
+            nuke.toNode("ROI_switch"),
+            "parent.use_roi ? 1 : 0",
+        )
+        _set_disable_expression(
+            nuke.toNode("generated_reformat_to_ROI"), "!parent.use_roi"
+        )
+        _set_disable_expression(
+            nuke.toNode("generated_reposition_to_ROI"),
+            "!parent.use_roi",
+        )
+        _set_disable_expression(nuke.toNode("merge_roi"), "!parent.use_roi")
+        _set_disable_expression(nuke.toNode("ROI_rectangle"), "!parent.use_roi")
+        _link_roi_rectangle_area(group)
 
 
 def _update_viewer_mode_in_group(group, config, connected_names):
