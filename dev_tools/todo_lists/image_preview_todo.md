@@ -63,7 +63,7 @@ Do not call fal.ai. Do not launch Nuke. Do not copy ROI nodes onto any tool exce
   - Done when: inpaint `.nk` has `viewer_mode_switch` and Inputs `source_image` plus `mask`, and has no `ROI_rectangle` / `use_roi`.
   - Tests: `py -3 -m unittest tests.test_group_output_preview_logic`.
 
-- [ ] **P6** - Hunyuan World in-group preview
+- [x] **P6** - Hunyuan World in-group preview
   - Where: `nuke/python/nuke_group_output_preview_config_v1.py`, `nuke/groups/fal_hunyuan_world_v1.nk`, `nuke/python/fal_hunyuan_world_runner_v1.py`, tests
   - Do: Editor pattern with `max_outputs` 1 and `supports_generated_grid` false (Input + Generated only). Look-through `source_image`. No ROI. History/extract/clear still ok for re-runs. Spawn Reads default off. Do not merge the panorama back over the source plate.
   - Done when: Hunyuan World `.nk` has look-through + `generated_read_01`, no Generated grid enum, no ROI, no merge-back nodes.

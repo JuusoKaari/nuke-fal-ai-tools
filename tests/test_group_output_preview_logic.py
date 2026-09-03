@@ -127,6 +127,19 @@ class TestPreviewConfigKinds(unittest.TestCase):
         )
         self.assertNotIn("Generated grid", preview.viewer_modes_for_config(cfg))
 
+    def test_editor_without_generated_grid_skips_grid_mode(self):
+        cfg = {
+            "preview_kind": "editor",
+            "preview_inputs": ["source_image"],
+            "max_outputs": 1,
+            "supports_generated_grid": False,
+        }
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg), ["Input", "Generated"]
+        )
+        self.assertNotIn("Generated grid", preview.viewer_modes_for_config(cfg))
+        self.assertTrue(preview.wants_history_knobs(cfg))
+
     def test_fake_editor_without_supports_roi_skips_roi_knobs(self):
         cfg = {
             "preview_inputs": ["ref_image_a"],
@@ -174,6 +187,7 @@ class TestPreviewConfigKinds(unittest.TestCase):
                 "Qwen_Image_Max_Edit_v1",
                 "Seedream_5_Pro_Edit_v1",
                 "Qwen_Image_Edit_Inpaint_v1",
+                "Hunyuan_World_v1",
             ],
         )
 
@@ -437,6 +451,71 @@ class TestQwenImageInpaintPreview(unittest.TestCase):
         self.assertFalse(cfg.get("supports_roi"))
         self.assertFalse(preview.config_supports_roi(cfg))
         self.assertFalse(preview.wants_roi_knobs(cfg))
+
+
+class TestHunyuanWorldPreview(unittest.TestCase):
+    def _hunyuan_nk_text(self):
+        path = os.path.join(_ROOT, "nuke", "groups", "fal_hunyuan_world_v1.nk")
+        with open(path, "r") as f:
+            return f.read()
+
+    def test_hunyuan_config_is_editor_without_grid_or_roi(self):
+        cfg = preview.TOOL_PREVIEW_CONFIG.get("Hunyuan_World_v1")
+        self.assertIsNotNone(cfg)
+        self.assertEqual(preview.preview_kind_for_config(cfg), "editor")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 1)
+        self.assertFalse(cfg.get("supports_generated_grid"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertTrue(cfg.get("accumulate_outputs"))
+        self.assertTrue(preview.wants_history_knobs(cfg))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg), ["Input", "Generated"]
+        )
+        self.assertNotIn("Generated grid", preview.viewer_modes_for_config(cfg))
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+        self.assertIn("preview_index", knobs)
+        self.assertIn(preview.EXTRACT_SELECTED_KNOB, knobs)
+        self.assertIn(preview.CLEAR_HISTORY_KNOB, knobs)
+        self.assertIn(preview.OUTPUT_PATHS_REGISTRY_KNOB, knobs)
+
+    def test_hunyuan_nk_has_lookthrough_without_grid_roi_or_merge(self):
+        text = self._hunyuan_nk_text()
+        self.assertIn("viewer_mode_switch", text)
+        self.assertIn("generated_read_01", text)
+        self.assertIn("name preview_source_01", text)
+        self.assertIn("fal_tool_id Hunyuan_World_v1", text)
+        self.assertIn("name source_image", text)
+        self.assertNotIn("Generated grid", text)
+        self.assertNotIn("generated_contactsheet", text)
+        self.assertNotIn("generated_read_02", text)
+        self.assertNotIn("ROI_rectangle", text)
+        self.assertNotIn("use_roi", text)
+        self.assertNotIn("roi_area", text)
+        self.assertNotIn("merge_roi", text)
+        self.assertNotIn("Merge {", text)
+        self.assertNotIn("name Text1", text)
+
+    def test_resolve_hunyuan_runner_basename(self):
+        tool_id = preview.resolve_tool_id_from_runner_path(
+            "__INSTALL_ROOT__/nuke/python/fal_hunyuan_world_runner_v1.py"
+        )
+        self.assertEqual(tool_id, "Hunyuan_World_v1")
+        cfg = preview.TOOL_PREVIEW_CONFIG[tool_id]
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 1)
+        self.assertFalse(cfg.get("supports_generated_grid"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg), ["Input", "Generated"]
+        )
 
 
 class TestOutputRegistry(unittest.TestCase):
