@@ -97,7 +97,7 @@ Do not call fal.ai. Do not launch Nuke. Do not copy ROI nodes onto any tool exce
   - Done when: Finegrain `.nk` looks through `source_image`, still has `mask`, has no ROI, and the runner wires the processed still onto the Group.
   - Tests: `py -3 -m unittest tests.test_group_output_preview_logic`.
 
-- [ ] **P11** - Topaz Precision filter preview
+- [x] **P11** - Topaz Precision filter preview
   - Where: `nuke/python/nuke_group_output_preview_config_v1.py`, `nuke/groups/fal_topaz_upscale_image_precision_v1.nk`, `nuke/python/fal_topaz_upscale_image_precision_runner_v1.py`, tests
   - Do: Same filter pattern as P8 on the Topaz still upscale node. Look-through `source_image`. After Execute the Group shows the upscaled frame. Spawn Reads default off.
   - Done when: Topaz `.nk` is filter-preview baked without ROI/history, and the runner calls `wire_group_outputs`.

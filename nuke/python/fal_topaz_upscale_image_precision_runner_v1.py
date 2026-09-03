@@ -1,8 +1,8 @@
 # Purpose:
 # - Runner for the Nuke Group node `Topaz_Upscale_Image_Precision_v1` (executes inside Nuke / Python 2.7).
 # - Accepts any upstream still on input 0; uses a Read file directly when possible, otherwise pre-renders.
-# - Calls `fal_topaz_upscale_image_precision_helper.py` (Python 3) via subprocess, then spawns a Read
-#   for the downloaded upscaled still.
+# - Calls `fal_topaz_upscale_image_precision_helper.py` (Python 3) via subprocess, then wires the
+#   upscaled still into the baked in-group preview. Root Reads spawn only when spawn_reads_in_graph is on.
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -19,6 +19,7 @@ if _THIS_DIR not in sys.path:
 
 import _nuke_runner_launcher
 
+import nuke_group_output_preview_v1 as preview
 import nuke_prerender_v1 as prerender
 import nuke_fal_runner_util_v1 as runner_util
 import nuke_spawn_read_position_v1 as spawn_pos
@@ -184,25 +185,41 @@ def main():
         raise Exception("no output")
 
     out_path_nk = prerender.norm_slashes(out_path)
-    xpos = int(g.xpos())
-    ypos = int(g.ypos())
+    created = [out_path_nk]
 
-    nuke.root().begin()
     try:
-        fx, fy = spawn_pos.resolve_spawn_xy(nuke, xpos, ypos + 140)
-        r = nuke.nodes.Read(file=out_path_nk)
+        preview.wire_group_outputs(g, created)
+    except Exception as e:
+        nuke.message("Failed to wire in-group preview outputs:\n%s" % str(e))
+        raise
+
+    spawn_reads = False
+    try:
+        sk = g.knob("spawn_reads_in_graph")
+        if sk is not None:
+            spawn_reads = bool(sk.value())
+    except Exception:
+        spawn_reads = False
+
+    if spawn_reads:
+        xpos = int(g.xpos())
+        ypos = int(g.ypos())
+        nuke.root().begin()
         try:
-            r.setName("%s_%s" % (g.name(), ts), unique=True)
-        except Exception:
-            pass
-        try:
-            r.knob("label").setValue("Topaz Precision\n%s" % out_path_nk)
-        except Exception:
-            pass
-        r.setXpos(fx)
-        r.setYpos(fy)
-    finally:
-        nuke.endGroup()
+            fx, fy = spawn_pos.resolve_spawn_xy(nuke, xpos, ypos + 140)
+            r = nuke.nodes.Read(file=out_path_nk)
+            try:
+                r.setName("%s_%s" % (g.name(), ts), unique=True)
+            except Exception:
+                pass
+            try:
+                r.knob("label").setValue("Topaz Precision\n%s" % out_path_nk)
+            except Exception:
+                pass
+            r.setXpos(fx)
+            r.setYpos(fy)
+        finally:
+            nuke.endGroup()
 
     if _nuke_runner_launcher.should_show_success_popup(g):
         nuke.message("Topaz Precision output created:\n%s" % out_path_nk)
