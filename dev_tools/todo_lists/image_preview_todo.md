@@ -57,7 +57,7 @@ Do not call fal.ai. Do not launch Nuke. Do not copy ROI nodes onto any tool exce
 
 ## Wave 4 - inpaint, panorama, layers
 
-- [ ] **P5** - Qwen Image Inpaint in-group preview
+- [x] **P5** - Qwen Image Inpaint in-group preview
   - Where: `nuke/python/nuke_group_output_preview_config_v1.py`, `nuke/groups/fal_qwen_image_inpaint_v1.nk`, `nuke/python/fal_qwen_image_inpaint_runner_v1.py`, tests
   - Do: Editor pattern. Look-through `source_image` only. Keep `mask` as input 1. Do not add ROI. `max_outputs` 4. Runner keeps mask export. `wire_group_outputs`; spawn Reads default off.
   - Done when: inpaint `.nk` has `viewer_mode_switch` and Inputs `source_image` plus `mask`, and has no `ROI_rectangle` / `use_roi`.
