@@ -107,7 +107,7 @@ Do not call fal.ai. Do not launch Nuke. Do not copy ROI nodes onto any tool exce
 
 ## Wave 6 - docs and human click (P13 skip)
 
-- [ ] **P12** - Document which Image nodes look through
+- [x] **P12** - Document which Image nodes look through
   - Where: `docs/troubleshooting.md`, `CHANGELOG.md` (Unreleased)
   - Do: Replace the "Nano Banana 2 pilot" troubleshooting section so it lists editor vs layers vs filter, and that ROI is Nano Banana 2 only. Recreate-from-menu note stays. CHANGELOG Unreleased: in-group preview now covers the Image editors, Qwen Layered, and Image utilities as specified. Do not rewrite README tool table unless a one-line mention of look-through is needed. ASCII punctuation only.
   - Done when: troubleshooting no longer says preview is a Nano Banana-only pilot, and CHANGELOG Unreleased names the other Image nodes.

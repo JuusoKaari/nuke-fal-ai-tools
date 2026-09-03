@@ -53,7 +53,7 @@ Install details: [docs/INSTALL.md](docs/INSTALL.md) · Issues: [docs/troubleshoo
 Nuke Group  ->  runner (in Nuke)  ->  helper (system Python 3)  ->  fal.ai
 ```
 
-Runners pre-render inputs inside Nuke, call helpers via subprocess, then spawn Read, Geo, or Text nodes for results.
+Runners pre-render inputs inside Nuke, call helpers via subprocess, then wire results. Image Groups look through the connected plate on Output1. Recreate those nodes from the menu after updating. Video, 3D, and Text still spawn Read, Geo, or Text nodes.
 
 ## Notes
 

@@ -27,6 +27,7 @@ All notable changes to this project are documented here.
 - FAL knob placeholder now says to insert a fal key to override for this node. Settings and `FAL_KEY` remain the defaults; the old "secret key / env variable" wording is still ignored so existing scripts keep working.
 - GPT Image 2 Edit: primary reference image is now input 0 (`ref_image_a`) so creating the node after a plate auto-connects correctly. Optional second image, prompt Text, and mask follow on inputs 1-3.
 - Menu groups by model family under Image / Video / 3D / Text. Families with 2+ tools become a submenu (Qwen, LTX, Utility, OpenRouter). Single-node families stay flat (Nano Banana 2, Seedance 2, Kling, ...). Utility is last in Image and Video.
+- In-group preview now covers Image editors (GPT Image 2 Edit, Qwen Image Max Edit, Seedream 5.0 Pro Edit, Qwen Image Inpaint, Hunyuan World), Qwen Image Layered, and Image utilities (BiRefNet v2 Still, Depth Anything v2, Finegrain Eraser, Topaz Precision). Groups look through the connected plate on `Output1`. ROI knobs stay on Nano Banana 2 Generate only. Recreate nodes from **Nodes -> fal.ai** to pick up the baked graph.
 
 ## [1.0.2] - 2026-06-16
 
