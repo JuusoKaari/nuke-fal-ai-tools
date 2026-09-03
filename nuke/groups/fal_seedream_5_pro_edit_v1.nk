@@ -1,6 +1,8 @@
 # Purpose:
-# - Nuke Group node that runs ByteDance Seedream 5.0 Pro edit (fal.ai) on reference stills and creates Read node(s).
-# - Inputs: 0 image_1 (primary plate), 1-9 image_2..image_10 (optional extra refs), 10 prompt_text.
+# - Nuke Group node that runs ByteDance Seedream 5.0 Pro edit (fal.ai) with in-group output preview.
+# - Inputs: 0 image_1 (primary look-through), 1-9 image_2..image_10 (optional extra refs), 10 prompt_text.
+# - Preview graph is baked (look-through image_1 + generated reads + viewer_mode_switch). No ROI. No AI-input grid.
+# - Hidden fal_tool_id identifies the tool type; display name may be v1, v2, v3, etc.
 # - Schema has no mask field; extra refs are stills only. Cap is 10 (API last-10 rule).
 # - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
 # - Model: https://fal.ai/models/bytedance/seedream/v5/pro/edit
@@ -9,7 +11,9 @@ set cut_paste_input [stack 0]
 version 11.3 v6
 push $cut_paste_input
 Group {
+ inputs 11
  name Seedream_5_Pro_Edit_v1
+ knobChanged "\nimport nuke_group_output_preview_v1 as _gop\n_gop.on_knob_changed_ui()\n"
  selected true
  addUserKnob {20 Settings}
  addUserKnob {1 prompt l Prompt}
@@ -24,6 +28,22 @@ Group {
  enable_safety_checker true
  addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}
  show_success_popup true
+ addUserKnob {26 preview_separator l "" +STARTLINE}
+ addUserKnob {4 viewer_mode l "Viewer mode" M {Input Generated "Generated grid" ""}}
+ viewer_mode Input
+ addUserKnob {7 preview_index l "preview index" R 1 2.999}
+ preview_index 1
+ addUserKnob {6 spawn_reads_in_graph l "Spawn reads in graph" +STARTLINE}
+ spawn_reads_in_graph false
+ addUserKnob {6 match_input_resolution l "Match input resolution" +STARTLINE}
+ match_input_resolution true
+ addUserKnob {6 has_generated_output -STARTLINE +DISABLED +INVISIBLE}
+ has_generated_output false
+ addUserKnob {26 generated_output_count l "Generated outputs:" T "0"}
+ addUserKnob {1 generated_output_paths l "generated output paths" +INVISIBLE}
+ generated_output_paths ""
+ addUserKnob {22 extract_selected_generation l "Extract selected as Read" T "import nuke_group_output_preview_v1 as _gop\n_gop.extract_selected_generation_ui()\n" +STARTLINE}
+ addUserKnob {22 clear_generated_outputs l "Clear generation history" T "import nuke_group_output_preview_v1 as _gop\n_gop.clear_generated_outputs_ui()\n"}
  addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
  addUserKnob {20 endGroup n -1}
  addUserKnob {20 Advanced l Advanced +CLOSED}
@@ -36,110 +56,241 @@ Group {
  helper_path "__INSTALL_ROOT__/nuke/python/fal_seedream_5_pro_edit_helper.py"
  addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
  runner_path "__INSTALL_ROOT__/nuke/python/fal_seedream_5_pro_edit_runner_v1.py"
+ addUserKnob {1 fal_tool_id l "fal tool id" +INVISIBLE}
+ fal_tool_id Seedream_5_Pro_Edit_v1
 }
-Text {
- inputs 0
- message "Connect a still to image_1 (input 0). Optional extra refs on image_2..image_10 (up to 10 total).\nOptional Text node on prompt_text overrides Prompt. Refer to stills as Figure 1, Figure 2, ...\nThen press execute."
- font C:/Windows/Fonts/arial.ttf
- yjustify bottom
- Transform 1
- box {30 30 1906 1052}
- center {560 372}
- name Text1
- xpos 96
- ypos 301
-}
-set Nseedream5pe [stack 0]
-Output {
- name Output1
- xpos 96
- ypos 409
-}
-Input {
- inputs 0
- name image_1
- xpos 0
- ypos -51
-}
-Input {
- inputs 0
- name image_2
- xpos 94
- ypos -51
- number 1
-}
-Input {
- inputs 0
- name image_3
- xpos 188
- ypos -51
- number 2
-}
-Input {
- inputs 0
- name image_4
- xpos 282
- ypos -51
- number 3
-}
-Input {
- inputs 0
- name image_5
- xpos 376
- ypos -51
- number 4
-}
-Input {
- inputs 0
- name image_6
- xpos 470
- ypos -51
- number 5
-}
-Input {
- inputs 0
- name image_7
- xpos 564
- ypos -51
- number 6
-}
-Input {
- inputs 0
- name image_8
- xpos 658
- ypos -51
- number 7
-}
-Input {
- inputs 0
- name image_9
- xpos 752
- ypos -51
- number 8
-}
-Input {
- inputs 0
- name image_10
- xpos 846
- ypos -51
- number 9
-}
-Input {
- inputs 0
- name prompt_text
- xpos 0
- ypos -160
- number 10
-}
-push $Nseedream5pe
-Viewer {
- inputs 1
- frame_range 0-199
- fps 25
- input_number 0
- name Viewer1
- selected true
- xpos 396
- ypos 412
-}
+ Read {
+  inputs 0
+  file_type png
+  file ""
+  format "1408 768 0 0 1408 768 1 "
+  origset true
+  name generated_read_01
+  label "F: \[value first]-\[value last] \[python \{\}] \nDUR: \[python \{nuke.thisNode()\['last'].value()-nuke.thisNode()\['first'].value()+1\}] \n|\[python \{nuke.thisNode()\['file'].value()\[0].upper()\}]|"
+  xpos 1732
+  ypos -261
+ }
+set N85c2da80 [stack 0]
+ Read {
+  inputs 0
+  file_type png
+  file ""
+  format "1408 768 0 0 1408 768 1 "
+  origset true
+  name generated_read_02
+  label "F: \[value first]-\[value last] \[python \{\}] \nDUR: \[python \{nuke.thisNode()\['last'].value()-nuke.thisNode()\['first'].value()+1\}] \n|\[python \{nuke.thisNode()\['file'].value()\[0].upper()\}]|"
+  xpos 1842
+  ypos -261
+ }
+set N85c2bf80 [stack 0]
+ Read {
+  inputs 0
+  file_type png
+  file ""
+  format "1408 768 0 0 1408 768 1 "
+  origset true
+  name generated_read_03
+  label "F: \[value first]-\[value last] \[python \{\}] \nDUR: \[python \{nuke.thisNode()\['last'].value()-nuke.thisNode()\['first'].value()+1\}] \n|\[python \{nuke.thisNode()\['file'].value()\[0].upper()\}]|"
+  xpos 1952
+  ypos -261
+ }
+set N85c2d180 [stack 0]
+ Read {
+  inputs 0
+  file_type png
+  file ""
+  format "1408 768 0 0 1408 768 1 "
+  origset true
+  name generated_read_04
+  label "F: \[value first]-\[value last] \[python \{\}] \nDUR: \[python \{nuke.thisNode()\['last'].value()-nuke.thisNode()\['first'].value()+1\}] \n|\[python \{nuke.thisNode()\['file'].value()\[0].upper()\}]|"
+  xpos 2062
+  ypos -261
+ }
+set N85c2c880 [stack 0]
+ Read {
+  inputs 0
+  file_type png
+  file ""
+  format "1408 768 0 0 1408 768 1 "
+  origset true
+  name generated_read_05
+  label "F: \[value first]-\[value last] \[python \{\}] \nDUR: \[python \{nuke.thisNode()\['last'].value()-nuke.thisNode()\['first'].value()+1\}] \n|\[python \{nuke.thisNode()\['file'].value()\[0].upper()\}]|"
+  xpos 2172
+  ypos -261
+ }
+set N85c2e080 [stack 0]
+ Read {
+  inputs 0
+  file_type png
+  file ""
+  format "1408 768 0 0 1408 768 1 "
+  origset true
+  name generated_read_06
+  label "F: \[value first]-\[value last] \[python \{\}] \nDUR: \[python \{nuke.thisNode()\['last'].value()-nuke.thisNode()\['first'].value()+1\}] \n|\[python \{nuke.thisNode()\['file'].value()\[0].upper()\}]|"
+  xpos 2282
+  ypos -261
+ }
+set N85c2e180 [stack 0]
+push $N85c2e180
+push $N85c2e080
+push $N85c2c880
+push $N85c2d180
+push $N85c2bf80
+push $N85c2da80
+ ContactSheet {
+  inputs 6
+  width 3072
+  height 1024
+  rows 2
+  columns 3
+  name generated_contactsheet
+  xpos 2321
+  ypos 173
+ }
+set Ndb7c100 [stack 0]
+push $N85c2e180
+push $N85c2e080
+push $N85c2c880
+push $N85c2d180
+push $N85c2bf80
+push $N85c2da80
+ Switch {
+  inputs 6
+  which {{"parent.preview_index - 1"}}
+  name generated_switch
+  xpos 1642
+  ypos 183
+ }
+set Ndb7c200 [stack 0]
+ Input {
+  inputs 0
+  name image_1
+  xpos 77
+  ypos -667
+ }
+ NoOp {
+  name preview_source_01
+  xpos 77
+  ypos -292
+ }
+set N16c9200 [stack 0]
+push $N16c9200
+ Switch {
+  inputs 1
+  which {{"parent.preview_index - 1"}}
+  name ai_input_switch
+  xpos 538
+  ypos 386
+ }
+set Ndb7c300 [stack 0]
+push $Ndb7c200
+ Reformat {
+  type "to box"
+  box_width {{preview_source_01.width}}
+  box_height {{preview_source_01.height}}
+  box_fixed true
+  resize fit
+  center false
+  disable {{1-parent.match_input_resolution}}
+  name generated_output_reformat
+  xpos 1642
+  ypos 213
+ }
+set Ndb7c210 [stack 0]
+push $Ndb7c100
+push $Ndb7c210
+push $Ndb7c300
+ Switch {
+  inputs 3
+  which {{parent.viewer_mode}}
+  name viewer_mode_switch
+  xpos 858
+  ypos 1020
+ }
+set Nf9827200 [stack 0]
+ Output {
+  name Output1
+  xpos 858
+  ypos 1285
+ }
+ Input {
+  inputs 0
+  name image_2
+  xpos 171
+  ypos -667
+  number 1
+ }
+ Input {
+  inputs 0
+  name image_3
+  xpos 265
+  ypos -667
+  number 2
+ }
+ Input {
+  inputs 0
+  name image_4
+  xpos 359
+  ypos -667
+  number 3
+ }
+ Input {
+  inputs 0
+  name image_5
+  xpos 453
+  ypos -667
+  number 4
+ }
+ Input {
+  inputs 0
+  name image_6
+  xpos 547
+  ypos -667
+  number 5
+ }
+ Input {
+  inputs 0
+  name image_7
+  xpos 641
+  ypos -667
+  number 6
+ }
+ Input {
+  inputs 0
+  name image_8
+  xpos 735
+  ypos -667
+  number 7
+ }
+ Input {
+  inputs 0
+  name image_9
+  xpos 829
+  ypos -667
+  number 8
+ }
+ Input {
+  inputs 0
+  name image_10
+  xpos 923
+  ypos -667
+  number 9
+ }
+ Input {
+  inputs 0
+  name prompt_text
+  xpos 1017
+  ypos -667
+  number 10
+ }
+push $Nf9827200
+ Viewer {
+  inputs 1
+  frame_range 0-199
+  fps 25
+  input_number 0
+  name Viewer1
+  xpos -646
+  ypos 1786
+ }
 end_group

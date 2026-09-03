@@ -47,7 +47,7 @@ Do not call fal.ai. Do not launch Nuke. Do not copy ROI nodes onto any tool exce
   - Done when: Qwen Max `.nk` has baked preview without ROI; config maps `fal_qwen_image_max_edit_runner_v1.py` to `Qwen_Image_Max_Edit_v1` with `max_outputs` 6 and `supports_roi` false.
   - Tests: `py -3 -m unittest tests.test_group_output_preview_logic`.
 
-- [ ] **P4** - Seedream 5.0 Pro Edit in-group preview
+- [x] **P4** - Seedream 5.0 Pro Edit in-group preview
   - Where: `nuke/python/nuke_group_output_preview_config_v1.py`, `nuke/groups/fal_seedream_5_pro_edit_v1.nk`, `nuke/python/fal_seedream_5_pro_edit_runner_v1.py`, tests
   - Do: Editor pattern. `preview_inputs` is `image_1` only (look-through the primary plate). `max_outputs` 6. No ROI. Do not add an AI-input grid of ten stills. Runner still collects `image_1`..`image_10` as it does today. `wire_group_outputs` after download. Spawn Reads default off.
   - Done when: Seedream `.nk` looks through `image_1`, has `viewer_mode_switch` and no ROI nodes, and still has Inputs `image_1`..`image_10` plus `prompt_text`. Config `preview_inputs` is exactly `["image_1"]`.

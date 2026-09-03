@@ -165,13 +165,14 @@ class TestPreviewConfigKinds(unittest.TestCase):
         self.assertEqual(preview.preview_kind_for_config(cfg), "editor")
         self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
 
-    def test_production_config_has_nano_banana_gpt_and_qwen_max(self):
+    def test_production_config_has_nano_banana_gpt_qwen_max_and_seedream(self):
         self.assertEqual(
             list(preview.TOOL_PREVIEW_CONFIG.keys()),
             [
                 "Nano_Banana_2_Generate_v1",
                 "GPT_Image_2_Edit_v1",
                 "Qwen_Image_Max_Edit_v1",
+                "Seedream_5_Pro_Edit_v1",
             ],
         )
 
@@ -326,6 +327,62 @@ class TestQwenImageMaxEditPreview(unittest.TestCase):
         )
         self.assertEqual(tool_id, "Qwen_Image_Max_Edit_v1")
         cfg = preview.TOOL_PREVIEW_CONFIG[tool_id]
+        self.assertEqual(cfg["max_outputs"], 6)
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+
+
+class TestSeedream5ProEditPreview(unittest.TestCase):
+    def _seedream_nk_text(self):
+        path = os.path.join(_ROOT, "nuke", "groups", "fal_seedream_5_pro_edit_v1.nk")
+        with open(path, "r") as f:
+            return f.read()
+
+    def test_seedream_config_is_editor_without_roi(self):
+        cfg = preview.TOOL_PREVIEW_CONFIG.get("Seedream_5_Pro_Edit_v1")
+        self.assertIsNotNone(cfg)
+        self.assertEqual(preview.preview_kind_for_config(cfg), "editor")
+        self.assertEqual(cfg["preview_inputs"], ["image_1"])
+        self.assertEqual(cfg["max_outputs"], 6)
+        self.assertEqual(cfg.get("max_ai_inputs"), 1)
+        self.assertFalse(cfg.get("supports_ai_input_grid"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertTrue(cfg.get("accumulate_outputs"))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+        self.assertIn("preview_index", knobs)
+
+    def test_seedream_nk_has_baked_preview_without_roi(self):
+        text = self._seedream_nk_text()
+        self.assertIn("viewer_mode_switch", text)
+        self.assertIn("generated_read_01", text)
+        self.assertIn("generated_read_06", text)
+        self.assertIn("fal_tool_id Seedream_5_Pro_Edit_v1", text)
+        self.assertIn("name preview_source_01", text)
+        self.assertIn("name image_1", text)
+        self.assertIn("name image_2", text)
+        self.assertIn("name image_10", text)
+        self.assertIn("name prompt_text", text)
+        self.assertNotIn("ROI_rectangle", text)
+        self.assertNotIn("use_roi", text)
+        self.assertNotIn("roi_area", text)
+        self.assertNotIn("name Text1", text)
+        self.assertNotIn("preview_source_02", text)
+        for i in range(1, 11):
+            self.assertIn("name image_%d" % i, text)
+
+    def test_resolve_seedream_runner_basename(self):
+        tool_id = preview.resolve_tool_id_from_runner_path(
+            "__INSTALL_ROOT__/nuke/python/fal_seedream_5_pro_edit_runner_v1.py"
+        )
+        self.assertEqual(tool_id, "Seedream_5_Pro_Edit_v1")
+        cfg = preview.TOOL_PREVIEW_CONFIG[tool_id]
+        self.assertEqual(cfg["preview_inputs"], ["image_1"])
         self.assertEqual(cfg["max_outputs"], 6)
         self.assertFalse(cfg.get("supports_roi"))
         self.assertFalse(preview.config_supports_roi(cfg))
