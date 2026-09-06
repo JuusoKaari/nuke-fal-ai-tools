@@ -29,6 +29,7 @@ All notable changes to this project are documented here.
 - Menu groups by model family under Image / Video / 3D / Text. Families with 2+ tools become a submenu (Qwen, LTX, Utility, OpenRouter). Single-node families stay flat (Nano Banana 2, Seedance 2, Kling, ...). Utility is last in Image and Video.
 - In-group preview now covers Image editors (GPT Image 2 Edit, Qwen Image Max Edit, Seedream 5.0 Pro Edit, Qwen Image Inpaint, Hunyuan World), Qwen Image Layered, and Image utilities (BiRefNet v2 Still, Depth Anything v2, Finegrain Eraser, Topaz Precision). Groups look through the connected plate on `Output1`. Recreate nodes from **Nodes -> fal.ai** to pick up the baked graph.
 - GPT Image 2 Edit: same ROI crop-and-merge as Nano Banana 2 Generate (`use_roi`, `roi_area` on `ref_image_a`). Optional mask is cropped to that box when ROI is on. Recreate the node from the menu.
+- Clear generation history and Extract selected as Read show a Nuke dialog for unexpected errors (with a restart-Nuke hint) instead of only printing to the Script Editor.
 
 ## [1.0.2] - 2026-06-16
 

@@ -166,6 +166,12 @@ Image Groups look through the connected plate on `Output1`. Video, 3D, and Text 
 - Inside a new Group you should see `viewer_mode_switch` and `generated_read_01` immediately after create. Nano Banana 2 and GPT Image 2 also have ROI nodes (`ROI_rectangle`, `ROI_switch`).
 - If internal Read paths break after moving a script to another machine, re-execute or relink like any other Read node.
 
+## Unexpected Python error, no dialog (or a restart-Nuke dialog)
+
+**Symptom:** A node button such as **Clear generation history** or **Extract selected as Read** does nothing visible, or a dialog says it could not complete the action. Script Editor shows something like `AttributeError: module 'nuke_prerender_v1' has no attribute 'group_scope'`.
+
+**Fix:** Fully quit and restart Nuke. A long session (including after a plugin update, or after cloning a node) can keep an old copy of the plugin's Python modules in memory. Recreate the node from **Nodes -> fal.ai** if restart is not enough.
+
 ## Still stuck?
 
 Open a GitHub issue with:

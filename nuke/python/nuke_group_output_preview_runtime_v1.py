@@ -2,6 +2,7 @@
 # - Runtime for in-group output preview: AI input prerender, generation history, generated reads, extract/clear, UI polish.
 # - Accumulated outputs live on a hidden registry knob; Read nodes and switches grow as needed.
 # - Optional ROI: image_a is cropped to roi_area on export.
+# - Button callbacks (clear/extract) show a Nuke dialog on unexpected errors instead of failing silently.
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -49,6 +50,7 @@ from nuke_group_output_preview_nodes_v1 import (
     _preview_inputs_have_external_connection,
     _safe_set_knob,
 )
+from nuke_ui_error_v1 import report_unexpected_ui_error
 
 
 def _ai_input_export_node(group, slot):
@@ -278,14 +280,12 @@ def clear_generated_outputs(group):
 
 def clear_generated_outputs_ui():
     """Knob callback entry point for clear_generated_outputs."""
-    import traceback
-
     import nuke
 
     try:
         clear_generated_outputs(nuke.thisNode())
-    except Exception:
-        traceback.print_exc()
+    except Exception as exc:
+        report_unexpected_ui_error("clear generation history", exc)
 
 
 def _spawn_root_read_for_path(group, path, index):
@@ -343,14 +343,12 @@ def extract_selected_generation(group):
 
 def extract_selected_generation_ui():
     """Knob callback entry point for extract_selected_generation."""
-    import traceback
-
     import nuke
 
     try:
         extract_selected_generation(nuke.thisNode())
-    except Exception:
-        traceback.print_exc()
+    except Exception as exc:
+        report_unexpected_ui_error("extract the selected generation", exc)
 
 
 def wire_group_outputs(group, paths, preview_index=None, append=None):
