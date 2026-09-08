@@ -1,5 +1,7 @@
 # Purpose:
 # - Nuke Group node that runs fal.ai FLUX 3 keyframes-to-video from 1-10 contiguous keyframe stills.
+# - Output1 looks through keyframe_1 (the first still). No in-group generated video preview; Execute still spawns a Read of the result.
+# - Connect/execute notes live on the guide_info knob.
 # - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
 # - Model: https://fal.ai/models/blackforestlabs/flux-3/keyframes-to-video
 # - Draft: https://fal.ai/models/blackforestlabs/flux-3/keyframes-to-video/draft
@@ -11,6 +13,7 @@ Group {
  name FLUX_3_Keyframes_To_Video_v1
  selected true
  addUserKnob {20 Settings}
+ addUserKnob {26 guide_info l "" T "Connect 1-10 keyframes in order (keyframe_1 .. keyframe_10). Stop at the first gap.\nEmpty Frame indices spaces them evenly from 0 to duration*24 (24 fps). Or set e.g. 0,48,120.\nSet prompt and options, then Execute. Draft endpoint skips resolution."}
  addUserKnob {1 prompt l Prompt}
  prompt "Describe the motion and action across the keyframes"
  addUserKnob {4 duration l Duration M {5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 ""}}
@@ -42,29 +45,17 @@ Group {
  addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
  runner_path "__INSTALL_ROOT__/nuke/python/fal_flux_3_keyframes_to_video_runner_v1.py"
 }
-Text {
+Input {
  inputs 0
- message "Connect 1-10 keyframes in order (keyframe_1 .. keyframe_10). Stop at the first gap.\nEmpty Frame indices spaces them evenly from 0 to duration*24 (24 fps). Or set e.g. 0,48,120.\nSet prompt and options, then Execute. Draft endpoint skips resolution."
- font C:/Windows/Fonts/arial.ttf
- yjustify bottom
- Transform 1
- box {30 30 1906 1052}
- center {560 372}
- name Text1
- xpos 101
- ypos 294
+ name keyframe_1
+ xpos 0
+ ypos -51
 }
 set Nfx3kf000 [stack 0]
 Output {
  name Output1
  xpos 101
  ypos 406
-}
-Input {
- inputs 0
- name keyframe_1
- xpos 0
- ypos -51
 }
 Input {
  inputs 0

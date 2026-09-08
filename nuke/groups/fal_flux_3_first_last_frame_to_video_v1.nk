@@ -1,5 +1,7 @@
 # Purpose:
 # - Nuke Group node that runs fal.ai FLUX 3 first-last-frame-to-video from required start and end stills.
+# - Output1 looks through start_image (the first still). No in-group generated video preview; Execute still spawns a Read of the result.
+# - Connect/execute notes live on the guide_info knob.
 # - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
 # - Model: https://fal.ai/models/blackforestlabs/flux-3/first-last-frame-to-video
 # - Draft: https://fal.ai/models/blackforestlabs/flux-3/first-last-frame-to-video/draft
@@ -11,6 +13,7 @@ Group {
  name FLUX_3_First_Last_Frame_To_Video_v1
  selected true
  addUserKnob {20 Settings}
+ addUserKnob {26 guide_info l "" T "Connect start_image and end_image (both required).\nSet prompt and options, then Execute.\nUse draft endpoint skips resolution (draft has no resolution field)."}
  addUserKnob {1 prompt l Prompt}
  prompt "Describe the motion and action between the start and end frames"
  addUserKnob {4 duration l Duration M {5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 ""}}
@@ -40,29 +43,17 @@ Group {
  addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
  runner_path "__INSTALL_ROOT__/nuke/python/fal_flux_3_first_last_frame_to_video_runner_v1.py"
 }
-Text {
+Input {
  inputs 0
- message "Connect start_image and end_image (both required).\nSet prompt and options, then Execute.\nUse draft endpoint skips resolution (draft has no resolution field)."
- font C:/Windows/Fonts/arial.ttf
- yjustify bottom
- Transform 1
- box {30 30 1906 1052}
- center {560 372}
- name Text1
- xpos 101
- ypos 294
+ name start_image
+ xpos 0
+ ypos -51
 }
 set Nfx3fl000 [stack 0]
 Output {
  name Output1
  xpos 101
  ypos 406
-}
-Input {
- inputs 0
- name start_image
- xpos 0
- ypos -51
 }
 Input {
  inputs 0

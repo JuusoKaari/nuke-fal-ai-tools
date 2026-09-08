@@ -139,11 +139,13 @@ ffprobe -version
 
 Video generation and upscaling can take several minutes. Watch the Script Editor for helper stdout. If fal.ai queues the job, wait for completion; interrupting Nuke may leave partial temp files under the script directory.
 
-## In-group output preview (Image nodes)
+## In-group output preview
 
 **Symptom:** Group output is black before Execute, or generated results only appear as separate Read nodes below the Group.
 
-Image Groups look through the connected plate on `Output1`. Video, 3D, and Text nodes still spawn result Reads (or Geo/Text) after Execute. Re-create the node from **Nodes -> fal.ai** after updating. Older Groups keep the old graph until you do.
+Image Groups look through the connected plate on `Output1`. Still image-to-video Groups look through the primary still so viewing the Group shows the start frame, not a black card. Re-create the node from **Nodes -> fal.ai** after updating. Older Groups keep the old graph until you do.
+
+**Still to video.** Seedance 2 and 2.5 I2V, LTX 2.3 and 2.5 Pro I2V, MiniMax H3 and H3 Max I2V, FLUX 3 first/last and keyframes, Pika 2.2 Pikaframes, Seedance 2 reference-to-video. `Output1` is the first still (`start_image`, `keyframe_1`, or `image_1`). Extra inputs stay (end frame, other keyframes, refs, optional clips). Connect and Execute notes sit on the `guide_info` knob, not a Text overlay. There is no Viewer mode, generated-in-group, or ROI. Execute still spawns a video Read (mp4 or EXR sequence). Video upscale and Veo extend stay clip-in placeholders. 3D and Text still spawn Geo/Text after Execute.
 
 **ROI** (`use_roi`, `roi_area`) is on Nano Banana 2 Generate and GPT Image 2 Edit. It crops the primary plate to a rectangle, sends that crop, and pastes the result back. Qwen Image Inpaint's mask input is not ROI. GPT's optional `mask` input still works; with Use ROI on, the mask is cropped to the same box.
 
@@ -163,7 +165,7 @@ Image Groups look through the connected plate on `Output1`. Video, 3D, and Text 
 - Re-create the node from **Nodes -> fal.ai** after updating the plugin (older nodes may lack preview knobs or use the wrong callback style).
 - Preview switching uses Nuke expressions on internal Switch nodes (`parent.viewer_mode`, etc.). The preview graph is baked into each Image Group `.nk`. There is no Python graph build on create.
 - Older nodes created before the baked graph may still rely on `ensure_group_preview_graph()`. Re-create from the menu for the full graph.
-- Inside a new Group you should see `viewer_mode_switch` and `generated_read_01` immediately after create. Nano Banana 2 and GPT Image 2 also have ROI nodes (`ROI_rectangle`, `ROI_switch`).
+- Inside a new Image Group you should see `viewer_mode_switch` and `generated_read_01` immediately after create. Nano Banana 2 and GPT Image 2 also have ROI nodes (`ROI_rectangle`, `ROI_switch`). Still-to-video Groups should not have those nodes.
 - If internal Read paths break after moving a script to another machine, re-execute or relink like any other Read node.
 
 ## SAM 3.1 Image returned no mask

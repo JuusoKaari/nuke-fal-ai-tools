@@ -1,5 +1,7 @@
 # Purpose:
 # - Nuke Group node that runs fal.ai ByteDance Seedance 2.0 reference-to-video from stills, optional videos, and optional audio files.
+# - Output1 looks through image_1 (the first still). No in-group generated video preview; Execute still spawns a Read of the result.
+# - Connect/execute notes live on the guide_info knob.
 # - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
 # - Model: https://fal.ai/models/bytedance/seedance-2.0/reference-to-video
 
@@ -10,6 +12,7 @@ Group {
  name Seedance_2_Reference_To_Video_v1
  selected true
  addUserKnob {20 Settings}
+ addUserKnob {26 guide_info l "" T "Connect stills to image_1..image_9 and/or videos to video_1..video_3.\nOptional audio paths (mp3/wav) in Settings. Total files across all modalities max 12.\nPrompt uses @Image1, @Video1, @Audio1 in connection order. Then Execute."}
  addUserKnob {4 frame_range l "Input frame range" M {root current custom ""}}
  frame_range root
  addUserKnob {1 custom_start l "Custom start"}
@@ -49,29 +52,17 @@ Group {
  addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
  runner_path "__INSTALL_ROOT__/nuke/python/fal_seedance_2_reference_to_video_runner_v1.py"
 }
-Text {
+Input {
  inputs 0
- message "Connect stills to image_1..image_9 and/or videos to video_1..video_3.\nOptional audio paths (mp3/wav) in Settings. Total files across all modalities max 12.\nPrompt uses @Image1, @Video1, @Audio1 in connection order. Then Execute."
- font C:/Windows/Fonts/arial.ttf
- yjustify bottom
- Transform 1
- box {30 30 1906 1052}
- center {560 372}
- name Text1
- xpos 101
- ypos 294
+ name image_1
+ xpos 0
+ ypos -51
 }
 set Nsd2r2v000 [stack 0]
 Output {
  name Output1
  xpos 101
  ypos 406
-}
-Input {
- inputs 0
- name image_1
- xpos 0
- ypos -51
 }
 Input {
  inputs 0

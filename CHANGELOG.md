@@ -23,6 +23,7 @@ All notable changes to this project are documented here.
 
 ### Changed
 
+- Still image-to-video Groups look through the primary still on `Output1` (Seedance 2/2.5 I2V, LTX 2.3/2.5 Pro, MiniMax H3/H3 Max, FLUX 3 first/last and keyframes, Pikaframes, Seedance 2 reference-to-video). Connect/execute notes moved to a `guide_info` knob. Execute still spawns a video Read. Recreate from **Nodes -> fal.ai**.
 - SAM 3.1 Image: empty fal.ai results (no matching object) now say so instead of "unexpected response shape". Prompt default is a short noun (`person`); the old instructional placeholder is rejected before upload. Recreate the node from **Nodes -> fal.ai** or replace the Prompt knob.
 - Finegrain Eraser: if the mask input has an alpha channel, that alpha is used as the erase matte (copied to RGB). Recreate the node from **Nodes -> fal.ai**.
 - Video prerender (PNG sequence to mp4) snaps odd width/height down by 1px so libx264 can encode formats like 1280x557.

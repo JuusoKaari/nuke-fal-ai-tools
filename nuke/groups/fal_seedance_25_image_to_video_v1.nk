@@ -1,5 +1,7 @@
 # Purpose:
 # - Nuke Group node that runs fal.ai ByteDance Seedance 2.5 image-to-video on a still (start frame), optional end frame for transitions.
+# - Output1 looks through start_image (the start frame). No in-group generated video preview; Execute still spawns a Read of the result.
+# - Connect/execute notes live on the guide_info knob.
 # - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
 # - Model: https://fal.ai/models/bytedance/seedance-2.5/image-to-video
 
@@ -10,6 +12,7 @@ Group {
  name Seedance_25_Image_To_Video_v1
  selected true
  addUserKnob {20 Settings}
+ addUserKnob {26 guide_info l "" T "Connect start_image (required). Optionally connect end_image for a transition.\nSet prompt and options, then Execute."}
  addUserKnob {1 prompt l Prompt}
  prompt "Describe the motion and action for the video (pure generation from the start image, not an edit instruction)"
  addUserKnob {4 duration l Duration M {auto 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 ""}}
@@ -33,29 +36,17 @@ Group {
  addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
  runner_path "__INSTALL_ROOT__/nuke/python/fal_seedance_25_image_to_video_runner_v1.py"
 }
-Text {
+Input {
  inputs 0
- message "Connect start_image (required). Optionally connect end_image for a transition.\nSet prompt and options, then Execute."
- font C:/Windows/Fonts/arial.ttf
- yjustify bottom
- Transform 1
- box {30 30 1906 1052}
- center {560 372}
- name Text1
- xpos 101
- ypos 294
+ name start_image
+ xpos 0
+ ypos -51
 }
 set Nsd25i2v000 [stack 0]
 Output {
  name Output1
  xpos 101
  ypos 406
-}
-Input {
- inputs 0
- name start_image
- xpos 0
- ypos -51
 }
 Input {
  inputs 0
