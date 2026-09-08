@@ -6,6 +6,7 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- Bria Extract Object (`fal_bria_extract_object_v1.nk`) - prompt-guided object cutout as an RGBA PNG (optional mask) via `bria/extract-object`. Stays flat under Image until a second Bria node ships.
 - Hunyuan 3D Part (`fal_hunyuan_3d_part_v1.nk`) - splits a local FBX into part FBX files via `fal-ai/hunyuan-3d/v3.1/part`. Creates the Hunyuan 3D submenu next to Hunyuan 3D Image to 3D.
 - MiniMax H3 Max Image to Video (`fal_minimax_h3_max_image_to_video_v1.nk`) - post-trained H3 variant with stronger prompt adherence, 5-15s, native 480P/768P via `minimax/h3-max/image-to-video`. Creates the MiniMax submenu next to MiniMax H3 I2V.
 - Seedream 5.0 Pro Edit (`fal_seedream_5_pro_edit_v1.nk`) - prompted still edit from a primary plate plus up to 9 extra refs (10 stills total) via `bytedance/seedream/v5/pro/edit`. Stays flat under Image until a second Seedream node ships.

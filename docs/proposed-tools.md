@@ -4,7 +4,7 @@ Wishlist of fal.ai models to add to the Nuke toolset. Sourced from the live cata
 
 Implement **one unchecked tool per agent turn**. Check it off, commit, then stop. Clone the listed existing files instead of inventing a new node shape.
 
-Current coverage (do not duplicate): Nano Banana 2 generate+edit, GPT Image 2 edit, Qwen Max edit / inpaint / layered, Finegrain eraser, BiRefNet still+video, Depth Anything v2, Topaz Precision still upscale, Seedream 5.0 Pro Edit, Hunyuan World, Seedance 2.0 I2V, Seedance 2.0 Reference, Seedance 2.5 I2V, FLUX 3 First/Last + Keyframes, LTX 2.3 + LTX 2.5 Pro I2V, MiniMax H3 + H3 Max I2V, Pika 2.2 Pikaframes, Kling O3 V2V edit, Veo 3.1 extend, ByteDance video upscale, DreamActor v2, Hunyuan 3D v3.1 Pro image-to-3D, Hunyuan 3D v3.1 Part.
+Current coverage (do not duplicate): Nano Banana 2 generate+edit, GPT Image 2 edit, Qwen Max edit / inpaint / layered, Finegrain eraser, BiRefNet still+video, Depth Anything v2, Topaz Precision still upscale, Seedream 5.0 Pro Edit, Bria Extract Object, Hunyuan World, Seedance 2.0 I2V, Seedance 2.0 Reference, Seedance 2.5 I2V, FLUX 3 First/Last + Keyframes, LTX 2.3 + LTX 2.5 Pro I2V, MiniMax H3 + H3 Max I2V, Pika 2.2 Pikaframes, Kling O3 V2V edit, Veo 3.1 extend, ByteDance video upscale, DreamActor v2, Hunyuan 3D v3.1 Pro image-to-3D, Hunyuan 3D v3.1 Part.
 
 ## Menu families
 
@@ -20,6 +20,7 @@ Existing tree:
 
 ```text
 Image
+  Bria Extract Object       family bria (flat)
   GPT Image 2 Edit          family gpt-image (flat)
   Hunyuan World             family hunyuan-world (flat)
   Nano Banana 2 Generate    family nano-banana (flat)
@@ -106,8 +107,9 @@ Copy these files. Steal I/O and knob patterns from the clone, then change endpoi
 | Image upscale (Topaz Precision) | `utility` (image) | Still I/O from `fal_depth_anything_v2_*`. Enum knobs from `fal_bytedance_video_upscale_*` | One still in, one still out, scale/model enums, no prompt required | Endpoint: `topaz/upscale/image/precision`. Image Utility, not a Topaz family. Skip SeedVR2 unless Topaz schema is a poor Nuke fit. |
 | Seedream 5.0 Pro Edit | `seedream` (image) | `fal_gpt_image_2_edit_*` (multi-ref + optional mask) and `fal_qwen_image_max_edit_*` (prompted still edit) | Primary plate on input 0, extra refs, optional mask, prompt, stills out | Cap extra refs at what the group can show cleanly (schema allows up to 10). Stays flat until a second Seedream node. |
 | Seedance 2.5 Reference to Video | `seedance` (video) | **If Seedance 2.0 Reference already exists, clone that.** Else Seedance 2.0 I2V + Pikaframes + video-input from ByteDance upscale | Same multimodal-ref idea, longer take (up to 30s), more refs | Heavier UI. Schema first (up to 50 files). Do not clone 2.0 Reference until that commit exists. |
-| Bria Expand | `bria` (image) | `fal_depth_anything_v2_*` for still in/out. Canvas/amount knobs from schema | One still in, expanded still out | Outpaint beyond borders. Not a mask eraser (that is Finegrain / Utility). Flat until Relight ships. |
-| Bria Fibo Relight | `bria` (image) | `fal_depth_anything_v2_*` plus prompt/enum knobs from `fal_qwen_image_max_edit_*` | One still in, relit still out | Lighting match, not a full rewrite. Creates the Bria submenu. Keep knobs structured if schema is structured. |
+| Bria Extract Object | `bria` (image) | `fal_birefnet_v2_still_*` for RGBA cutout + optional mask. Prompt knob / `prompt_text` from `fal_seedream_5_pro_edit_*` | One still in, prompt, RGBA still out, optional mask download | Filter in-group preview. Flat until Expand or Relight ships. |
+| Bria Expand | `bria` (image) | `fal_bria_extract_object_*` (or `fal_depth_anything_v2_*`) for still in/out. Canvas/amount knobs from schema | One still in, expanded still out | Outpaint beyond borders. Not a mask eraser (that is Finegrain / Utility). Creates the Bria submenu next to Extract Object. |
+| Bria Fibo Relight | `bria` (image) | `fal_bria_extract_object_*` plus prompt/enum knobs from `fal_qwen_image_max_edit_*` | One still in, relit still out | Lighting match, not a full rewrite. Joins the Bria submenu. Keep knobs structured if schema is structured. |
 | Veo 3.1 First-Last | `veo` (video) | Seedance 2.0 I2V for start/end stills. `fal_veo3_1_extend_video_*` for Veo helper/output constraints | Two stills in, Veo mp4 then `spawn_video_output_read` | Creates the Veo submenu next to extend. Copy Veo-specific output limits from the extend helper, not from Seedance. |
 | Topaz video interpolate | `utility` (video) | `fal_bytedance_video_upscale_{helper.py,runner_v1.py}` + `fal_bytedance_video_upscale_v1.nk` | Video in, fal mp4 then `spawn_video_output_read`, fps/model enums | Slow-mo / 24->60. Video Utility, not a Topaz family. Complements ByteDance upscale, do not merge them. |
 | Nano Banana Pro | `nano-banana` (image) | `fal_nano_banana_2_generate_{helper.py,runner_v1.py}` + `fal_nano_banana_2_generate_v1.nk` | Generate vs edit by whether refs are connected, in-group preview | Dual endpoints: `fal-ai/nano-banana-pro` and `.../edit`. Creates the Nano Banana submenu. Same node shape as NB2. |
@@ -140,6 +142,7 @@ FLUX 3 single-image I2V (`blackforestlabs/flux-3/image-to-video`) is not a separ
 Strong additions. Start these only after add-first is done (or after you explicitly skip remaining add-first items).
 
 - [ ] **Seedance 2.5 Reference to Video** -- `bytedance/seedance-2.5/reference-to-video` -- family `seedance` / video -- up to 50 multimodal refs; clone 2.0 Reference if it already shipped
+- [x] **Bria Extract Object** -- `bria/extract-object` -- family `bria` / image -- prompt-guided RGBA cutout; optional mask; stays flat until Expand or Relight
 - [ ] **Bria Expand** -- `fal-ai/bria/expand` -- family `bria` / image -- canvas outpaint; inpaint/eraser already exist
 - [ ] **Bria Fibo Relight** -- `bria/fibo-edit/relight` -- family `bria` / image -- lighting match without a full generative rewrite
 - [ ] **Veo 3.1 First-Last** -- `fal-ai/veo3.1/first-last-frame-to-video` -- family `veo` / video -- Veo is extend-only today
