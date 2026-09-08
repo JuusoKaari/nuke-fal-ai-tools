@@ -251,5 +251,26 @@ class TestFormatSizeFromNode(unittest.TestCase):
         self.assertIsNone(prerender.format_size_from_node(_FakeNode()))
 
 
+class TestChannelListHasAlpha(unittest.TestCase):
+    def test_rgba_alpha(self):
+        self.assertTrue(
+            prerender.channel_list_has_alpha(
+                ["rgba.red", "rgba.green", "rgba.blue", "rgba.alpha"]
+            )
+        )
+
+    def test_bare_alpha(self):
+        self.assertTrue(prerender.channel_list_has_alpha(["alpha"]))
+
+    def test_rgb_only(self):
+        self.assertFalse(
+            prerender.channel_list_has_alpha(["rgb.red", "rgb.green", "rgb.blue"])
+        )
+
+    def test_empty_and_none(self):
+        self.assertFalse(prerender.channel_list_has_alpha([]))
+        self.assertFalse(prerender.channel_list_has_alpha(None))
+
+
 if __name__ == "__main__":
     unittest.main()

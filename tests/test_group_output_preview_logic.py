@@ -194,6 +194,7 @@ class TestPreviewConfigKinds(unittest.TestCase):
                 "Finegrain_Eraser_v1",
                 "Topaz_Upscale_Image_Precision_v1",
                 "Bria_Extract_Object_v1",
+                "SAM_3_1_Image_v1",
             ],
         )
 
@@ -796,6 +797,12 @@ class TestFinegrainEraserPreview(unittest.TestCase):
         self.assertIn("fal_tool_id Finegrain_Eraser_v1", text)
         self.assertIn("name source_image", text)
         self.assertIn("name mask", text)
+        self.assertIn("name mask_use_alpha", text)
+        self.assertIn("red alpha", text)
+        self.assertIn("green alpha", text)
+        self.assertIn("blue alpha", text)
+        self.assertIn("name mask_match_format", text)
+        self.assertIn("name mask_for_execute", text)
         self.assertIn("spawn_reads_in_graph false", text)
         self.assertNotIn("Generated grid", text)
         self.assertNotIn("preview_index", text)
@@ -826,6 +833,9 @@ class TestFinegrainEraserPreview(unittest.TestCase):
         runner = self._finegrain_runner_text()
         self.assertIn("wire_group_outputs", runner)
         self.assertIn("g.input(1)", runner)
+        self.assertIn("mask_for_execute", runner)
+        self.assertIn("render_still_inside_group", runner)
+        self.assertIn("channel_list_has_alpha", runner)
         self.assertIn("spawn_reads_in_graph", runner)
 
 
@@ -992,6 +1002,94 @@ class TestBriaExtractObjectPreview(unittest.TestCase):
         self.assertIn("wire_group_outputs", runner)
         self.assertIn("spawn_reads_in_graph", runner)
         self.assertIn("get_prompt_from_input_or_group", runner)
+
+
+class TestSAM31ImagePreview(unittest.TestCase):
+    def _sam_nk_text(self):
+        path = os.path.join(_ROOT, "nuke", "groups", "fal_sam_3_1_image_v1.nk")
+        with open(path, "r") as f:
+            return f.read()
+
+    def _sam_runner_text(self):
+        path = os.path.join(
+            _ROOT, "nuke", "python", "fal_sam_3_1_image_runner_v1.py"
+        )
+        with open(path, "r") as f:
+            return f.read()
+
+    def test_sam_config_is_filter_without_history_or_roi(self):
+        cfg = preview.TOOL_PREVIEW_CONFIG.get("SAM_3_1_Image_v1")
+        self.assertIsNotNone(cfg)
+        self.assertEqual(preview.preview_kind_for_config(cfg), "filter")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertNotIn("prompt_text", cfg["preview_inputs"])
+        self.assertEqual(cfg["max_outputs"], 1)
+        self.assertFalse(cfg.get("supports_generated_grid"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertFalse(preview.wants_history_knobs(cfg))
+        self.assertFalse(cfg.get("accumulate_outputs"))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg), ["Input", "Generated"]
+        )
+        self.assertNotIn("Generated grid", preview.viewer_modes_for_config(cfg))
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertIn("viewer_mode", knobs)
+        self.assertIn("spawn_reads_in_graph", knobs)
+        self.assertNotIn("preview_index", knobs)
+        self.assertNotIn(preview.EXTRACT_SELECTED_KNOB, knobs)
+        self.assertNotIn(preview.CLEAR_HISTORY_KNOB, knobs)
+        self.assertNotIn(preview.OUTPUT_PATHS_REGISTRY_KNOB, knobs)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+
+    def test_sam_nk_has_filter_preview_without_history_or_roi(self):
+        text = self._sam_nk_text()
+        self.assertIn("viewer_mode_switch", text)
+        self.assertIn("M {Input Generated \"\"}", text)
+        self.assertIn("generated_read_01", text)
+        self.assertIn("name preview_source_01", text)
+        self.assertIn("fal_tool_id SAM_3_1_Image_v1", text)
+        self.assertIn("name source_image", text)
+        self.assertIn("name prompt_text", text)
+        self.assertIn("spawn_reads_in_graph false", text)
+        self.assertIn("apply_mask false", text)
+        self.assertIn('prompt "person"', text)
+        self.assertNotIn("Describe the object to segment", text)
+        self.assertNotIn("Generated grid", text)
+        self.assertNotIn("preview_index", text)
+        self.assertNotIn("extract_selected_generation", text)
+        self.assertNotIn("clear_generated_outputs", text)
+        self.assertNotIn("generated_output_paths", text)
+        self.assertNotIn("generated_read_02", text)
+        self.assertNotIn("generated_contactsheet", text)
+        self.assertNotIn("ROI_rectangle", text)
+        self.assertNotIn("use_roi", text)
+        self.assertNotIn("roi_area", text)
+        self.assertNotIn("name Text1", text)
+
+    def test_resolve_sam_runner_basename(self):
+        tool_id = preview.resolve_tool_id_from_runner_path(
+            "__INSTALL_ROOT__/nuke/python/fal_sam_3_1_image_runner_v1.py"
+        )
+        self.assertEqual(tool_id, "SAM_3_1_Image_v1")
+        cfg = preview.TOOL_PREVIEW_CONFIG[tool_id]
+        self.assertEqual(preview.preview_kind_for_config(cfg), "filter")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 1)
+        self.assertFalse(cfg.get("accumulate_outputs"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertFalse(preview.wants_history_knobs(cfg))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        runner = self._sam_runner_text()
+        self.assertIn("wire_group_outputs", runner)
+        self.assertIn("spawn_reads_in_graph", runner)
+        self.assertIn("get_prompt_from_input_or_group", runner)
+        self.assertIn("--apply-mask", runner)
+        self.assertIn("--no-apply-mask", runner)
 
 
 class TestOutputRegistry(unittest.TestCase):

@@ -1,28 +1,26 @@
 # Purpose:
-# - Nuke Group node that runs fal.ai Finegrain Eraser (mask) object removal on a still plate + mask
-#   with in-group output preview.
-# - Model: https://fal.ai/models/fal-ai/finegrain-eraser/mask
-# - Input 0: source_image (look-through). Input 1: mask (white = region to erase). If the
-#   mask pipe has an alpha channel, that alpha is copied to RGB before Execute. No ROI.
-# - After Execute, Generated is the erased still. No grid, history knobs, or ROI.
+# - Nuke Group node that runs fal.ai SAM 3.1 Image (text-prompted mask / RGBA cutout) with in-group preview.
+# - Model: https://fal.ai/models/fal-ai/sam-3-1/image
+# - Input 0: source_image (look-through). Input 1: optional prompt_text (Text node overrides the prompt knob).
+# - Prompt is a short noun or noun phrase (person, car, wheel), not an instruction.
+# - After Execute, Generated is a mask (default) or RGBA cutout when Apply mask is on. No grid, history knobs, or ROI.
 # - Preview graph is baked (look-through + generated_read_01 + viewer_mode_switch). Spawn Reads default off.
 # - Hidden fal_tool_id identifies the tool type; display name may be v1, v2, v3, etc.
 # - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
-# - Mode is express or standard (fal.ai removed premium).
 
 set cut_paste_input [stack 0]
 version 11.3 v6
 push $cut_paste_input
 Group {
  inputs 2
- name Finegrain_Eraser_v1
+ name SAM_3_1_Image_v1
  knobChanged "\nimport nuke_group_output_preview_v1 as _gop\n_gop.on_knob_changed_ui()\n"
  selected true
  addUserKnob {20 Settings}
- addUserKnob {4 mode M {express standard}}
- mode standard
- addUserKnob {1 seed l "Seed (optional, 0-999)"}
- seed ""
+ addUserKnob {1 prompt l Prompt t "Short noun or noun phrase SAM should find (person, car, wheel). Long instructions usually match nothing."}
+ prompt "person"
+ addUserKnob {6 apply_mask l "Apply mask" +STARTLINE}
+ apply_mask false
  addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}
  show_success_popup true
  addUserKnob {26 preview_separator l "" +STARTLINE}
@@ -44,11 +42,11 @@ Group {
  FAL "insert fal key to override for this node"
  addUserKnob {20 endAdvanced n -1}
  addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
- helper_path "__INSTALL_ROOT__/nuke/python/fal_finegrain_eraser_helper.py"
+ helper_path "__INSTALL_ROOT__/nuke/python/fal_sam_3_1_image_helper.py"
  addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
- runner_path "__INSTALL_ROOT__/nuke/python/fal_finegrain_eraser_runner_v1.py"
+ runner_path "__INSTALL_ROOT__/nuke/python/fal_sam_3_1_image_runner_v1.py"
  addUserKnob {1 fal_tool_id l "fal tool id" +INVISIBLE}
- fal_tool_id Finegrain_Eraser_v1
+ fal_tool_id SAM_3_1_Image_v1
 }
  Read {
   inputs 0
@@ -123,37 +121,10 @@ set Nf9827200 [stack 0]
  }
  Input {
   inputs 0
-  name mask
+  name prompt_text
   xpos 188
   ypos -667
   number 1
- }
- Shuffle {
-  in rgba
-  red alpha
-  green alpha
-  blue alpha
-  alpha alpha
-  name mask_use_alpha
-  disable {{"[python \{n=nuke.thisNode().input(0); int(n is None or not any((c=='alpha' or c.endswith('.alpha')) for c in (n.channels() or [])))\}]"}}
-  xpos 188
-  ypos -580
- }
- Reformat {
-  type "to box"
-  box_width {{preview_source_01.width}}
-  box_height {{preview_source_01.height}}
-  box_fixed true
-  resize none
-  center false
-  name mask_match_format
-  xpos 188
-  ypos -500
- }
- NoOp {
-  name mask_for_execute
-  xpos 188
-  ypos -420
  }
 push $Nf9827200
  Viewer {

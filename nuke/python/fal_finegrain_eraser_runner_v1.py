@@ -1,7 +1,9 @@
 # Purpose:
 # - Runner script for the Nuke Group node `Finegrain_Eraser_v1` (executes inside Nuke / Python 2.7).
 # - Input 0: source plate; input 1: mask (white = region to erase). Pre-renders stills if needed.
-# - Mask prerender is reformatted to the source node's format (not the script root format).
+# - If the mask pipe has an alpha channel, that alpha is copied to RGB before the Write.
+# - Prefers in-group `mask_for_execute` (Shuffle + format match). Old groups fall back to a temp
+#   Shuffle on the upstream mask, then Reformat to the source node's format (not the script root).
 # - Calls `fal_finegrain_eraser_helper.py` (Python 3), then wires the erased still into the baked
 #   in-group preview. Root Reads spawn only when spawn_reads_in_graph is on.
 # - fal.ai removed premium mode; that knob value is remapped to standard.
@@ -24,6 +26,66 @@ import nuke_group_output_preview_v1 as preview
 import nuke_prerender_v1 as prerender
 import nuke_fal_runner_util_v1 as runner_util
 import nuke_spawn_read_position_v1 as spawn_pos
+
+_MASK_EXECUTE_NODE = "mask_for_execute"
+
+
+def _node_channels(node):
+    try:
+        return list(node.channels() or [])
+    except Exception:
+        return []
+
+
+def _make_alpha_to_rgb_shuffle(nuke_module, src_node):
+    sh = nuke_module.nodes.Shuffle()
+    try:
+        sh["in"].setValue("rgba")
+    except Exception:
+        pass
+    for knob_name in ("red", "green", "blue", "alpha"):
+        try:
+            sh[knob_name].setValue("alpha")
+        except Exception:
+            pass
+    sh.setInput(0, src_node)
+    return sh
+
+
+def _prepare_mask_path(nuke_module, group_node, mask_node, src_node, frame, temp_dir):
+    """
+    Pre-render the erase mask. New groups use in-group mask_for_execute (alpha Shuffle +
+    format match). Older pasted groups fall back to a temp Shuffle on the upstream pipe.
+    """
+    out_path = os.path.join(temp_dir, "mask.png")
+    with prerender.group_scope(nuke_module, group_node):
+        inside = nuke_module.toNode(_MASK_EXECUTE_NODE)
+        if inside is not None:
+            prerender.render_still_inside_group(
+                nuke_module, group_node, inside, out_path, frame
+            )
+            return prerender.norm_slashes(out_path)
+
+    shuffle = None
+    try:
+        mask_src = mask_node
+        if prerender.channel_list_has_alpha(_node_channels(mask_node)):
+            shuffle = _make_alpha_to_rgb_shuffle(nuke_module, mask_node)
+            mask_src = shuffle
+        return prerender.prepare_still_input_path(
+            nuke_module=nuke_module,
+            src_node=mask_src,
+            frame=frame,
+            run_dir=temp_dir,
+            base_name="mask",
+            match_format_node=src_node,
+        )
+    finally:
+        if shuffle is not None:
+            try:
+                nuke_module.delete(shuffle)
+            except Exception:
+                pass
 
 
 def main():
@@ -62,13 +124,8 @@ def main():
         image_path = prerender.prepare_still_input_path(
             nuke_module=nuke, src_node=src_node, frame=frame, run_dir=temp_dir, base_name="source"
         )
-        mask_path = prerender.prepare_still_input_path(
-            nuke_module=nuke,
-            src_node=mask_node,
-            frame=frame,
-            run_dir=temp_dir,
-            base_name="mask",
-            match_format_node=src_node,
+        mask_path = _prepare_mask_path(
+            nuke, g, mask_node, src_node, frame, temp_dir
         )
     except Exception as e:
         nuke.message("Failed to prepare image or mask:\n%s" % str(e))

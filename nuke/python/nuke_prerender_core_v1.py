@@ -8,6 +8,7 @@
 # - `require_saved_nuke_script()` blocks runners when the script has no saved path on disk.
 # - Temp/output folders prefer Settings `output_dir` when usable; else next to the saved .nk script.
 # - `group_scope()` resets to root, enters a Group, and always returns to root afterward.
+# - `channel_list_has_alpha()` is a pure check for an alpha channel name in a Nuke channel list.
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -34,6 +35,18 @@ def ensure_dir(path):
 
 def norm_slashes(p):
     return (p or "").replace("\\", "/")
+
+
+def channel_list_has_alpha(channels):
+    """
+    True when a Nuke `Node.channels()` list includes an alpha channel.
+    Matches `alpha` or any `*.alpha` (for example `rgba.alpha`).
+    """
+    for c in channels or []:
+        name = str(c)
+        if name == "alpha" or name.endswith(".alpha"):
+            return True
+    return False
 
 
 def current_group_context(nuke_module):

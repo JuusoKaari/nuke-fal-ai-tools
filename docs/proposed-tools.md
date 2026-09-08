@@ -4,7 +4,7 @@ Wishlist of fal.ai models to add to the Nuke toolset. Sourced from the live cata
 
 Implement **one unchecked tool per agent turn**. Check it off, commit, then stop. Clone the listed existing files instead of inventing a new node shape.
 
-Current coverage (do not duplicate): Nano Banana 2 generate+edit, GPT Image 2 edit, Qwen Max edit / inpaint / layered, Finegrain eraser, BiRefNet still+video, Depth Anything v2, Topaz Precision still upscale, Seedream 5.0 Pro Edit, Bria Extract Object, Hunyuan World, Seedance 2.0 I2V, Seedance 2.0 Reference, Seedance 2.5 I2V, FLUX 3 First/Last + Keyframes, LTX 2.3 + LTX 2.5 Pro I2V, MiniMax H3 + H3 Max I2V, Pika 2.2 Pikaframes, Kling O3 V2V edit, Veo 3.1 extend, ByteDance video upscale, DreamActor v2, Hunyuan 3D v3.1 Pro image-to-3D, Hunyuan 3D v3.1 Part.
+Current coverage (do not duplicate): Nano Banana 2 generate+edit, GPT Image 2 edit, Qwen Max edit / inpaint / layered, Finegrain eraser, BiRefNet still+video, Depth Anything v2, Topaz Precision still upscale, Seedream 5.0 Pro Edit, Bria Extract Object, SAM 3.1 Image, Hunyuan World, Seedance 2.0 I2V, Seedance 2.0 Reference, Seedance 2.5 I2V, FLUX 3 First/Last + Keyframes, LTX 2.3 + LTX 2.5 Pro I2V, MiniMax H3 + H3 Max I2V, Pika 2.2 Pikaframes, Kling O3 V2V edit, Veo 3.1 extend, ByteDance video upscale, DreamActor v2, Hunyuan 3D v3.1 Pro image-to-3D, Hunyuan 3D v3.1 Part.
 
 ## Menu families
 
@@ -26,7 +26,7 @@ Image
   Nano Banana 2 Generate    family nano-banana (flat)
   Qwen                      Inpaint, Layered, Max Edit
   Seedream 5.0 Pro Edit     family seedream (flat)
-  Utility                   BiRefNet still, Depth, Finegrain, Topaz Precision
+  Utility                   BiRefNet still, Depth, Finegrain, Topaz Precision, SAM 3.1 Image
 Video
   DreamActor v2             family dreamactor (flat)
   FLUX 3                    First/Last, Keyframes
@@ -113,6 +113,7 @@ Copy these files. Steal I/O and knob patterns from the clone, then change endpoi
 | Veo 3.1 First-Last | `veo` (video) | Seedance 2.0 I2V for start/end stills. `fal_veo3_1_extend_video_*` for Veo helper/output constraints | Two stills in, Veo mp4 then `spawn_video_output_read` | Creates the Veo submenu next to extend. Copy Veo-specific output limits from the extend helper, not from Seedance. |
 | Topaz video interpolate | `utility` (video) | `fal_bytedance_video_upscale_{helper.py,runner_v1.py}` + `fal_bytedance_video_upscale_v1.nk` | Video in, fal mp4 then `spawn_video_output_read`, fps/model enums | Slow-mo / 24->60. Video Utility, not a Topaz family. Complements ByteDance upscale, do not merge them. |
 | Nano Banana Pro | `nano-banana` (image) | `fal_nano_banana_2_generate_{helper.py,runner_v1.py}` + `fal_nano_banana_2_generate_v1.nk` | Generate vs edit by whether refs are connected, in-group preview | Dual endpoints: `fal-ai/nano-banana-pro` and `.../edit`. Creates the Nano Banana submenu. Same node shape as NB2. |
+| SAM 3.1 Image | `utility` (image) | Prompt / 2-input from `fal_bria_extract_object_*`. Filter preview from `fal_birefnet_v2_still_*` | One still in, optional prompt Text, one still out (mask or RGBA cutout) | Endpoint: `fal-ai/sam-3-1/image` (not `fal-ai/sam-3/image`). Image Utility. v1 is text + one mask only. |
 
 Shared rules for every clone:
 
@@ -143,6 +144,7 @@ Strong additions. Start these only after add-first is done (or after you explici
 
 - [ ] **Seedance 2.5 Reference to Video** -- `bytedance/seedance-2.5/reference-to-video` -- family `seedance` / video -- up to 50 multimodal refs; clone 2.0 Reference if it already shipped
 - [x] **Bria Extract Object** -- `bria/extract-object` -- family `bria` / image -- prompt-guided RGBA cutout; optional mask; stays flat until Expand or Relight
+- [x] **SAM 3.1 Image** -- `fal-ai/sam-3-1/image` -- family `utility` / image -- text prompt + one mask (Apply mask for RGBA cutout). Not SAM 3 embed. No boxes, points, multi-mask, or video.
 - [ ] **Bria Expand** -- `fal-ai/bria/expand` -- family `bria` / image -- canvas outpaint; inpaint/eraser already exist
 - [ ] **Bria Fibo Relight** -- `bria/fibo-edit/relight` -- family `bria` / image -- lighting match without a full generative rewrite
 - [ ] **Veo 3.1 First-Last** -- `fal-ai/veo3.1/first-last-frame-to-video` -- family `veo` / video -- Veo is extend-only today
@@ -159,6 +161,7 @@ Strong additions. Start these only after add-first is done (or after you explici
 - Lipsync / talking-head (OmniHuman, Kling Avatar, sync-3). Different product lane.
 - More 3D (Meshy 6, SAM 3D). Hunyuan 3D is enough until its quality ceiling is hit.
 - SAM 3 embed. Awkward as a Nuke node (embeddings, not a clean mask out).
+- SAM 3 / SAM 3.1 video, box prompts, point prompts, and multi-mask. SAM 3.1 Image v1 is text prompt + one still (mask, or RGBA cutout when Apply mask is on).
 - SeedVR2 still upscale. Use Topaz Precision first.
 
 Pika 2.2 can stay until FLUX 3 keyframes ships, then it is the candidate to retire.

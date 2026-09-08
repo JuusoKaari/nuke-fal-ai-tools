@@ -51,6 +51,7 @@ _TOOLS = sorted(
         ("image", "utility", "Depth Anything v2", "fal_depth_anything_v2.nk", "fal_depth_anything_v2_helper.py", "fal_depth_anything_v2_runner_v1.py"),
         ("image", "utility", "Finegrain Eraser", "fal_finegrain_eraser_v1.nk", "fal_finegrain_eraser_helper.py", "fal_finegrain_eraser_runner_v1.py"),
         ("image", "utility", "Image upscale (Topaz Precision)", "fal_topaz_upscale_image_precision_v1.nk", "fal_topaz_upscale_image_precision_helper.py", "fal_topaz_upscale_image_precision_runner_v1.py"),
+        ("image", "utility", "SAM 3.1 Image", "fal_sam_3_1_image_v1.nk", "fal_sam_3_1_image_helper.py", "fal_sam_3_1_image_runner_v1.py"),
         ("image", "bria", "Bria Extract Object", "fal_bria_extract_object_v1.nk", "fal_bria_extract_object_helper.py", "fal_bria_extract_object_runner_v1.py"),
         ("image", "gpt-image", "GPT Image 2 Edit", "fal_gpt_image_2_edit_v1.nk", "fal_gpt_image_2_edit_helper.py", "fal_gpt_image_2_edit_runner_v1.py"),
         ("image", "hunyuan-world", "Hunyuan World", "fal_hunyuan_world_v1.nk", "fal_hunyuan_world_helper.py", "fal_hunyuan_world_runner_v1.py"),

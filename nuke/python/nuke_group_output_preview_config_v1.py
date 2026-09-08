@@ -56,6 +56,7 @@ RUNNER_BASENAME_TO_TOOL_ID = {
     "fal_finegrain_eraser_runner_v1.py": "Finegrain_Eraser_v1",
     "fal_topaz_upscale_image_precision_runner_v1.py": "Topaz_Upscale_Image_Precision_v1",
     "fal_bria_extract_object_runner_v1.py": "Bria_Extract_Object_v1",
+    "fal_sam_3_1_image_runner_v1.py": "SAM_3_1_Image_v1",
 }
 
 
@@ -189,6 +190,18 @@ TOOL_PREVIEW_CONFIG = {
         "viewer_modes": ["Input", "Generated"],
     },
     "Bria_Extract_Object_v1": {
+        "preview_kind": PREVIEW_KIND_FILTER,
+        "preview_inputs": ["source_image"],
+        "max_ai_inputs": 1,
+        "max_outputs": 1,
+        "max_stored_outputs": DEFAULT_MAX_STORED_OUTPUTS,
+        "supports_ai_input_grid": False,
+        "supports_generated_grid": False,
+        "supports_roi": False,
+        "accumulate_outputs": False,
+        "viewer_modes": ["Input", "Generated"],
+    },
+    "SAM_3_1_Image_v1": {
         "preview_kind": PREVIEW_KIND_FILTER,
         "preview_inputs": ["source_image"],
         "max_ai_inputs": 1,

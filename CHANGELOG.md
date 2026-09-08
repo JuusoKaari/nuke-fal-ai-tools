@@ -6,6 +6,7 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- SAM 3.1 Image (`fal_sam_3_1_image_v1.nk`) - text-prompted segmentation mask (Apply mask for RGBA cutout) via `fal-ai/sam-3-1/image`. Joins Image Utility. v1 is text + one still only (no boxes, points, or multi-mask).
 - Bria Extract Object (`fal_bria_extract_object_v1.nk`) - prompt-guided object cutout as an RGBA PNG (optional mask) via `bria/extract-object`. Stays flat under Image until a second Bria node ships.
 - Hunyuan 3D Part (`fal_hunyuan_3d_part_v1.nk`) - splits a local FBX into part FBX files via `fal-ai/hunyuan-3d/v3.1/part`. Creates the Hunyuan 3D submenu next to Hunyuan 3D Image to 3D.
 - MiniMax H3 Max Image to Video (`fal_minimax_h3_max_image_to_video_v1.nk`) - post-trained H3 variant with stronger prompt adherence, 5-15s, native 480P/768P via `minimax/h3-max/image-to-video`. Creates the MiniMax submenu next to MiniMax H3 I2V.
@@ -22,6 +23,8 @@ All notable changes to this project are documented here.
 
 ### Changed
 
+- SAM 3.1 Image: empty fal.ai results (no matching object) now say so instead of "unexpected response shape". Prompt default is a short noun (`person`); the old instructional placeholder is rejected before upload. Recreate the node from **Nodes -> fal.ai** or replace the Prompt knob.
+- Finegrain Eraser: if the mask input has an alpha channel, that alpha is used as the erase matte (copied to RGB). Recreate the node from **Nodes -> fal.ai**.
 - Video prerender (PNG sequence to mp4) snaps odd width/height down by 1px so libx264 can encode formats like 1280x557.
 - Helper failures now show the fal.ai error text in the Nuke popup, not only Script Editor. Nested JSON detail/error blobs are unwrapped to the inner message.
 - Finegrain Eraser: fal.ai removed premium mode. New nodes offer express/standard; existing premium knobs remap to standard.

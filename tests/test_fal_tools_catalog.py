@@ -144,7 +144,13 @@ class TestFalToolsCatalog(unittest.TestCase):
         )
         self.assertEqual(
             image_sub["utility"],
-            ["BiRefNet v2 Still", "Depth Anything v2", "Finegrain Eraser", "Image upscale (Topaz Precision)"],
+            [
+                "BiRefNet v2 Still",
+                "Depth Anything v2",
+                "Finegrain Eraser",
+                "Image upscale (Topaz Precision)",
+                "SAM 3.1 Image",
+            ],
         )
         self.assertEqual(
             video_sub["ltx"],

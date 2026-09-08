@@ -156,7 +156,7 @@ Image Groups look through the connected plate on `Output1`. Video, 3D, and Text 
 
 **Layers.** Qwen Image Layered looks through `source_image`. After Execute, Generated / Generated grid show the layer stack on the Group. **Spawn reads in graph** is on by default (one Read per layer). Each Execute replaces the layer set. No ROI.
 
-**Filter.** BiRefNet v2 Still, Depth Anything v2, Finegrain Eraser, Image upscale (Topaz Precision). Viewer modes are Input and Generated only. No grid, Preview index, extract, clear, or ROI. Before Execute, `Output1` is the source plate. After Execute it is the processed still. Finegrain looks through `source_image`, not `mask`. **Spawn reads in graph** is off by default. The Group is the result.
+**Filter.** BiRefNet v2 Still, Depth Anything v2, Finegrain Eraser, Image upscale (Topaz Precision), SAM 3.1 Image. Viewer modes are Input and Generated only. No grid, Preview index, extract, clear, or ROI. Before Execute, `Output1` is the source plate. After Execute it is the processed still. Finegrain looks through `source_image`, not `mask`. If the mask pipe has an alpha channel, Execute copies that alpha to RGB (white = erase). A RGB matte that still carries a dummy opaque alpha will erase the whole plate; Remove the alpha or Shuffle to RGB only. Recreate the node from the menu. **Spawn reads in graph** is off by default. The Group is the result.
 
 **Checks:**
 
@@ -165,6 +165,18 @@ Image Groups look through the connected plate on `Output1`. Video, 3D, and Text 
 - Older nodes created before the baked graph may still rely on `ensure_group_preview_graph()`. Re-create from the menu for the full graph.
 - Inside a new Group you should see `viewer_mode_switch` and `generated_read_01` immediately after create. Nano Banana 2 and GPT Image 2 also have ROI nodes (`ROI_rectangle`, `ROI_switch`).
 - If internal Read paths break after moving a script to another machine, re-execute or relink like any other Read node.
+
+## SAM 3.1 Image returned no mask
+
+**Symptom:** Helper exit 4. Newer builds say SAM found no objects matching the prompt. Older builds print `unexpected response shape` with `"image": null` and `"masks": []`.
+
+**Cause:** The fal.ai call succeeded. SAM 3.1 did not find that concept in the plate. It wants a short noun or noun phrase (`person`, `car`, `wheel`, `the red car`), not an instruction like "Describe the object to segment...".
+
+**Fix:**
+
+- Replace the Prompt knob with the object you actually want. Recreate the node from **Nodes -> fal.ai** after updating if you still have the old placeholder default.
+- Confirm the object is visible on the current frame.
+- A billed run that returns no mask still counts as a successful API call.
 
 ## Unexpected Python error, no dialog (or a restart-Nuke dialog)
 

@@ -12,6 +12,7 @@
 from __future__ import print_function
 
 from nuke_prerender_core_v1 import (
+    channel_list_has_alpha,
     current_group_context,
     ensure_dir,
     group_scope,
