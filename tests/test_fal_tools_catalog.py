@@ -1,6 +1,7 @@
 # Run: py -3 -m unittest tests.test_fal_tools_catalog
-# Catalog consistency: menu _TOOLS rows match shipped group/helper/runner files
-# and README lists every catalog label with the same tool count.
+# Catalog consistency: menu _TOOLS rows match shipped group/helper/runner files,
+# nk helper/runner paths use the install-root prefix, menu nesting matches family
+# counts, and README lists every catalog label with the same grouping.
 
 from __future__ import print_function
 
@@ -18,9 +19,13 @@ if _PYTHON_DIR not in sys.path:
 from _fal_tools import (
     _FAMILY_LABELS,
     _TOOLS,
+    _TOP_CATEGORY_LABELS,
+    _family_counts,
     family_menu_label,
     iter_categorized_menu_entries,
 )
+
+_INSTALL_PYTHON_PREFIX = "__INSTALL_ROOT__/nuke/python/"
 
 
 def _nodes_menu_label(label):
@@ -35,11 +40,22 @@ def _nk_path_filenames(nk_text):
         line = line.strip()
         m_h = re.match(r'helper_path\s+"([^"]+)"', line)
         if m_h:
-            helper = os.path.basename(m_h.group(1).replace("\\", "/"))
+            helper = m_h.group(1).replace("\\", "/")
         m_r = re.match(r'runner_path\s+"([^"]+)"', line)
         if m_r:
-            runner = os.path.basename(m_r.group(1).replace("\\", "/"))
+            runner = m_r.group(1).replace("\\", "/")
     return helper, runner
+
+
+def _expected_readme_cell(category):
+    parts = []
+    for row in _menu_map()[category]:
+        if row[0] == "item":
+            parts.append(row[1])
+        else:
+            display = _FAMILY_LABELS[row[1]][1]
+            parts.append("**%s** (%s)" % (display, ", ".join(row[2])))
+    return ", ".join(parts)
 
 
 def _menu_map():
@@ -72,6 +88,16 @@ class TestFalToolsCatalog(unittest.TestCase):
                 missing.append(runner_path)
         self.assertEqual(missing, [], "missing catalog files: %s" % missing)
 
+    def test_catalog_rows_are_unique(self):
+        labels = [row[2] for row in _TOOLS]
+        groups = [row[3] for row in _TOOLS]
+        helpers = [row[4] for row in _TOOLS]
+        runners = [row[5] for row in _TOOLS]
+        self.assertEqual(len(labels), len(set(labels)))
+        self.assertEqual(len(groups), len(set(groups)))
+        self.assertEqual(len(helpers), len(set(helpers)))
+        self.assertEqual(len(runners), len(set(runners)))
+
     def test_every_group_nk_is_catalogued(self):
         on_disk = set(
             name for name in os.listdir(_GROUP_DIR)
@@ -79,6 +105,10 @@ class TestFalToolsCatalog(unittest.TestCase):
         )
         in_catalog = set(row[3] for row in _TOOLS)
         self.assertEqual(on_disk, in_catalog)
+        self.assertEqual(
+            sorted(os.listdir(_GROUP_DIR)),
+            sorted(row[3] for row in _TOOLS),
+        )
 
     def test_every_helper_and_runner_is_catalogued(self):
         helpers_on_disk = set(
@@ -101,10 +131,12 @@ class TestFalToolsCatalog(unittest.TestCase):
             with open(nk_path, "r") as f:
                 text = f.read()
             nk_helper, nk_runner = _nk_path_filenames(text)
-            if nk_helper != helper_py or nk_runner != runner_py:
+            expected_helper = _INSTALL_PYTHON_PREFIX + helper_py
+            expected_runner = _INSTALL_PYTHON_PREFIX + runner_py
+            if nk_helper != expected_helper or nk_runner != expected_runner:
                 mismatches.append(
                     "%s: nk helper=%s runner=%s catalog helper=%s runner=%s"
-                    % (label, nk_helper, nk_runner, helper_py, runner_py)
+                    % (label, nk_helper, nk_runner, expected_helper, expected_runner)
                 )
         self.assertEqual(mismatches, [])
 
@@ -121,6 +153,8 @@ class TestFalToolsCatalog(unittest.TestCase):
             if family not in _FAMILY_LABELS
         ))
         self.assertEqual(unknown, [])
+        unused = sorted(set(_FAMILY_LABELS) - set(row[1] for row in _TOOLS))
+        self.assertEqual(unused, [])
 
     def test_family_menu_labels(self):
         self.assertEqual(family_menu_label("qwen", True), "fal-qwen")
@@ -196,6 +230,24 @@ class TestFalToolsCatalog(unittest.TestCase):
         self.assertIn("Veo 3.1 Extend Video", video_items)
         self.assertIn("DreamActor v2 Motion Control", video_items)
 
+    def test_menu_nesting_matches_family_counts(self):
+        counts = _family_counts()
+        menu = _menu_map()
+        seen = set()
+        for category, entries in menu.items():
+            nested = set(row[1] for row in entries if row[0] == "submenu")
+            expected_nested = set(
+                family for (cat, family), n in counts.items()
+                if cat == category and n >= 2
+            )
+            self.assertEqual(nested, expected_nested)
+            for row in entries:
+                if row[0] == "item":
+                    seen.add(row[1])
+                else:
+                    seen.update(row[2])
+        self.assertEqual(seen, set(row[2] for row in _TOOLS))
+
     def test_utility_submenu_is_last_in_image_and_video(self):
         menu = _menu_map()
         self.assertEqual(menu["image"][-1][:2], ("submenu", "utility"))
@@ -208,6 +260,20 @@ class TestFalToolsCatalog(unittest.TestCase):
         self.assertIn("%s tools under" % len(_TOOLS), text)
         for _cat, _family, label, _group, _helper, _runner in _TOOLS:
             self.assertIn(label, text, "README missing catalog label: %s" % label)
+        cells = dict(
+            re.findall(
+                r"\|\s+\*\*(Image|Video|3D|Text)\*\*\s+\|\s+(.+?)\s+\|",
+                text,
+            )
+        )
+        for category in ("image", "video", "3d", "text"):
+            heading = _TOP_CATEGORY_LABELS[category]
+            self.assertIn(heading, cells)
+            self.assertEqual(
+                cells[heading],
+                _expected_readme_cell(category),
+                "README %s tools cell drifted from catalog menu grouping" % heading,
+            )
 
 
 if __name__ == "__main__":
