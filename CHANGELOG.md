@@ -4,7 +4,9 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
-Upcoming v1.1.0. Recreate nodes from **Nodes -> fal.ai** after updating so baked graphs and new knobs pick up.
+## [1.1.0] - 2026-09-09
+
+Recreate nodes from **Nodes -> fal.ai** after updating so baked graphs and new knobs pick up.
 
 ### Added
 
