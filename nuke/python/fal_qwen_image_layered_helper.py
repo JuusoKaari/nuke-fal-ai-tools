@@ -20,7 +20,13 @@ import json
 import os
 import sys
 
-from fal_common import download, ensure_dir
+from fal_common import (
+    download,
+    emit_result_summary,
+    ensure_dir,
+    format_fal_error_summary,
+    subscribe_with_retry,
+)
 
 
 _ENDPOINT_ID = "fal-ai/qwen-image-layered"
@@ -82,6 +88,18 @@ def main(argv: list[str]) -> int:
         default=True,
         help="Enable safety checker.",
     )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=3,
+        help="Max retries for transient fal backend errors (5xx/429/downstream_service_error). Default: 3.",
+    )
+    parser.add_argument(
+        "--retry-base-seconds",
+        type=float,
+        default=2.0,
+        help="Base backoff seconds for retries (exponential with jitter). Default: 2.0.",
+    )
     parser.add_argument("--verbose", action="store_true", help="Print more logs.")
     args = parser.parse_args(argv)
 
@@ -132,10 +150,22 @@ def main(argv: list[str]) -> int:
     if args.seed is not None:
         api_args["seed"] = args.seed
 
-    result = client.subscribe(
-        _ENDPOINT_ID,
-        arguments=api_args,
-    )
+    try:
+        result = subscribe_with_retry(
+            client,
+            _ENDPOINT_ID,
+            api_args,
+            max_retries=args.max_retries,
+            retry_base_seconds=args.retry_base_seconds,
+            verbose=args.verbose,
+        )
+    except Exception as e:
+        print(
+            "ERROR: Qwen Image Layered request failed.\n%s"
+            % format_fal_error_summary(e),
+            file=sys.stderr,
+        )
+        return 5
 
     try:
         images = result.get("images") or []
@@ -146,6 +176,7 @@ def main(argv: list[str]) -> int:
         )
         return 4
 
+    primary_out = None
     for layer_idx, img_info in enumerate(images):
         try:
             layer_url = img_info.get("url") if isinstance(img_info, dict) else None
@@ -167,18 +198,20 @@ def main(argv: list[str]) -> int:
             print("Download layer %d -> %s" % (layer_idx, out_path))
 
         download(layer_url, out_path, user_agent=user_agent)
+        if primary_out is None:
+            primary_out = out_path
 
     layer_count = len(images) if images else args.num_layers
-    print(
-        json.dumps(
-            {
-                "ok": True,
-                "endpoint": _ENDPOINT_ID,
-                "out_dir": out_dir,
-                "num_layers": layer_count,
-                "output_format": args.output_format,
-            }
-        )
+    emit_result_summary(
+        {
+            "ok": True,
+            "endpoint": _ENDPOINT_ID,
+            "out_dir": out_dir,
+            "downloaded": primary_out,
+            "num_layers": layer_count,
+            "output_format": args.output_format,
+        },
+        result_path=primary_out,
     )
     return 0
 

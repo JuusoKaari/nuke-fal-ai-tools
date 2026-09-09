@@ -1,4 +1,4 @@
-# Purpose: Build a clean install zip and publish a GitHub Release when a v* tag is pushed.
+# Purpose: Run the same unit tests as CI, then build a clean install zip and publish a GitHub Release when a v* tag is pushed.
 
 name: Release
 
@@ -16,24 +16,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Run tests
+        run: python -m unittest discover -s tests
+
       - name: Build release zip
         shell: bash
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF#refs/tags/}"
-          STAGING="nuke-fal-ai-tools"
           ARCHIVE="nuke-fal-ai-tools-${VERSION}.zip"
-          mkdir -p "dist/${STAGING}"
-          rsync -a \
-            --exclude='.git' \
-            --exclude='.github' \
-            --exclude='__pycache__' \
-            --exclude='*.py[cod]' \
-            --exclude='planning' \
-            --exclude='tests' \
-            --exclude='dist' \
-            ./ "dist/${STAGING}/"
-          (cd dist && zip -rq "${ARCHIVE}" "${STAGING}")
+          python3 .github/scripts/pack_release.py --version "${VERSION}" --output "dist/${ARCHIVE}"
           echo "ARCHIVE_PATH=dist/${ARCHIVE}" >> "${GITHUB_ENV}"
 
       - name: Publish GitHub Release

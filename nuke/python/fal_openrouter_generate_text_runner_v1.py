@@ -18,11 +18,10 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
-import _path_util
-import _install_help
 import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
+import nuke_fal_runner_util_v1 as runner_util
 import nuke_prompt_input_v1 as prompt_input
 import nuke_spawn_read_position_v1 as spawn_pos
 
@@ -88,18 +87,11 @@ def main():
     temp_dir, out_dir, ts = prerender.make_run_dirs(
         nuke_module=nuke,
         prefix="openrouter_generate_text",
+        group_node=g,
     )
 
-    python3_cmd = (g.knob("python3_cmd").value() or "").strip() or "py -3"
-    helper_path = _install_help.require_helper_path(
-        nuke,
-        (g.knob("helper_path").value() or "").strip(),
-    )
 
-    py_parts = prerender.split_cmd(python3_cmd) or ["py", "-3"]
-
-    args = list(py_parts) + [
-        helper_path,
+    extra_args = [
         "--prompt",
         prompt,
         "--model",
@@ -110,43 +102,25 @@ def main():
     ]
 
     if system_prompt:
-        args += ["--system-prompt", system_prompt]
+        extra_args += ["--system-prompt", system_prompt]
 
     try:
-        args += ["--temperature", str(float(temperature_s))]
+        extra_args += ["--temperature", str(float(temperature_s))]
     except Exception:
-        args += ["--temperature", "1"]
+        extra_args += ["--temperature", "1"]
 
     if max_tokens_s:
         try:
-            args += ["--max-tokens", str(int(max_tokens_s))]
+            extra_args += ["--max-tokens", str(int(max_tokens_s))]
         except Exception:
             pass
 
     if reasoning:
-        args += ["--reasoning"]
+        extra_args += ["--reasoning"]
 
-    env = prerender.helper_subprocess_env()
-    fal_knob = (g.knob("FAL").value() or "").strip()
-    if fal_knob and ("insert your secret" not in fal_knob.lower()):
-        env.update({"FAL_KEY": fal_knob})
-
-    try:
-        returncode, stdout_lines = prerender.run_helper_subprocess(
-            args,
-            env=env,
-            title="OpenRouter Generate Text",
-        )
-    except prerender.FalProgressCancelled:
-        nuke.message("OpenRouter Generate Text request cancelled.")
-        raise Exception("cancelled")
-
-    if returncode != 0:
-        nuke.message(
-            "Generate text helper failed (exit %d). Check the Script Editor output for details."
-            % returncode
-        )
-        raise Exception("Generate text helper failed")
+    returncode, stdout_lines = runner_util.run_group_helper(
+        nuke, g, extra_args, 'OpenRouter Generate Text'
+    )
 
     summary = _parse_helper_summary(stdout_lines)
     output_text = ""

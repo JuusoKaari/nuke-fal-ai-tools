@@ -1,2 +1,3 @@
 # Python 3 dependencies for fal.ai helper scripts (system Python, not Nuke's embedded 2.7).
+# Helpers need Python 3.9+ (argparse.BooleanOptionalAction).
 fal-client>=0.13.1,<1.0.0

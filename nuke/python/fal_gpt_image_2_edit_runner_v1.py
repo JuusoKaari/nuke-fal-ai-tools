@@ -1,9 +1,12 @@
 # Purpose:
 # - Runner script for the Nuke Group node `GPT_Image_2_Edit_v1` (executes inside Nuke / Python 2.7).
-# - Reads edit settings from the Group knobs; optionally overrides prompt from Input 0 when a Text node
-#   (`message` knob) is connected, including through Dot nodes. Collects reference image(s) from inputs
-#   1-2 (required) and optional
-#   mask from input 3. Calls the external Python 3 helper, then creates Read node(s) in the main graph.
+# - Reads edit settings from the Group knobs; optionally overrides prompt from `prompt_text` when a Text
+#   node (`message` knob) is connected, including through Dot nodes. Collects reference image(s) from
+#   `ref_image_a` / `ref_image_b` (at least one required) and optional mask from `mask`. Pipe indexes are
+#   resolved by Input name (primary image is input 0). Baked preview Groups export via prepare_ai_inputs
+#   so Use ROI crops ref_image_a (and the mask, when connected) to roi_area. Calls the external Python 3
+#   helper, then wires outputs into the baked in-group preview. Root Reads spawn only when
+#   spawn_reads_in_graph is on.
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -19,28 +22,50 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
-import _path_util
-import _install_help
 import _nuke_runner_launcher
 
+import nuke_group_output_preview_v1 as preview
 import nuke_prerender_v1 as prerender
+import nuke_fal_runner_util_v1 as runner_util
 import nuke_prompt_input_v1 as prompt_input
 import nuke_spawn_read_position_v1 as spawn_pos
 
 
+_REF_IMAGE_INPUTS = (
+    ("ref_image_a", 0),
+    ("ref_image_b", 1),
+)
+_PROMPT_INPUT = ("prompt_text", 2)
+_MASK_INPUT = ("mask", 3)
+
+
+def _named_input_index(group_node, input_name, fallback):
+    try:
+        return int(group_node.inputIndex(input_name))
+    except Exception:
+        return int(fallback)
+
+
+def _named_input_node(group_node, input_name, fallback):
+    idx = _named_input_index(group_node, input_name, fallback)
+    try:
+        return group_node.input(idx)
+    except Exception:
+        return None
+
+
 def _collect_reference_images(nuke_module, group_node, frame, temp_dir):
     """
-    Collect 1..2 reference image paths from external inputs 1 and 2.
+    Collect 1..2 reference image paths from ref_image_a and ref_image_b.
     If the input is a suitable Read, use its resolved file directly; otherwise pre-render a still.
+    Used for older Groups that lack the baked preview graph.
     """
     images = []
-    for idx in (1, 2):
-        try:
-            n = group_node.input(idx)
-        except Exception:
-            n = None
+    for input_name, fallback in _REF_IMAGE_INPUTS:
+        n = _named_input_node(group_node, input_name, fallback)
         if n is None:
             continue
+        idx = _named_input_index(group_node, input_name, fallback)
         try:
             images.append(
                 prerender.prepare_still_input_path(
@@ -48,12 +73,59 @@ def _collect_reference_images(nuke_module, group_node, frame, temp_dir):
                     src_node=n,
                     frame=frame,
                     run_dir=temp_dir,
-                    base_name="ref_image_%d" % idx,
+                    base_name=input_name,
                 )
             )
         except Exception as e:
-            raise Exception("Reference image input %d error: %s" % (idx, str(e)))
+            raise Exception("Reference image %s (input %d) error: %s" % (input_name, idx, str(e)))
     return images
+
+
+def _prepare_mask_path(nuke_module, group_node, frame, temp_dir):
+    """Export optional mask. Crop to roi_area when Use ROI is on so it matches the cropped plate."""
+    mask_node = _named_input_node(group_node, _MASK_INPUT[0], _MASK_INPUT[1])
+    if mask_node is None:
+        return None
+
+    use_roi = preview._read_bool_knob(group_node, preview.USE_ROI_KNOB)
+    if use_roi and preview._has_baked_preview_graph(group_node):
+        box = preview._read_roi_bbox(group_node)
+        ok, err = preview.validate_roi_bbox(box)
+        if not ok:
+            nuke_module.message("Failed to prepare mask image:\n%s" % err)
+            raise Exception("invalid roi")
+        out_path = os.path.join(temp_dir, "mask.png")
+        try:
+            with prerender.group_scope(nuke_module, group_node):
+                inside = nuke_module.toNode("mask")
+                if inside is None:
+                    raise Exception("in-group mask Input is missing")
+                prerender.render_still_inside_group_with_crop(
+                    nuke_module, inside, out_path, frame, box
+                )
+        except Exception as e:
+            nuke_module.message("Failed to prepare mask image:\n%s" % str(e))
+            raise
+        return prerender.norm_slashes(out_path)
+
+    match_node = None
+    for input_name, fallback in _REF_IMAGE_INPUTS:
+        n = _named_input_node(group_node, input_name, fallback)
+        if n is not None:
+            match_node = n
+            break
+    try:
+        return prerender.prepare_still_input_path(
+            nuke_module=nuke_module,
+            src_node=mask_node,
+            frame=frame,
+            run_dir=temp_dir,
+            base_name="mask",
+            match_format_node=match_node,
+        )
+    except Exception as e:
+        nuke_module.message("Failed to prepare mask image:\n%s" % str(e))
+        raise
 
 
 def main():
@@ -63,7 +135,10 @@ def main():
         nuke, caller_globals=globals()
     )
 
-    prompt = prompt_input.get_prompt_from_input_or_group(nuke, g)
+    prompt_idx = _named_input_index(g, _PROMPT_INPUT[0], _PROMPT_INPUT[1])
+    prompt = prompt_input.get_prompt_from_input_or_group(
+        nuke, g, input_index=prompt_idx, input_label=_PROMPT_INPUT[0]
+    )
     if not prompt:
         nuke.message("Prompt is empty (and no input Text node message found).")
         raise Exception("missing prompt")
@@ -80,47 +155,40 @@ def main():
         num_images = 1
     num_images = max(1, min(4, int(num_images)))
 
+    preview_config = preview.get_config_for_group(g)
+
     temp_dir, out_dir, ts = prerender.make_run_dirs(
         nuke_module=nuke,
         prefix="gpt_image_2_edit",
+        group_node=g,
     )
 
-    ref_images = _collect_reference_images(nuke, g, frame=frame, temp_dir=temp_dir)
+    if preview_config is not None and preview._has_baked_preview_graph(g):
+        try:
+            ref_images = [
+                path for _, path in preview.prepare_ai_inputs(
+                    g, preview_config, frame, temp_dir
+                )
+            ]
+        except preview.AiInputExportError:
+            raise
+        except Exception as exc:
+            nuke.message("Failed to prepare AI input images:\n%s" % str(exc))
+            raise
+    else:
+        ref_images = _collect_reference_images(nuke, g, frame=frame, temp_dir=temp_dir)
+
     if not ref_images:
         nuke.message(
             "At least one reference image is required.\n\n"
-            "Connect a still image to input 1 (ref_image_a), and optionally input 2 (ref_image_b)."
+            "Connect a still image to input 0 (ref_image_a), and optionally input 1 (ref_image_b)."
         )
         raise Exception("missing reference image")
 
-    mask_path = None
-    try:
-        mask_node = g.input(3)
-    except Exception:
-        mask_node = None
-    if mask_node is not None:
-        try:
-            mask_path = prerender.prepare_still_input_path(
-                nuke_module=nuke,
-                src_node=mask_node,
-                frame=frame,
-                run_dir=temp_dir,
-                base_name="mask",
-            )
-        except Exception as e:
-            nuke.message("Failed to prepare mask image:\n%s" % str(e))
-            raise
+    mask_path = _prepare_mask_path(nuke, g, frame, temp_dir)
 
-    python3_cmd = (g.knob("python3_cmd").value() or "").strip() or "py -3"
-    helper_path = _install_help.require_helper_path(
-        nuke,
-        (g.knob("helper_path").value() or "").strip(),
-    )
 
-    py_parts = prerender.split_cmd(python3_cmd) or ["py", "-3"]
-
-    args = list(py_parts) + [
-        helper_path,
+    extra_args = [
         "--prompt",
         prompt,
         "--out-dir",
@@ -137,68 +205,65 @@ def main():
     ]
 
     for img in ref_images:
-        args += ["--image", img]
+        extra_args += ["--image", img]
 
     if mask_path:
-        args += ["--mask", mask_path]
+        extra_args += ["--mask", mask_path]
 
-    env = prerender.helper_subprocess_env()
-    fal_knob = (g.knob("FAL").value() or "").strip()
-    if fal_knob and ("insert your secret" not in fal_knob.lower()):
-        env.update({"FAL_KEY": fal_knob})
-
-    try:
-        returncode, _stdout_lines = prerender.run_helper_subprocess(
-            args,
-            env=env,
-            title="GPT Image 2 Edit",
-        )
-    except prerender.FalProgressCancelled:
-        nuke.message("GPT Image 2 Edit request cancelled.")
-        raise Exception("cancelled")
-
-    if returncode != 0:
-        nuke.message(
-            "GPT Image 2 helper failed (exit %d). Check the Script Editor output for details." % returncode
-        )
-        raise Exception("GPT Image 2 helper failed")
-
-    xpos = int(g.xpos())
-    ypos = int(g.ypos())
+    returncode, _stdout_lines = runner_util.run_group_helper(
+        nuke, g, extra_args, 'GPT Image 2 Edit'
+    )
 
     created = []
-    placed = []
     for i in range(1, int(num_images) + 1):
         out_name = "image_%03d.%s" % (i, output_format)
         out_path = os.path.join(out_dir, out_name)
         if not os.path.isfile(out_path):
             continue
-        out_path_nk = prerender.norm_slashes(out_path)
-
-        nuke.root().begin()
-        try:
-            bx = xpos + (i - 1) * 120
-            by = ypos + 140
-            fx, fy = spawn_pos.resolve_spawn_xy(nuke, bx, by, exclude_nodes=placed)
-            r = nuke.nodes.Read(file=out_path_nk)
-            try:
-                r.setName("%s_%s_%02d" % (g.name(), ts, i), unique=True)
-            except Exception:
-                pass
-            try:
-                r.knob("label").setValue("GPT Image 2 Edit\n%s" % out_path_nk)
-            except Exception:
-                pass
-            r.setXpos(fx)
-            r.setYpos(fy)
-            placed.append(r)
-            created.append(out_path_nk)
-        finally:
-            nuke.endGroup()
+        created.append(prerender.norm_slashes(out_path))
 
     if not created:
         nuke.message("Helper finished, but no output images were found in:\n%s" % out_dir)
         raise Exception("no outputs")
+
+    try:
+        preview.wire_group_outputs(g, created)
+    except Exception as e:
+        nuke.message("Failed to wire in-group preview outputs:\n%s" % str(e))
+        raise
+
+    spawn_reads = False
+    try:
+        sk = g.knob("spawn_reads_in_graph")
+        if sk is not None:
+            spawn_reads = bool(sk.value())
+    except Exception:
+        spawn_reads = False
+
+    if spawn_reads:
+        xpos = int(g.xpos())
+        ypos = int(g.ypos())
+        placed = []
+        for i, out_path_nk in enumerate(created, start=1):
+            nuke.root().begin()
+            try:
+                bx = xpos + (i - 1) * 120
+                by = ypos + 140
+                fx, fy = spawn_pos.resolve_spawn_xy(nuke, bx, by, exclude_nodes=placed)
+                r = nuke.nodes.Read(file=out_path_nk)
+                try:
+                    r.setName("%s_%s_%02d" % (g.name(), ts, i), unique=True)
+                except Exception:
+                    pass
+                try:
+                    r.knob("label").setValue("GPT Image 2 Edit\n%s" % out_path_nk)
+                except Exception:
+                    pass
+                r.setXpos(fx)
+                r.setYpos(fy)
+                placed.append(r)
+            finally:
+                nuke.endGroup()
 
     if _nuke_runner_launcher.should_show_success_popup(g):
         nuke.message("GPT Image 2 edit output created:\n" + "\n".join(created))

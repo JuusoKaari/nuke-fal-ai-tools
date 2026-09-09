@@ -21,12 +21,11 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
-import _path_util
-import _install_help
 import _nuke_runner_launcher
 
 import nuke_group_output_preview_v1 as preview
 import nuke_prerender_v1 as prerender
+import nuke_fal_runner_util_v1 as runner_util
 import nuke_prompt_input_v1 as prompt_input
 import nuke_spawn_read_position_v1 as spawn_pos
 
@@ -82,16 +81,8 @@ def main():
     else:
         ref_images = []
 
-    python3_cmd = (g.knob("python3_cmd").value() or "").strip() or "py -3"
-    helper_path = _install_help.require_helper_path(
-        nuke,
-        (g.knob("helper_path").value() or "").strip(),
-    )
 
-    py_parts = prerender.split_cmd(python3_cmd) or ["py", "-3"]
-
-    args = list(py_parts) + [
-        helper_path,
+    extra_args = [
         "--prompt",
         prompt,
         "--out-dir",
@@ -110,38 +101,22 @@ def main():
     ]
 
     for img in ref_images:
-        args += ["--image", img]
+        extra_args += ["--image", img]
 
     if seed_s:
         try:
-            args += ["--seed", str(int(seed_s))]
+            extra_args += ["--seed", str(int(seed_s))]
         except Exception:
             pass
 
     if enable_web_search:
-        args += ["--enable-web-search"]
+        extra_args += ["--enable-web-search"]
     else:
-        args += ["--no-enable-web-search"]
+        extra_args += ["--no-enable-web-search"]
 
-    # Pass auth via env var (do NOT override env with the placeholder text)
-    env = prerender.helper_subprocess_env()
-    fal_knob = (g.knob("FAL").value() or "").strip()
-    if fal_knob and ("insert your secret" not in fal_knob.lower()):
-        env.update({"FAL_KEY": fal_knob})
-
-    try:
-        returncode, _stdout_lines = prerender.run_helper_subprocess(
-            args,
-            env=env,
-            title="Nano Banana 2",
-        )
-    except prerender.FalProgressCancelled:
-        nuke.message("Nano Banana 2 request cancelled.")
-        raise Exception("cancelled")
-
-    if returncode != 0:
-        nuke.message("Nano Banana 2 helper failed (exit %d). Check the Script Editor output for details." % returncode)
-        raise Exception("Nano Banana 2 helper failed")
+    returncode, _stdout_lines = runner_util.run_group_helper(
+        nuke, g, extra_args, 'Nano Banana 2'
+    )
 
     created = []
     for i in range(1, int(num_images) + 1):

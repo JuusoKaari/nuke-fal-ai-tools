@@ -3,7 +3,7 @@
 # - Accepts 2-5 keyframe images on inputs 0-4 (contiguous from keyframe_1; stop at first gap).
 # - If upstream is a suitable Read node, uses its file directly; otherwise pre-renders stills to a temp folder.
 # - Calls the external Python 3 helper `fal_pika_v22_pikaframes_helper.py` via subprocess, then creates
-#   a Read node in the main graph for the downloaded mp4.
+#   a Read for the result (DWAB EXR sequence by default; MP4 if chosen in Settings).
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -18,13 +18,11 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
-import _path_util
-import _install_help
 import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
-import nuke_read_video_frames_v1 as video_frames
-import nuke_spawn_read_position_v1 as spawn_pos
+import nuke_fal_runner_util_v1 as runner_util
+import nuke_video_output_v1 as video_out
 
 _MAX_KEYFRAMES = 5
 _MAX_TOTAL_TRANSITION_SECONDS = 25
@@ -58,6 +56,7 @@ def main():
     temp_dir, out_dir, ts = prerender.make_run_dirs(
         nuke_module=nuke,
         prefix="pika_v22_pikaframes",
+        group_node=g,
     )
 
     image_paths = []
@@ -101,17 +100,8 @@ def main():
     resolution = (g.knob("resolution").value() or "720p").strip()
 
     out_path = os.path.join(out_dir, "pika_v22_pikaframes_%s.mp4" % ts)
-    out_path_nk = prerender.norm_slashes(out_path)
 
-    python3_cmd = (g.knob("python3_cmd").value() or "").strip() or "py -3"
-    helper_path = _install_help.require_helper_path(
-        nuke,
-        (g.knob("helper_path").value() or "").strip(),
-    )
-
-    py_parts = prerender.split_cmd(python3_cmd) or ["py", "-3"]
-    args = list(py_parts) + [
-        helper_path,
+    extra_args = [
         "--out",
         out_path,
         "--resolution",
@@ -121,72 +111,30 @@ def main():
         "--verbose",
     ]
     for image_path in image_paths:
-        args += ["--image", image_path]
+        extra_args += ["--image", image_path]
     if prompt:
-        args += ["--prompt", prompt]
+        extra_args += ["--prompt", prompt]
     if negative_prompt:
-        args += ["--negative-prompt", negative_prompt]
+        extra_args += ["--negative-prompt", negative_prompt]
 
     seed_s = (g.knob("seed").value() or "").strip()
     if seed_s:
         try:
-            args += ["--seed", str(int(float(seed_s)))]
+            extra_args += ["--seed", str(int(float(seed_s)))]
         except Exception:
             nuke.message("Invalid seed value.")
             raise Exception("invalid seed")
 
-    env = prerender.helper_subprocess_env()
-    fal_knob = (g.knob("FAL").value() or "").strip()
-    if fal_knob and ("insert your secret" not in fal_knob.lower()):
-        env.update({"FAL_KEY": fal_knob})
+    returncode, _stdout_lines = runner_util.run_group_helper(
+        nuke, g, extra_args, 'Pika 2.2 Pikaframes'
+    )
 
-    try:
-        returncode, _stdout_lines = prerender.run_helper_subprocess(
-            args,
-            env=env,
-            title="Pika 2.2 Pikaframes",
-        )
-    except prerender.FalProgressCancelled:
-        nuke.message("Pika 2.2 Pikaframes request cancelled.")
-        raise Exception("cancelled")
-
-    if returncode != 0:
-        nuke.message(
-            "Pika 2.2 Pikaframes helper failed (exit %d). Check the Script Editor output for details."
-            % returncode
-        )
-        raise Exception("Pika 2.2 Pikaframes helper failed")
-
-    if not os.path.isfile(out_path):
-        nuke.message("Helper finished, but output file was not found:\n%s" % out_path_nk)
-        raise Exception("missing output mp4")
-
-    xpos = int(g.xpos())
-    ypos = int(g.ypos())
-
-    nuke.root().begin()
-    try:
-        fx, fy = spawn_pos.resolve_spawn_xy(nuke, xpos, ypos + 140)
-        r = nuke.nodes.Read(file=out_path_nk)
-        try:
-            r.setName("%s_%s" % (g.name(), ts), unique=True)
-        except Exception:
-            pass
-        try:
-            r.knob("label").setValue("Pika 2.2 Pikaframes\n%s" % out_path_nk)
-        except Exception:
-            pass
-        r.setXpos(fx)
-        r.setYpos(fy)
-        try:
-            video_frames.set_read_frame_range_from_video_file(r, out_path)
-        except Exception:
-            pass
-    finally:
-        nuke.endGroup()
+    display_path = video_out.spawn_video_output_read(
+        nuke, g, out_path, "Pika 2.2 Pikaframes", "%s_%s" % (g.name(), ts)
+    )
 
     if _nuke_runner_launcher.should_show_success_popup(g):
-        nuke.message("Pika 2.2 Pikaframes output created:\n%s" % out_path_nk)
+        nuke.message("Pika 2.2 Pikaframes output created:\n%s" % display_path)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,7 @@
 # Purpose:
 # - Nuke Group node that runs fal.ai Pika 2.2 Pikaframes keyframe interpolation (2-5 keyframe images).
+# - Output1 looks through keyframe_1 (the first still). No in-group generated video preview; Execute still spawns a Read of the result.
+# - Connect/execute notes live on the guide_info knob.
 # - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
 # - Model: https://fal.ai/models/fal-ai/pika/v2.2/pikaframes
 
@@ -9,9 +11,8 @@ push $cut_paste_input
 Group {
  name Pika_22_Pikaframes_v1
  selected true
- xpos -331
- ypos 7
  addUserKnob {20 Settings}
+ addUserKnob {26 guide_info l "" T "Connect 2-5 keyframes in order (keyframe_1 .. keyframe_5).\nLeave unused inputs disconnected. Total transition time must be <= 25 sec.\nSet prompt and options, then Execute."}
  addUserKnob {1 prompt l Prompt}
  prompt "smooth cinematic transition"
  addUserKnob {1 negative_prompt l "Negative prompt"}
@@ -26,38 +27,30 @@ Group {
  show_success_popup true
  addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
  addUserKnob {20 endGroup n -1}
- addUserKnob {1 python3_cmd l "Python 3 cmd" +INVISIBLE}
+ addUserKnob {20 Advanced l Advanced +CLOSED}
+ addUserKnob {1 python3_cmd l "Python 3 cmd"}
  python3_cmd "py -3"
+ addUserKnob {1 FAL}
+ FAL "insert fal key to override for this node"
+ addUserKnob {22 open_temp_folder l "Open temp folder" T "import nuke_fal_open_folders_v1 as _of\n_of.open_temp_folder()\n" +STARTLINE}
+ addUserKnob {22 open_output_folder l "Open output folder" T "import nuke_fal_open_folders_v1 as _of\n_of.open_output_folder()\n"}
+ addUserKnob {20 endAdvanced n -1}
  addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
  helper_path "__INSTALL_ROOT__/nuke/python/fal_pika_v22_pikaframes_helper.py"
  addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
  runner_path "__INSTALL_ROOT__/nuke/python/fal_pika_v22_pikaframes_runner_v1.py"
- addUserKnob {1 FAL +INVISIBLE}
- FAL "insert your secret key here or use env variable FAL_KEY"
-}
-Text {
- inputs 0
- message "Connect 2-5 keyframes in order (keyframe_1 .. keyframe_5).\nLeave unused inputs disconnected. Total transition time must be <= 25 sec.\nSet prompt and options, then Execute."
- font C:/Windows/Fonts/arial.ttf
- yjustify bottom
- Transform 1
- box {30 30 1906 1052}
- center {560 372}
- name Text1
- xpos 101
- ypos 294
-}
-set Npikaframes000 [stack 0]
-Output {
- name Output1
- xpos 101
- ypos 406
 }
 Input {
  inputs 0
  name keyframe_1
  xpos 0
  ypos -51
+}
+set Npikaframes000 [stack 0]
+Output {
+ name Output1
+ xpos 101
+ ypos 406
 }
 Input {
  inputs 0

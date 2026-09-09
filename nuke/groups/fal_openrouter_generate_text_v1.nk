@@ -10,8 +10,6 @@ push $cut_paste_input
 Group {
  name OpenRouter_Generate_Text_v1
  selected true
- xpos -340
- ypos 120
  addUserKnob {20 Settings}
  addUserKnob {1 prompt l Prompt}
  prompt "Write a short story about an AI that learns to dream."
@@ -29,14 +27,18 @@ Group {
  show_success_popup true
  addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
  addUserKnob {20 endGroup n -1}
- addUserKnob {1 python3_cmd l "Python 3 cmd" +INVISIBLE}
+ addUserKnob {20 Advanced l Advanced +CLOSED}
+ addUserKnob {1 python3_cmd l "Python 3 cmd"}
  python3_cmd "py -3"
+ addUserKnob {1 FAL}
+ FAL "insert fal key to override for this node"
+ addUserKnob {22 open_temp_folder l "Open temp folder" T "import nuke_fal_open_folders_v1 as _of\n_of.open_temp_folder()\n" +STARTLINE}
+ addUserKnob {22 open_output_folder l "Open output folder" T "import nuke_fal_open_folders_v1 as _of\n_of.open_output_folder()\n"}
+ addUserKnob {20 endAdvanced n -1}
  addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
  helper_path "__INSTALL_ROOT__/nuke/python/fal_openrouter_generate_text_helper.py"
  addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
  runner_path "__INSTALL_ROOT__/nuke/python/fal_openrouter_generate_text_runner_v1.py"
- addUserKnob {1 FAL +INVISIBLE}
- FAL "insert your secret key here or use env variable FAL_KEY"
 }
 Text {
  inputs 0

@@ -1,6 +1,7 @@
 # Purpose:
 # - Python 3 helper for Nuke (Python 2.7) to run fal.ai Finegrain Eraser (mask) object removal on a still image.
 # - Uploads local image and mask to fal storage, calls `fal-ai/finegrain-eraser/mask`, downloads result image.
+# - Mode is express or standard. fal.ai removed premium; that value is remapped to standard.
 #
 # Usage (example):
 #   py -3 fal_finegrain_eraser_helper.py --image "C:/in.png" --mask "C:/mask.png" --out-dir "C:/temp/run" --verbose
@@ -17,14 +18,13 @@ import argparse
 import json
 import os
 import sys
-import time
 
 from fal_common import (
-    compute_retry_sleep_seconds,
     download,
+    emit_result_summary,
     ensure_dir,
     format_fal_error_summary,
-    should_retry_fal_error,
+    subscribe_with_retry,
 )
 
 _ENDPOINT_ID = "fal-ai/finegrain-eraser/mask"
@@ -42,7 +42,7 @@ def main(argv: list[str]) -> int:
         "--mode",
         default="standard",
         choices=["express", "standard", "premium"],
-        help="Erase quality mode. Default: standard.",
+        help="Erase quality mode (express or standard). premium is accepted then mapped to standard; fal.ai removed it.",
     )
     parser.add_argument(
         "--seed",
@@ -95,10 +95,6 @@ def main(argv: list[str]) -> int:
         print("ERROR: failed to import fal_client. Did you `pip install fal-client`? (%s)" % (e,), file=sys.stderr)
         return 3
 
-    try:
-        from fal_client.client import FalClientHTTPError  # type: ignore
-    except Exception:
-        FalClientHTTPError = Exception  # type: ignore
 
     client = fal_client.SyncClient(key=fal_key)
     user_agent = "nuke-fal-finegrain-eraser-helper"
@@ -110,47 +106,38 @@ def main(argv: list[str]) -> int:
         print("Uploading mask: %s" % mask_path)
     mask_url = client.upload_file(mask_path)
 
+    mode = (args.mode or "standard").strip().lower()
+    if mode == "premium":
+        print(
+            "WARNING: Finegrain premium mode was removed by fal.ai. Using standard.",
+            file=sys.stderr,
+        )
+        mode = "standard"
+
     if args.verbose:
-        print("Submitting request: %s (mode=%s)" % (_ENDPOINT_ID, args.mode))
+        print("Submitting request: %s (mode=%s)" % (_ENDPOINT_ID, mode))
 
     arguments: dict = {
         "image_url": image_url,
         "mask_url": mask_url,
-        "mode": args.mode,
+        "mode": mode,
     }
     if args.seed is not None:
         arguments["seed"] = int(args.seed)
 
-    result = None
-    last_exc: BaseException | None = None
-    max_attempts = max(1, int(args.max_retries) + 1)
-    for attempt in range(1, max_attempts + 1):
-        try:
-            result = client.subscribe(
-                _ENDPOINT_ID,
-                arguments=arguments,
-            )
-            last_exc = None
-            break
-        except FalClientHTTPError as e:
-            last_exc = e
-            if (attempt >= max_attempts) or (not should_retry_fal_error(e)):
-                break
-            sleep_s = compute_retry_sleep_seconds(attempt, float(args.retry_base_seconds))
-            print(
-                "WARNING: fal request failed (attempt %d/%d). Retrying in %.1fs.\n%s"
-                % (attempt, max_attempts, sleep_s, format_fal_error_summary(e)),
-                file=sys.stderr,
-            )
-            time.sleep(sleep_s)
-        except Exception as e:
-            last_exc = e
-            break
-
-    if result is None:
+    try:
+        result = subscribe_with_retry(
+            client,
+            _ENDPOINT_ID,
+            arguments,
+            max_retries=args.max_retries,
+            retry_base_seconds=args.retry_base_seconds,
+            verbose=args.verbose,
+        )
+    except Exception as e:
         print(
             "ERROR: Finegrain Eraser request failed.\n%s"
-            % (format_fal_error_summary(last_exc) if last_exc else "Unknown error"),
+            % format_fal_error_summary(e),
             file=sys.stderr,
         )
         return 5
@@ -185,9 +172,9 @@ def main(argv: list[str]) -> int:
         "out_dir": out_dir,
         "downloaded": out_path,
         "used_seed": result.get("used_seed"),
-        "mode": args.mode,
+        "mode": mode,
     }
-    print(json.dumps(summary))
+    emit_result_summary(summary)
     return 0
 
 

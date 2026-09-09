@@ -11,25 +11,28 @@ Common issues when setting up or running **nuke-fal-ai-tools**.
 **Fix:**
 
 1. Download the [latest release zip](https://github.com/JuusoKaari/nuke-fal-ai-tools/releases/latest) or clone the [repository](https://github.com/JuusoKaari/nuke-fal-ai-tools).
-2. Add the **install root** (not the inner `nuke/` folder) to `NUKE_PATH` — see [INSTALL.md](INSTALL.md).
+2. Point Nuke at the **install root** (folder with `init.py`), **not** the inner `nuke/` folder:
+   - Artists: one line in `~/.nuke/init.py` -- `nuke.pluginAddPath("/path/to/nuke-fal-ai-tools")`
+   - Studios: add that same folder to `NUKE_PATH`
+   - See [INSTALL.md](INSTALL.md).
 3. Confirm the folder contains `init.py`, `menu.py`, and `nuke/python/`.
-4. Fully quit and restart Nuke (environment variables are read at process start).
-5. Confirm in PowerShell: `echo $env:NUKE_PATH` includes your clone path.
+4. Fully quit and restart Nuke (environment variables and `~/.nuke/init.py` are read at process start).
+5. Confirm in PowerShell: `echo $env:NUKE_PATH` includes your clone path (if using `NUKE_PATH`), or that `~/.nuke/init.py` has the correct `pluginAddPath`.
 
 ## Nodes menu missing **fal.ai**
 
-**Symptom:** No **Nodes → fal.ai** submenu.
+**Symptom:** No **Nodes -> fal.ai** submenu.
 
 **Checks:**
 
-- `NUKE_PATH` includes the repo root (e.g. `...\nuke-fal-ai-tools`), not `...\nuke-fal-ai-tools\nuke`.
+- Install root is loaded via `pluginAddPath` or `NUKE_PATH` (e.g. `...\nuke-fal-ai-tools`), not `...\nuke-fal-ai-tools\nuke`.
 - Script Editor shows no traceback from `init.py` / `menu.py` on startup.
 
 ## Nuke with Python 3 (`NameError: execfile` / Execute does nothing)
 
 **Symptom:** Execute fails on Nuke 13.2+ / 14 with Python 3 embedded; older builds worked.
 
-**Fix:** Use a current clone that includes `_nuke_py_compat.py` and `_nuke_runner_launcher.py`. Group Execute knobs must call `_nuke_runner_launcher.execute_this_node()`, not `execfile()` directly. Re-create nodes from **Nodes → fal.ai** after updating.
+**Fix:** Use a current clone that includes `_nuke_py_compat.py` and `_nuke_runner_launcher.py`. Group Execute knobs must call `_nuke_runner_launcher.execute_this_node()`, not `execfile()` directly. Re-create nodes from **Nodes -> fal.ai** after updating.
 
 **Note:** Py3-Nuke (Nuke 13.2+) is supported alongside classic Py2.7 Nuke. The toolkit targets Nuke 8.0+; primary testing is on 11.3v6 and 17.0v2. Report issues with your Nuke version and `sys.version` from the Script Editor.
 
@@ -41,9 +44,9 @@ Common issues when setting up or running **nuke-fal-ai-tools**.
 
 1. Install or update from the [latest release](https://github.com/JuusoKaari/nuke-fal-ai-tools/releases/latest) or [repository](https://github.com/JuusoKaari/nuke-fal-ai-tools).
 2. Confirm files exist under `<repo-root>\nuke\python\` (helpers and runners).
-3. On the node, **Advanced → Helper path** and **Runner path** should look like:
+3. On the node, hidden **helper_path** and **runner_path** knobs should look like:
    `__INSTALL_ROOT__/nuke/python/fal_....py`
-4. Re-create the node from **Nodes → fal.ai** if knobs were edited manually or the node came from an older script with legacy filenames.
+4. Re-create the node from **Nodes -> fal.ai** if knobs were edited manually or the node came from an older script with legacy filenames.
 
 ## `py -3` not found / helper fails immediately
 
@@ -56,17 +59,21 @@ py -3 --version
 py -3 -m pip install -r requirements-python3.txt
 ```
 
-If `py` is unavailable, set the node's **Python 3 cmd** to your launcher, e.g. `python3` or `C:\Python312\python.exe`.
+Helpers need system Python 3.9+ (not Nuke's embedded interpreter). If `py -3 --version` is older than 3.9, install a newer system Python and point **Advanced / Python 3 cmd** at it. Do not replace Nuke's Python.
+
+If `py` is unavailable on Windows, set the node's **Advanced / Python 3 cmd** to your launcher, e.g. `python3` or `C:\Python312\python.exe`. On macOS/Linux the runner already treats the shipped `py -3` default as `python3`.
 
 ## `failed to import fal_client`
 
 **Symptom:** Helper stderr mentions `fal_client` import error.
 
-**Fix:** Install into the **same** Python 3 that `py -3` runs:
+**Fix:** Install into the **same** system Python 3.9+ that `py -3` runs:
 
 ```powershell
 py -3 -m pip install fal-client
 ```
+
+You can also open **fal.ai -> Settings...** and click **Test connection** to verify system Python 3.9+ + `fal_client`, then that fal.ai accepts the API key (models list ping; not a generative run).
 
 ## fal.ai API / authentication errors
 
@@ -74,8 +81,9 @@ py -3 -m pip install fal-client
 
 **Fix:**
 
-- Set `FAL_KEY` in the environment (recommended), or a real key in the node's **FAL** knob (not the placeholder text).
-- If you pasted a key into **FAL**, it is stored in the saved `.nk` — rotate the key on fal.ai if the script was shared or committed by mistake.
+- Set a key via studio-wide `FAL_KEY`, local **fal.ai -> Settings...**, or a per-node **FAL** knob (not the placeholder text).
+- Cascade: studio-wide `FAL_KEY` -> local `~/.nuke-fal-ai/config.json` -> per-node **FAL** knob (highest wins).
+- If you pasted a key into **FAL**, it is stored in the saved `.nk` -- rotate the key on fal.ai if the script was shared or committed by mistake.
 - Confirm billing/credits on your [fal.ai](https://fal.ai/) account.
 - Model endpoints can change; check fal.ai model pages linked in helper script headers.
 
@@ -93,7 +101,17 @@ ffmpeg -version
 ffprobe -version
 ```
 
-- Restart Nuke after updating `PATH`. Video nodes need this for prerender-to-mp4, probing frame counts, and some input trimming.
+- Restart Nuke after updating `PATH`. Video nodes need this for prerender-to-mp4, probing frame counts (including DWAB EXR sequence conversion), and some input trimming.
+
+## DWAB EXR sequence render failed
+
+**Symptom:** After a video Execute, a popup says the EXR render failed and a Read was spawned on the MP4 instead.
+
+**Fix:**
+
+- Confirm **ffmpeg** and **ffprobe** are on `PATH` (frame count is probed before the Write).
+- Let the Nuke Write finish. Cancelling it falls back to the MP4.
+- If you do not want the extra render, set **Video output** to **MP4** in **fal.ai -> Settings...**.
 
 ## Script not saved
 
@@ -105,7 +123,9 @@ ffprobe -version
 
 **Symptom:** Large folders appearing next to your `.nk` scripts after many runs.
 
-**Expected:** Each Execute adds timestamped subfolders under `nuke_fal_temp/` (scratch) and `nuke_fal_output/` (downloads). Nothing is auto-cleaned.
+**Expected:** Each Execute adds timestamped subfolders under `nuke_fal_temp/` (scratch) and `nuke_fal_output/` (downloads). Video tools that render DWAB EXR sequences (default in Settings) add a `name/` folder of `.exr` frames next to the MP4; those are much larger than the movie. Nothing is auto-cleaned. Successful runs also write a `.json` sidecar next to the primary downloaded file.
+
+**Where they live:** Settings **Default output folder** when usable, otherwise next to the saved `.nk`. **Open temp folder** / **Open output folder** (Group Advanced tab, or Settings next to the default folder knob) open those parent dirs in the OS file manager.
 
 **Fix:** Delete old `*_YYYYMMDD_*` subfolders when you no longer need them. Keep folders for runs whose Read nodes still point at those files.
 
@@ -123,34 +143,52 @@ ffprobe -version
 
 Video generation and upscaling can take several minutes. Watch the Script Editor for helper stdout. If fal.ai queues the job, wait for completion; interrupting Nuke may leave partial temp files under the script directory.
 
-## In-group output preview (Nano Banana 2 pilot)
+## In-group output preview
 
 **Symptom:** Group output is black before Execute, or generated results only appear as separate Read nodes below the Group.
 
-**Expected (Nano Banana 2 Generate):**
+Image Groups look through the connected plate on `Output1`. Still image-to-video Groups look through the primary still so viewing the Group shows the start frame, not a black card. Re-create the node from **Nodes -> fal.ai** after updating. Older Groups keep the old graph until you do.
 
-- Before Execute, **Viewer mode = Guide** shows a dimmed reference plate (when connected) with centered setup text, not a blank frame.
-- After Execute, **Viewer mode = Generated** shows the latest result on the Group output and postage stamp.
-- Use **Preview index** to browse multiple outputs without re-running.
-- **Spawn reads in graph** is off by default; enable it if you want the old behavior of creating root-level Read nodes below the Group.
+**Still to video.** Seedance 2 and 2.5 I2V, LTX 2.3 and 2.5 Pro I2V, MiniMax H3 and H3 Max I2V, FLUX 3 first/last and keyframes, Pika 2.2 Pikaframes, Seedance 2 reference-to-video. `Output1` is the first still (`start_image`, `keyframe_1`, or `image_1`). Extra inputs stay (end frame, other keyframes, refs, optional clips). Connect and Execute notes sit on the `guide_info` knob, not a Text overlay. There is no Viewer mode, generated-in-group, or ROI. Execute still spawns a video Read (mp4 or EXR sequence). Video upscale and Veo extend stay clip-in placeholders. 3D and Text still spawn Geo/Text after Execute.
 
-**Viewer modes:**
+**ROI** (`use_roi`, `roi_area`) is on Nano Banana 2 Generate and GPT Image 2 Edit. It crops the primary plate to a rectangle, sends that crop, and pastes the result back. Qwen Image Inpaint's mask input is not ROI. GPT's optional `mask` input still works; with Use ROI on, the mask is cropped to the same box.
 
-| Mode | What you see |
-|------|----------------|
-| Guide | Dimmed input plate + guide text overlay |
-| Source input | Clean connected reference, no overlay |
-| AI input | Prepared upload image (with A/B labels when **Mark AI inputs** is on) |
-| AI input grid / Generated grid | Contact sheet of all prepared inputs or outputs |
-| Generated | Selected generated image |
+**Editor.** GPT Image 2 Edit, Qwen Image Max Edit, Seedream 5.0 Pro Edit, Qwen Image Inpaint, Hunyuan World, and Nano Banana 2 Generate.
+
+- Before Execute, **Viewer mode = Input** shows the look-through plate: GPT `ref_image_a`, Seedream `image_1`, Nano Banana `image_a`, others `source_image`. Inpaint does not look through `mask`.
+- After Execute, **Viewer mode = Generated** shows the latest result on the Group. **Generated grid** is a contact sheet when the node allows more than one output. Hunyuan World is Input + Generated only.
+- **Preview index**, **Extract selected as Read**, and **Clear generation history** browse, extract, or forget stored outputs. Files on disk stay.
+- **Spawn reads in graph** is off by default.
+
+**Layers.** Qwen Image Layered looks through `source_image`. After Execute, Generated / Generated grid show the layer stack on the Group. **Spawn reads in graph** is on by default (one Read per layer). Each Execute replaces the layer set. No ROI.
+
+**Filter.** BiRefNet v2 Still, Depth Anything v2, Finegrain Eraser, Image upscale (Topaz Precision), SAM 3.1 Image. Viewer modes are Input and Generated only. No grid, Preview index, extract, clear, or ROI. Before Execute, `Output1` is the source plate. After Execute it is the processed still. Finegrain looks through `source_image`, not `mask`. If the mask pipe has an alpha channel, Execute copies that alpha to RGB (white = erase). A RGB matte that still carries a dummy opaque alpha will erase the whole plate; Remove the alpha or Shuffle to RGB only. Recreate the node from the menu. **Spawn reads in graph** is off by default. The Group is the result.
 
 **Checks:**
 
 - Re-create the node from **Nodes -> fal.ai** after updating the plugin (older nodes may lack preview knobs or use the wrong callback style).
-- Preview switching uses Nuke expressions on internal Switch nodes (`parent.viewer_mode`, etc.), like other dynamic Group tools. The preview graph is **baked into** `fal_nano_banana_2_generate_v1.nk` (no Python graph build on create).
-- Older nodes created before the baked graph may still rely on `ensure_group_preview_graph()`; re-create from the menu for the full graph.
-- Inside the group you should see nodes such as `viewer_mode_switch`, `guide_merge`, and `generated_read_01` immediately after create.
+- Preview switching uses Nuke expressions on internal Switch nodes (`parent.viewer_mode`, etc.). The preview graph is baked into each Image Group `.nk`. There is no Python graph build on create.
+- Older nodes created before the baked graph may still rely on `ensure_group_preview_graph()`. Re-create from the menu for the full graph.
+- Inside a new Image Group you should see `viewer_mode_switch` and `generated_read_01` immediately after create. Nano Banana 2 and GPT Image 2 also have ROI nodes (`ROI_rectangle`, `ROI_switch`). Still-to-video Groups should not have those nodes.
 - If internal Read paths break after moving a script to another machine, re-execute or relink like any other Read node.
+
+## SAM 3.1 Image returned no mask
+
+**Symptom:** Helper exit 4. Newer builds say SAM found no objects matching the prompt. Older builds print `unexpected response shape` with `"image": null` and `"masks": []`.
+
+**Cause:** The fal.ai call succeeded. SAM 3.1 did not find that concept in the plate. It wants a short noun or noun phrase (`person`, `car`, `wheel`, `the red car`), not an instruction like "Describe the object to segment...".
+
+**Fix:**
+
+- Replace the Prompt knob with the object you actually want. Recreate the node from **Nodes -> fal.ai** after updating if you still have the old placeholder default.
+- Confirm the object is visible on the current frame.
+- A billed run that returns no mask still counts as a successful API call.
+
+## Unexpected Python error, no dialog (or a restart-Nuke dialog)
+
+**Symptom:** A node button such as **Clear generation history** or **Extract selected as Read** does nothing visible, or a dialog says it could not complete the action. Script Editor shows something like `AttributeError: module 'nuke_prerender_v1' has no attribute 'group_scope'`.
+
+**Fix:** Fully quit and restart Nuke. A long session (including after a plugin update, or after cloning a node) can keep an old copy of the plugin's Python modules in memory. Recreate the node from **Nodes -> fal.ai** if restart is not enough.
 
 ## Still stuck?
 

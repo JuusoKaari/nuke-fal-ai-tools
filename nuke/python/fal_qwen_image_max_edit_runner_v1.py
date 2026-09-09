@@ -2,9 +2,8 @@
 # - Runner script for the Nuke Group node `Qwen_Image_Max_Edit_v1` (executes inside Nuke / Python 2.7).
 # - Accepts any upstream image input; if it's a suitable Read node, uses its file directly (no re-render),
 #   otherwise pre-renders a still to a temp folder.
-# - Calls the external Python 3 helper `fal_qwen_image_max_edit_helper.py` via subprocess, then creates
-#   Read node(s) in the main graph for the downloaded edited image(s), placed on a free tile below the Group
-#   (repeated runs stack diagonally via `nuke_spawn_read_position_v1`).
+# - Calls the external Python 3 helper `fal_qwen_image_max_edit_helper.py` via subprocess, then wires
+#   outputs into the baked in-group preview. Root Reads spawn only when spawn_reads_in_graph is on.
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -20,11 +19,11 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
-import _path_util
-import _install_help
 import _nuke_runner_launcher
 
+import nuke_group_output_preview_v1 as preview
 import nuke_prerender_v1 as prerender
+import nuke_fal_runner_util_v1 as runner_util
 import nuke_spawn_read_position_v1 as spawn_pos
 
 
@@ -63,6 +62,7 @@ def main():
     temp_dir, out_dir, ts = prerender.make_run_dirs(
         nuke_module=nuke,
         prefix="qwen_image_max_edit",
+        group_node=g,
     )
 
     try:
@@ -73,16 +73,8 @@ def main():
         nuke.message("Failed to prepare input image:\n%s" % str(e))
         raise
 
-    python3_cmd = (g.knob("python3_cmd").value() or "").strip() or "py -3"
-    helper_path = _install_help.require_helper_path(
-        nuke,
-        (g.knob("helper_path").value() or "").strip(),
-    )
 
-    py_parts = prerender.split_cmd(python3_cmd) or ["py", "-3"]
-
-    args = list(py_parts) + [
-        helper_path,
+    extra_args = [
         "--image",
         image_path,
         "--prompt",
@@ -97,84 +89,79 @@ def main():
     ]
 
     if negative_prompt:
-        args += ["--negative-prompt", negative_prompt]
+        extra_args += ["--negative-prompt", negative_prompt]
     if image_size:
-        args += ["--image-size", image_size]
+        extra_args += ["--image-size", image_size]
     if seed_s:
         try:
-            args += ["--seed", str(int(seed_s))]
+            extra_args += ["--seed", str(int(seed_s))]
         except Exception:
             pass
 
     if enable_prompt_expansion:
-        args += ["--enable-prompt-expansion"]
+        extra_args += ["--enable-prompt-expansion"]
     else:
-        args += ["--no-enable-prompt-expansion"]
+        extra_args += ["--no-enable-prompt-expansion"]
 
     if enable_safety_checker:
-        args += ["--enable-safety-checker"]
+        extra_args += ["--enable-safety-checker"]
     else:
-        args += ["--no-enable-safety-checker"]
+        extra_args += ["--no-enable-safety-checker"]
 
-    # Pass auth via env var (do NOT override env with the placeholder text)
-    env = prerender.helper_subprocess_env()
-    fal_knob = (g.knob("FAL").value() or "").strip()
-    if fal_knob and ("insert your secret" not in fal_knob.lower()):
-        env.update({"FAL_KEY": fal_knob})
-
-    try:
-        returncode, _stdout_lines = prerender.run_helper_subprocess(
-            args,
-            env=env,
-            title="Qwen Image Max Edit",
-        )
-    except prerender.FalProgressCancelled:
-        nuke.message("Qwen Image Max Edit request cancelled.")
-        raise Exception("cancelled")
-
-    if returncode != 0:
-        nuke.message(
-            "Qwen Image Max helper failed (exit %d). Check the Script Editor output for details." % returncode
-        )
-        raise Exception("Qwen Image Max helper failed")
-
-    # Create Read node(s) in the main node graph (not inside the group)
-    xpos = int(g.xpos())
-    ypos = int(g.ypos())
+    returncode, _stdout_lines = runner_util.run_group_helper(
+        nuke, g, extra_args, 'Qwen Image Max Edit'
+    )
 
     created = []
-    placed = []
     for i in range(1, int(num_images) + 1):
         out_name = "image_%03d.%s" % (i, output_format)
         out_path = os.path.join(out_dir, out_name)
         if not os.path.isfile(out_path):
             continue
-        out_path_nk = prerender.norm_slashes(out_path)
-
-        nuke.root().begin()
-        try:
-            bx = xpos + (i - 1) * 120
-            by = ypos + 140
-            fx, fy = spawn_pos.resolve_spawn_xy(nuke, bx, by, exclude_nodes=placed)
-            r = nuke.nodes.Read(file=out_path_nk)
-            try:
-                r.setName("%s_%s_%02d" % (g.name(), ts, i), unique=True)
-            except Exception:
-                pass
-            try:
-                r.knob("label").setValue("Qwen Image Max Edit\n%s" % out_path_nk)
-            except Exception:
-                pass
-            r.setXpos(fx)
-            r.setYpos(fy)
-            placed.append(r)
-            created.append(out_path_nk)
-        finally:
-            nuke.endGroup()
+        created.append(prerender.norm_slashes(out_path))
 
     if not created:
         nuke.message("Helper finished, but no output images were found in:\n%s" % out_dir)
         raise Exception("no outputs")
+
+    try:
+        preview.wire_group_outputs(g, created)
+    except Exception as e:
+        nuke.message("Failed to wire in-group preview outputs:\n%s" % str(e))
+        raise
+
+    spawn_reads = False
+    try:
+        sk = g.knob("spawn_reads_in_graph")
+        if sk is not None:
+            spawn_reads = bool(sk.value())
+    except Exception:
+        spawn_reads = False
+
+    if spawn_reads:
+        xpos = int(g.xpos())
+        ypos = int(g.ypos())
+        placed = []
+        for i, out_path_nk in enumerate(created, start=1):
+            nuke.root().begin()
+            try:
+                bx = xpos + (i - 1) * 120
+                by = ypos + 140
+                fx, fy = spawn_pos.resolve_spawn_xy(nuke, bx, by, exclude_nodes=placed)
+                r = nuke.nodes.Read(file=out_path_nk)
+                try:
+                    r.setName("%s_%s_%02d" % (g.name(), ts, i), unique=True)
+                except Exception:
+                    pass
+                try:
+                    r.knob("label").setValue("Qwen Image Max Edit\n%s" % out_path_nk)
+                except Exception:
+                    pass
+                r.setXpos(fx)
+                r.setYpos(fy)
+                placed.append(r)
+            finally:
+                nuke.endGroup()
 
     if _nuke_runner_launcher.should_show_success_popup(g):
         nuke.message("Qwen Image Max edit output created:\n" + "\n".join(created))

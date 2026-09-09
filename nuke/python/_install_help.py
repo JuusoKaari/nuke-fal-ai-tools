@@ -11,8 +11,10 @@ _INSTALL_HINT = (
     "\n\nDownload and install nuke-fal-ai-tools:\n"
     "  Latest release zip: %s\n"
     "  Or clone: %s\n\n"
-    "Extract (or clone) to a stable folder, add that folder to NUKE_PATH, "
-    "then restart Nuke.\n"
+    "Point Nuke at the install ROOT (folder with init.py), not the inner nuke/ folder.\n"
+    "Artist path: add one line to ~/.nuke/init.py:\n"
+    "  nuke.pluginAddPath(\"/path/to/nuke-fal-ai-tools\")\n"
+    "Studio path: add that same folder to NUKE_PATH, then restart Nuke.\n"
     "Full steps: docs/INSTALL.md in the install folder."
 ) % (GITHUB_RELEASES_URL, GITHUB_REPO_URL)
 

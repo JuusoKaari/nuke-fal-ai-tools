@@ -1,7 +1,8 @@
 # Purpose:
 # - Runner script for the Nuke Group node `Hunyuan_3D_Image_to_3D_v1` (executes inside Nuke / Python 2.7).
 # - Accepts a front-view still on input 0; pre-renders if needed, calls the Python 3 helper, then spawns
-#   Read nodes for texture/preview and a ReadGeo2 for the OBJ (texture piped to img when available).
+#   Read nodes for extracted PBR maps (and fal texture/preview) plus ReadGeo2 for the OBJ.
+#   Albedo (baseColor) is piped to ReadGeo img; fal's single texture URL is often the normal map.
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -17,11 +18,10 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
-import _path_util
-import _install_help
 import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
+import nuke_fal_runner_util_v1 as runner_util
 import nuke_spawn_read_position_v1 as spawn_pos
 import nuke_spawn_readgeo_v1 as spawn_geo
 
@@ -38,6 +38,28 @@ def _parse_helper_summary(stdout_lines):
         except Exception:
             pass
     return None
+
+
+def _extracted_texture_items(summary):
+    if not isinstance(summary, dict):
+        return []
+    items = summary.get("extracted_textures") or []
+    out = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        path = item.get("path")
+        if not path:
+            continue
+        out.append(item)
+    return out
+
+
+def _albedo_path(extracted_items, fallback_path):
+    for item in extracted_items:
+        if item.get("role") == "baseColor" and item.get("path"):
+            return item.get("path")
+    return fallback_path
 
 
 def main():
@@ -71,6 +93,7 @@ def main():
     temp_dir, out_dir, ts = prerender.make_run_dirs(
         nuke_module=nuke,
         prefix="hunyuan_3d_image_to_3d",
+        group_node=g,
     )
 
     try:
@@ -81,16 +104,8 @@ def main():
         nuke.message("Failed to prepare input image:\n%s" % str(e))
         raise
 
-    python3_cmd = (g.knob("python3_cmd").value() or "").strip() or "py -3"
-    helper_path = _install_help.require_helper_path(
-        nuke,
-        (g.knob("helper_path").value() or "").strip(),
-    )
 
-    py_parts = prerender.split_cmd(python3_cmd) or ["py", "-3"]
-
-    args = list(py_parts) + [
-        helper_path,
+    extra_args = [
         "--image",
         image_path,
         "--out-dir",
@@ -103,33 +118,15 @@ def main():
     ]
 
     if enable_pbr:
-        args += ["--enable-pbr"]
+        extra_args += ["--enable-pbr"]
     if download_obj:
-        args += ["--download-obj"]
+        extra_args += ["--download-obj"]
     else:
-        args += ["--no-download-obj"]
+        extra_args += ["--no-download-obj"]
 
-    env = prerender.helper_subprocess_env()
-    fal_knob = (g.knob("FAL").value() or "").strip()
-    if fal_knob and ("insert your secret" not in fal_knob.lower()):
-        env.update({"FAL_KEY": fal_knob})
-
-    try:
-        returncode, stdout_lines = prerender.run_helper_subprocess(
-            args,
-            env=env,
-            title="Hunyuan 3D",
-        )
-    except prerender.FalProgressCancelled:
-        nuke.message("Hunyuan 3D request cancelled.")
-        raise Exception("cancelled")
-
-    if returncode != 0:
-        nuke.message(
-            "Hunyuan 3D image-to-3D helper failed (exit %d). Check the Script Editor output for details."
-            % returncode
-        )
-        raise Exception("Hunyuan 3D helper failed")
+    returncode, stdout_lines = runner_util.run_group_helper(
+        nuke, g, extra_args, 'Hunyuan 3D'
+    )
 
     summary = _parse_helper_summary(stdout_lines)
     downloaded = {}
@@ -156,6 +153,10 @@ def main():
     texture_path_nk = prerender.norm_slashes(texture_path) if texture_path and os.path.isfile(texture_path) else None
     preview_path = downloaded.get("preview") or os.path.join(out_dir, "preview.png")
     preview_path_nk = prerender.norm_slashes(preview_path) if os.path.isfile(preview_path) else None
+
+    extracted_items = _extracted_texture_items(summary)
+    albedo_path = _albedo_path(extracted_items, texture_path)
+    albedo_path_nk = prerender.norm_slashes(albedo_path) if albedo_path and os.path.isfile(albedo_path) else None
 
     xpos = int(g.xpos())
     ypos = int(g.ypos())
@@ -185,8 +186,42 @@ def main():
         finally:
             nuke.endGroup()
 
-    texture_read = _spawn_read(texture_path_nk, "Hunyuan 3D texture", "texture", 0)
-    _spawn_read(preview_path_nk, "Hunyuan 3D preview", "preview", 120)
+    x_offset = 0
+    albedo_read = None
+    extracted_paths = {}
+    for item in extracted_items:
+        item_path = item.get("path")
+        if not item_path or not os.path.isfile(item_path):
+            continue
+        item_path_nk = prerender.norm_slashes(item_path)
+        role = item.get("role") or "texture"
+        extracted_paths[os.path.normcase(os.path.abspath(item_path))] = True
+        spawned = _spawn_read(
+            item_path_nk, "Hunyuan 3D %s" % role, str(role), x_offset
+        )
+        if role == "baseColor" and spawned is not None:
+            albedo_read = spawned
+        x_offset += 120
+
+    fal_texture_abs = ""
+    if texture_path and os.path.isfile(texture_path):
+        fal_texture_abs = os.path.normcase(os.path.abspath(texture_path))
+    if not extracted_items:
+        texture_read = _spawn_read(texture_path_nk, "Hunyuan 3D texture", "texture", x_offset)
+        if texture_read is not None:
+            x_offset += 120
+    elif fal_texture_abs and fal_texture_abs not in extracted_paths:
+        _spawn_read(texture_path_nk, "Hunyuan 3D fal texture", "fal_texture", x_offset)
+        x_offset += 120
+
+    if albedo_read is not None:
+        texture_read = albedo_read
+    elif texture_read is None and albedo_path_nk:
+        texture_read = _spawn_read(albedo_path_nk, "Hunyuan 3D texture", "texture", x_offset)
+        if texture_read is not None:
+            x_offset += 120
+
+    _spawn_read(preview_path_nk, "Hunyuan 3D preview", "preview", x_offset)
 
     readgeo_node = None
     if obj_path_nk and download_obj:
@@ -209,7 +244,13 @@ def main():
             print("WARNING: failed to spawn ReadGeo2: %s" % str(e))
 
     msg_lines = ["3D model generated:", "", "GLB: %s" % glb_path_nk]
-    if texture_path_nk:
+    if extracted_items:
+        for item in extracted_items:
+            item_path = item.get("path")
+            if not item_path:
+                continue
+            msg_lines.append("%s: %s" % (item.get("role") or "texture", prerender.norm_slashes(item_path)))
+    elif texture_path_nk:
         msg_lines.append("Texture: %s" % texture_path_nk)
     if mtl_path_nk:
         msg_lines.append("MTL: %s" % mtl_path_nk)

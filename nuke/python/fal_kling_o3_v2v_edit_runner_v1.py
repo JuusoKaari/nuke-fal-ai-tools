@@ -4,8 +4,8 @@
 #   otherwise pre-renders a temp video from the connected pipe.
 # - Also accepts optional reference image inputs from any pipe (Read fast-path; otherwise prerender still).
 # - Writes a timestamped output mp4 path under a writable temp folder, then calls the external Python 3 helper
-#   `fal_kling_o3_v2v_edit_helper.py` via subprocess, and finally creates a Read node in the main graph
-#   pointing at the resulting video (frame range set via `nuke_read_video_frames_v1`).
+#   `fal_kling_o3_v2v_edit_helper.py` via subprocess, and finally creates a Read for the result
+#   (DWAB EXR sequence by default; MP4 if chosen in Settings).
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -14,37 +14,17 @@
 from __future__ import print_function
 
 import os
-import time
-
 import sys
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
-import _path_util
-import _install_help
 import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
-import nuke_read_video_frames_v1 as video_frames
-import nuke_spawn_read_position_v1 as spawn_pos
-
-
-def _norm_slashes(p):
-    return (p or "").replace("\\", "/")
-
-
-def _split_cmd(cmd):
-    cmd = (cmd or "").strip()
-    if not cmd:
-        return []
-    try:
-        import shlex
-
-        return shlex.split(cmd)
-    except Exception:
-        return cmd.split()
+import nuke_fal_runner_util_v1 as runner_util
+import nuke_video_output_v1 as video_out
 
 
 def main():
@@ -60,40 +40,6 @@ def main():
         nuke.message("Input 0 (source_video) is not connected.")
         raise Exception("missing input 0")
 
-    def _get_frame_range_from_knobs(group_node, nuke_module):
-        """
-        Range used when we need to pre-render from a pipe.
-        Backwards compatible: if knobs don't exist, fall back to root range.
-        """
-        try:
-            mode = (group_node.knob("frame_range").value() or "root").strip().lower()
-        except Exception:
-            mode = "root"
-
-        if mode == "current":
-            f = int(nuke_module.frame())
-            return f, f
-
-        if mode == "custom":
-            try:
-                start = int(float((group_node.knob("custom_start").value() or "1").strip()))
-                end = int(float((group_node.knob("custom_end").value() or "1").strip()))
-                if end < start:
-                    start, end = end, start
-                return start, end
-            except Exception:
-                pass
-
-        try:
-            start = int(nuke_module.root().firstFrame())
-            end = int(nuke_module.root().lastFrame())
-        except Exception:
-            start = 1
-            end = 1
-        if end < start:
-            start, end = end, start
-        return start, end
-
     prompt = (g.knob("prompt").value() or "").strip()
     if not prompt:
         nuke.message("Prompt is empty.")
@@ -103,11 +49,12 @@ def main():
     shot_type = (g.knob("shot_type").value() or "").strip()
 
     # Render/resolve inputs
-    default_first, default_last = _get_frame_range_from_knobs(g, nuke)
+    default_first, default_last = runner_util.frame_range_from_knobs(g, nuke)
 
     temp_dir, out_dir, ts = prerender.make_run_dirs(
         nuke_module=nuke,
         prefix="kling_o3_v2v_edit",
+        group_node=g,
     )
 
     try:
@@ -140,17 +87,8 @@ def main():
         image_paths.append(p)
 
     out_path = os.path.join(out_dir, "kling_o3_v2v_edit_%s.mp4" % ts)
-    out_path_nk = _norm_slashes(out_path)
 
-    python3_cmd = (g.knob("python3_cmd").value() or "").strip() or "py -3"
-    helper_path = _install_help.require_helper_path(
-        nuke,
-        (g.knob("helper_path").value() or "").strip(),
-    )
-
-    py_parts = _split_cmd(python3_cmd) or ["py", "-3"]
-    args = list(py_parts) + [
-        helper_path,
+    extra_args = [
         "--video",
         video_path,
         "--prompt",
@@ -161,63 +99,26 @@ def main():
     ]
 
     if keep_audio:
-        args += ["--keep-audio"]
+        extra_args += ["--keep-audio"]
     else:
-        args += ["--no-keep-audio"]
+        extra_args += ["--no-keep-audio"]
 
     if shot_type:
-        args += ["--shot-type", shot_type]
+        extra_args += ["--shot-type", shot_type]
 
     for p in image_paths:
-        args += ["--image", p]
+        extra_args += ["--image", p]
 
-    # Pass auth via env var (do NOT override env with the placeholder text)
-    env = prerender.helper_subprocess_env()
-    fal_knob = (g.knob("FAL").value() or "").strip()
-    if fal_knob and ("insert your secret" not in fal_knob.lower()):
-        env.update({"FAL_KEY": fal_knob})
+    returncode, _stdout_lines = runner_util.run_group_helper(
+        nuke, g, extra_args, 'Kling O3 V2V Edit'
+    )
 
-    try:
-        returncode, _stdout_lines = prerender.run_helper_subprocess(
-            args,
-            env=env,
-            title="Kling O3 V2V Edit",
-        )
-    except prerender.FalProgressCancelled:
-        nuke.message("Kling O3 V2V Edit request cancelled.")
-        raise Exception("cancelled")
-
-    if returncode != 0:
-        nuke.message("Kling O3 helper failed (exit %d). Check the Script Editor output for details." % returncode)
-        raise Exception("Kling O3 helper failed")
-
-    # Create a new Read node in the main node graph (not inside the group)
-    xpos = int(g.xpos())
-    ypos = int(g.ypos())
-
-    nuke.root().begin()
-    try:
-        fx, fy = spawn_pos.resolve_spawn_xy(nuke, xpos, ypos + 140)
-        r = nuke.nodes.Read(file=out_path_nk)
-        try:
-            r.setName("%s_result_%s" % (g.name(), ts), unique=True)
-        except Exception:
-            pass
-        try:
-            r.knob("label").setValue("Kling O3 v2v edit\n%s" % out_path_nk)
-        except Exception:
-            pass
-        r.setXpos(fx)
-        r.setYpos(fy)
-        try:
-            video_frames.set_read_frame_range_from_video_file(r, out_path)
-        except Exception:
-            pass
-    finally:
-        nuke.endGroup()
+    display_path = video_out.spawn_video_output_read(
+        nuke, g, out_path, "Kling O3 v2v edit", "%s_result_%s" % (g.name(), ts)
+    )
 
     if _nuke_runner_launcher.should_show_success_popup(g):
-        nuke.message("Kling O3 output created:\n%s" % out_path_nk)
+        nuke.message("Kling O3 output created:\n%s" % display_path)
 
 
 if __name__ == "__main__":

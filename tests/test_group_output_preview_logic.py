@@ -83,6 +83,120 @@ class TestToolConfig(unittest.TestCase):
         self.assertEqual(cfg["max_outputs"], 4)
         self.assertTrue(cfg.get("supports_roi"))
         self.assertTrue(cfg.get("accumulate_outputs"))
+        self.assertEqual(preview.preview_kind_for_config(cfg), "editor")
+        self.assertTrue(preview.wants_roi_knobs(cfg))
+        self.assertTrue(preview.wants_history_knobs(cfg))
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg),
+            ["Input", "Generated", "Generated grid"],
+        )
+        self.assertEqual(preview.VIEWER_MODES, ["Input", "Generated", "Generated grid"])
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertIn(preview.USE_ROI_KNOB, knobs)
+        self.assertIn("preview_index", knobs)
+        self.assertIn(preview.OUTPUT_PATHS_REGISTRY_KNOB, knobs)
+
+
+class TestPreviewConfigKinds(unittest.TestCase):
+    def test_fake_filter_skips_history_and_roi_knobs(self):
+        cfg = {
+            "preview_kind": "filter",
+            "preview_inputs": ["source_image"],
+            "max_outputs": 1,
+            "viewer_modes": ["Input", "Generated"],
+        }
+        self.assertEqual(preview.preview_kind_for_config(cfg), "filter")
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertFalse(preview.wants_history_knobs(cfg))
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg), ["Input", "Generated"]
+        )
+        self.assertEqual(preview.VIEWER_MODES, ["Input", "Generated", "Generated grid"])
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertNotIn("preview_index", knobs)
+        self.assertNotIn(preview.EXTRACT_SELECTED_KNOB, knobs)
+        self.assertNotIn(preview.CLEAR_HISTORY_KNOB, knobs)
+        self.assertNotIn(preview.OUTPUT_PATHS_REGISTRY_KNOB, knobs)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+
+    def test_filter_without_viewer_modes_still_skips_grid(self):
+        cfg = {"preview_kind": "filter", "preview_inputs": ["source_image"]}
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg), preview.FILTER_VIEWER_MODES
+        )
+        self.assertNotIn("Generated grid", preview.viewer_modes_for_config(cfg))
+
+    def test_editor_without_generated_grid_skips_grid_mode(self):
+        cfg = {
+            "preview_kind": "editor",
+            "preview_inputs": ["source_image"],
+            "max_outputs": 1,
+            "supports_generated_grid": False,
+        }
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg), ["Input", "Generated"]
+        )
+        self.assertNotIn("Generated grid", preview.viewer_modes_for_config(cfg))
+        self.assertTrue(preview.wants_history_knobs(cfg))
+
+    def test_fake_editor_without_supports_roi_skips_roi_knobs(self):
+        cfg = {
+            "preview_inputs": ["ref_image_a"],
+            "max_outputs": 4,
+            "accumulate_outputs": True,
+        }
+        self.assertEqual(preview.preview_kind_for_config(cfg), "editor")
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertTrue(preview.wants_history_knobs(cfg))
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+        self.assertIn("preview_index", knobs)
+        self.assertIn(preview.EXTRACT_SELECTED_KNOB, knobs)
+        self.assertIn(preview.CLEAR_HISTORY_KNOB, knobs)
+        self.assertIn(preview.OUTPUT_PATHS_REGISTRY_KNOB, knobs)
+
+    def test_layers_skips_roi_keeps_history(self):
+        cfg = {
+            "preview_kind": "layers",
+            "preview_inputs": ["source_image"],
+            "max_outputs": 10,
+            "supports_roi": True,
+        }
+        self.assertEqual(preview.preview_kind_for_config(cfg), "layers")
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertTrue(preview.wants_history_knobs(cfg))
+        self.assertTrue(preview.spawn_reads_in_graph_default(cfg))
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertIn("preview_index", knobs)
+
+    def test_unknown_preview_kind_defaults_to_editor(self):
+        cfg = {"preview_kind": "video"}
+        self.assertEqual(preview.preview_kind_for_config(cfg), "editor")
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+
+    def test_production_config_has_nano_banana_gpt_qwen_max_seedream_and_inpaint(self):
+        self.assertEqual(
+            list(preview.TOOL_PREVIEW_CONFIG.keys()),
+            [
+                "Nano_Banana_2_Generate_v1",
+                "GPT_Image_2_Edit_v1",
+                "Qwen_Image_Max_Edit_v1",
+                "Seedream_5_Pro_Edit_v1",
+                "Qwen_Image_Edit_Inpaint_v1",
+                "Hunyuan_World_v1",
+                "Qwen_Image_Layered_v1",
+                "BiRefNet_v2_Still_v1",
+                "Depth_Anything_v2",
+                "Finegrain_Eraser_v1",
+                "Topaz_Upscale_Image_Precision_v1",
+                "Bria_Extract_Object_v1",
+                "SAM_3_1_Image_v1",
+            ],
+        )
 
 
 class TestToolIdResolution(unittest.TestCase):
@@ -150,6 +264,833 @@ class TestToolIdResolution(unittest.TestCase):
         self.assertIsNotNone(cfg)
         self.assertIn("image_a", cfg["preview_inputs"])
 
+    def test_resolve_gpt_runner_basename(self):
+        tool_id = preview.resolve_tool_id_from_runner_path(
+            "__INSTALL_ROOT__/nuke/python/fal_gpt_image_2_edit_runner_v1.py"
+        )
+        self.assertEqual(tool_id, "GPT_Image_2_Edit_v1")
+        cfg = preview.TOOL_PREVIEW_CONFIG[tool_id]
+        self.assertTrue(cfg.get("supports_roi"))
+        self.assertTrue(preview.config_supports_roi(cfg))
+        self.assertTrue(preview.wants_roi_knobs(cfg))
+
+
+class TestGptImage2EditPreview(unittest.TestCase):
+    def _gpt_nk_text(self):
+        path = os.path.join(_ROOT, "nuke", "groups", "fal_gpt_image_2_edit_v1.nk")
+        with open(path, "r") as f:
+            return f.read()
+
+    def test_gpt_config_is_editor_with_roi(self):
+        cfg = preview.TOOL_PREVIEW_CONFIG.get("GPT_Image_2_Edit_v1")
+        self.assertIsNotNone(cfg)
+        self.assertEqual(preview.preview_kind_for_config(cfg), "editor")
+        self.assertEqual(cfg["preview_inputs"], ["ref_image_a", "ref_image_b"])
+        self.assertEqual(cfg["max_outputs"], 4)
+        self.assertTrue(cfg.get("supports_roi"))
+        self.assertTrue(preview.config_supports_roi(cfg))
+        self.assertTrue(preview.wants_roi_knobs(cfg))
+        self.assertTrue(cfg.get("accumulate_outputs"))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertIn(preview.USE_ROI_KNOB, knobs)
+        self.assertIn(preview.ROI_AREA_KNOB, knobs)
+        self.assertIn("preview_index", knobs)
+
+    def test_gpt_nk_has_baked_preview_with_roi(self):
+        text = self._gpt_nk_text()
+        self.assertIn("viewer_mode_switch", text)
+        self.assertIn("generated_read_01", text)
+        self.assertIn("fal_tool_id GPT_Image_2_Edit_v1", text)
+        self.assertIn("ROI_rectangle", text)
+        self.assertIn("ROI_switch", text)
+        self.assertIn("merge_roi", text)
+        self.assertIn("use_roi", text)
+        self.assertIn("roi_area", text)
+        self.assertIn("name ref_image_a", text)
+        self.assertIn("name ref_image_b", text)
+        self.assertIn("name prompt_text", text)
+        self.assertIn("name mask", text)
+        self.assertNotIn("name Text1", text)
+
+
+class TestQwenImageMaxEditPreview(unittest.TestCase):
+    def _qwen_nk_text(self):
+        path = os.path.join(_ROOT, "nuke", "groups", "fal_qwen_image_max_edit_v1.nk")
+        with open(path, "r") as f:
+            return f.read()
+
+    def test_qwen_max_config_is_editor_without_roi(self):
+        cfg = preview.TOOL_PREVIEW_CONFIG.get("Qwen_Image_Max_Edit_v1")
+        self.assertIsNotNone(cfg)
+        self.assertEqual(preview.preview_kind_for_config(cfg), "editor")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 6)
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertTrue(cfg.get("accumulate_outputs"))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+        self.assertIn("preview_index", knobs)
+
+    def test_qwen_max_nk_has_baked_preview_without_roi(self):
+        text = self._qwen_nk_text()
+        self.assertIn("viewer_mode_switch", text)
+        self.assertIn("generated_read_01", text)
+        self.assertIn("generated_read_06", text)
+        self.assertIn("fal_tool_id Qwen_Image_Max_Edit_v1", text)
+        self.assertNotIn("ROI_rectangle", text)
+        self.assertNotIn("use_roi", text)
+        self.assertNotIn("roi_area", text)
+        self.assertIn("name source_image", text)
+        self.assertNotIn("name Text1", text)
+
+    def test_resolve_qwen_max_runner_basename(self):
+        tool_id = preview.resolve_tool_id_from_runner_path(
+            "__INSTALL_ROOT__/nuke/python/fal_qwen_image_max_edit_runner_v1.py"
+        )
+        self.assertEqual(tool_id, "Qwen_Image_Max_Edit_v1")
+        cfg = preview.TOOL_PREVIEW_CONFIG[tool_id]
+        self.assertEqual(cfg["max_outputs"], 6)
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+
+
+class TestSeedream5ProEditPreview(unittest.TestCase):
+    def _seedream_nk_text(self):
+        path = os.path.join(_ROOT, "nuke", "groups", "fal_seedream_5_pro_edit_v1.nk")
+        with open(path, "r") as f:
+            return f.read()
+
+    def test_seedream_config_is_editor_without_roi(self):
+        cfg = preview.TOOL_PREVIEW_CONFIG.get("Seedream_5_Pro_Edit_v1")
+        self.assertIsNotNone(cfg)
+        self.assertEqual(preview.preview_kind_for_config(cfg), "editor")
+        self.assertEqual(cfg["preview_inputs"], ["image_1"])
+        self.assertEqual(cfg["max_outputs"], 6)
+        self.assertEqual(cfg.get("max_ai_inputs"), 1)
+        self.assertFalse(cfg.get("supports_ai_input_grid"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertTrue(cfg.get("accumulate_outputs"))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+        self.assertIn("preview_index", knobs)
+
+    def test_seedream_nk_has_baked_preview_without_roi(self):
+        text = self._seedream_nk_text()
+        self.assertIn("viewer_mode_switch", text)
+        self.assertIn("generated_read_01", text)
+        self.assertIn("generated_read_06", text)
+        self.assertIn("fal_tool_id Seedream_5_Pro_Edit_v1", text)
+        self.assertIn("name preview_source_01", text)
+        self.assertIn("name image_1", text)
+        self.assertIn("name image_2", text)
+        self.assertIn("name image_10", text)
+        self.assertIn("name prompt_text", text)
+        self.assertNotIn("ROI_rectangle", text)
+        self.assertNotIn("use_roi", text)
+        self.assertNotIn("roi_area", text)
+        self.assertNotIn("name Text1", text)
+        self.assertNotIn("preview_source_02", text)
+        for i in range(1, 11):
+            self.assertIn("name image_%d" % i, text)
+
+    def test_resolve_seedream_runner_basename(self):
+        tool_id = preview.resolve_tool_id_from_runner_path(
+            "__INSTALL_ROOT__/nuke/python/fal_seedream_5_pro_edit_runner_v1.py"
+        )
+        self.assertEqual(tool_id, "Seedream_5_Pro_Edit_v1")
+        cfg = preview.TOOL_PREVIEW_CONFIG[tool_id]
+        self.assertEqual(cfg["preview_inputs"], ["image_1"])
+        self.assertEqual(cfg["max_outputs"], 6)
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+
+
+class TestQwenImageInpaintPreview(unittest.TestCase):
+    def _inpaint_nk_text(self):
+        path = os.path.join(_ROOT, "nuke", "groups", "fal_qwen_image_inpaint_v1.nk")
+        with open(path, "r") as f:
+            return f.read()
+
+    def test_inpaint_config_is_editor_without_roi(self):
+        cfg = preview.TOOL_PREVIEW_CONFIG.get("Qwen_Image_Edit_Inpaint_v1")
+        self.assertIsNotNone(cfg)
+        self.assertEqual(preview.preview_kind_for_config(cfg), "editor")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 4)
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertTrue(cfg.get("accumulate_outputs"))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+        self.assertIn("preview_index", knobs)
+
+    def test_inpaint_nk_has_baked_preview_without_roi(self):
+        text = self._inpaint_nk_text()
+        self.assertIn("viewer_mode_switch", text)
+        self.assertIn("generated_read_01", text)
+        self.assertIn("generated_read_04", text)
+        self.assertIn("fal_tool_id Qwen_Image_Edit_Inpaint_v1", text)
+        self.assertIn("name source_image", text)
+        self.assertIn("name mask", text)
+        self.assertNotIn("ROI_rectangle", text)
+        self.assertNotIn("use_roi", text)
+        self.assertNotIn("roi_area", text)
+        self.assertNotIn("name Text1", text)
+        self.assertNotIn("generated_read_05", text)
+
+    def test_resolve_inpaint_runner_basename(self):
+        tool_id = preview.resolve_tool_id_from_runner_path(
+            "__INSTALL_ROOT__/nuke/python/fal_qwen_image_inpaint_runner_v1.py"
+        )
+        self.assertEqual(tool_id, "Qwen_Image_Edit_Inpaint_v1")
+        cfg = preview.TOOL_PREVIEW_CONFIG[tool_id]
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 4)
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+
+
+class TestHunyuanWorldPreview(unittest.TestCase):
+    def _hunyuan_nk_text(self):
+        path = os.path.join(_ROOT, "nuke", "groups", "fal_hunyuan_world_v1.nk")
+        with open(path, "r") as f:
+            return f.read()
+
+    def test_hunyuan_config_is_editor_without_grid_or_roi(self):
+        cfg = preview.TOOL_PREVIEW_CONFIG.get("Hunyuan_World_v1")
+        self.assertIsNotNone(cfg)
+        self.assertEqual(preview.preview_kind_for_config(cfg), "editor")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 1)
+        self.assertFalse(cfg.get("supports_generated_grid"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertTrue(cfg.get("accumulate_outputs"))
+        self.assertTrue(preview.wants_history_knobs(cfg))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg), ["Input", "Generated"]
+        )
+        self.assertNotIn("Generated grid", preview.viewer_modes_for_config(cfg))
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+        self.assertIn("preview_index", knobs)
+        self.assertIn(preview.EXTRACT_SELECTED_KNOB, knobs)
+        self.assertIn(preview.CLEAR_HISTORY_KNOB, knobs)
+        self.assertIn(preview.OUTPUT_PATHS_REGISTRY_KNOB, knobs)
+
+    def test_hunyuan_nk_has_lookthrough_without_grid_roi_or_merge(self):
+        text = self._hunyuan_nk_text()
+        self.assertIn("viewer_mode_switch", text)
+        self.assertIn("generated_read_01", text)
+        self.assertIn("name preview_source_01", text)
+        self.assertIn("fal_tool_id Hunyuan_World_v1", text)
+        self.assertIn("name source_image", text)
+        self.assertNotIn("Generated grid", text)
+        self.assertNotIn("generated_contactsheet", text)
+        self.assertNotIn("generated_read_02", text)
+        self.assertNotIn("ROI_rectangle", text)
+        self.assertNotIn("use_roi", text)
+        self.assertNotIn("roi_area", text)
+        self.assertNotIn("merge_roi", text)
+        self.assertNotIn("Merge {", text)
+        self.assertNotIn("name Text1", text)
+
+    def test_resolve_hunyuan_runner_basename(self):
+        tool_id = preview.resolve_tool_id_from_runner_path(
+            "__INSTALL_ROOT__/nuke/python/fal_hunyuan_world_runner_v1.py"
+        )
+        self.assertEqual(tool_id, "Hunyuan_World_v1")
+        cfg = preview.TOOL_PREVIEW_CONFIG[tool_id]
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 1)
+        self.assertFalse(cfg.get("supports_generated_grid"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg), ["Input", "Generated"]
+        )
+
+
+class TestQwenImageLayeredPreview(unittest.TestCase):
+    def _layered_nk_text(self):
+        path = os.path.join(_ROOT, "nuke", "groups", "fal_qwen_image_layered_v1.nk")
+        with open(path, "r") as f:
+            return f.read()
+
+    def test_layered_config_is_layers_without_roi(self):
+        cfg = preview.TOOL_PREVIEW_CONFIG.get("Qwen_Image_Layered_v1")
+        self.assertIsNotNone(cfg)
+        self.assertEqual(preview.preview_kind_for_config(cfg), "layers")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 10)
+        self.assertTrue(cfg.get("supports_generated_grid"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertFalse(cfg.get("accumulate_outputs"))
+        self.assertTrue(preview.wants_history_knobs(cfg))
+        self.assertTrue(preview.spawn_reads_in_graph_default(cfg))
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg),
+            ["Input", "Generated", "Generated grid"],
+        )
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+        self.assertIn("preview_index", knobs)
+        self.assertIn("spawn_reads_in_graph", knobs)
+
+    def test_layered_nk_has_baked_preview_without_roi(self):
+        text = self._layered_nk_text()
+        self.assertIn("viewer_mode_switch", text)
+        self.assertIn("generated_contactsheet", text)
+        self.assertIn("fal_tool_id Qwen_Image_Layered_v1", text)
+        self.assertIn("name source_image", text)
+        self.assertIn("name preview_source_01", text)
+        self.assertIn("spawn_reads_in_graph true", text)
+        self.assertIn("Generated grid", text)
+        for i in range(1, 11):
+            self.assertIn("generated_read_%02d" % i, text)
+        self.assertNotIn("generated_read_11", text)
+        self.assertNotIn("ROI_rectangle", text)
+        self.assertNotIn("use_roi", text)
+        self.assertNotIn("roi_area", text)
+        self.assertNotIn("name Text1", text)
+
+    def test_resolve_layered_runner_basename(self):
+        tool_id = preview.resolve_tool_id_from_runner_path(
+            "__INSTALL_ROOT__/nuke/python/fal_qwen_image_layered_runner_v1.py"
+        )
+        self.assertEqual(tool_id, "Qwen_Image_Layered_v1")
+        cfg = preview.TOOL_PREVIEW_CONFIG[tool_id]
+        self.assertEqual(preview.preview_kind_for_config(cfg), "layers")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 10)
+        self.assertFalse(cfg.get("accumulate_outputs"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertTrue(preview.spawn_reads_in_graph_default(cfg))
+
+
+class TestBirefnetV2StillPreview(unittest.TestCase):
+    def _birefnet_nk_text(self):
+        path = os.path.join(_ROOT, "nuke", "groups", "fal_birefnet_v2_still_v1.nk")
+        with open(path, "r") as f:
+            return f.read()
+
+    def _birefnet_runner_text(self):
+        path = os.path.join(
+            _ROOT, "nuke", "python", "fal_birefnet_v2_still_runner_v1.py"
+        )
+        with open(path, "r") as f:
+            return f.read()
+
+    def test_birefnet_config_is_filter_without_history_or_roi(self):
+        cfg = preview.TOOL_PREVIEW_CONFIG.get("BiRefNet_v2_Still_v1")
+        self.assertIsNotNone(cfg)
+        self.assertEqual(preview.preview_kind_for_config(cfg), "filter")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 1)
+        self.assertFalse(cfg.get("supports_generated_grid"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertFalse(preview.wants_history_knobs(cfg))
+        self.assertFalse(cfg.get("accumulate_outputs"))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg), ["Input", "Generated"]
+        )
+        self.assertNotIn("Generated grid", preview.viewer_modes_for_config(cfg))
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertIn("viewer_mode", knobs)
+        self.assertIn("spawn_reads_in_graph", knobs)
+        self.assertNotIn("preview_index", knobs)
+        self.assertNotIn(preview.EXTRACT_SELECTED_KNOB, knobs)
+        self.assertNotIn(preview.CLEAR_HISTORY_KNOB, knobs)
+        self.assertNotIn(preview.OUTPUT_PATHS_REGISTRY_KNOB, knobs)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+
+    def test_birefnet_nk_has_filter_preview_without_history_or_roi(self):
+        text = self._birefnet_nk_text()
+        self.assertIn("viewer_mode_switch", text)
+        self.assertIn("M {Input Generated \"\"}", text)
+        self.assertIn("generated_read_01", text)
+        self.assertIn("name preview_source_01", text)
+        self.assertIn("fal_tool_id BiRefNet_v2_Still_v1", text)
+        self.assertIn("name source_image", text)
+        self.assertIn("spawn_reads_in_graph false", text)
+        self.assertNotIn("Generated grid", text)
+        self.assertNotIn("preview_index", text)
+        self.assertNotIn("extract_selected_generation", text)
+        self.assertNotIn("clear_generated_outputs", text)
+        self.assertNotIn("generated_output_paths", text)
+        self.assertNotIn("generated_read_02", text)
+        self.assertNotIn("generated_contactsheet", text)
+        self.assertNotIn("ROI_rectangle", text)
+        self.assertNotIn("use_roi", text)
+        self.assertNotIn("roi_area", text)
+        self.assertNotIn("name Text1", text)
+
+    def test_resolve_birefnet_runner_basename(self):
+        tool_id = preview.resolve_tool_id_from_runner_path(
+            "__INSTALL_ROOT__/nuke/python/fal_birefnet_v2_still_runner_v1.py"
+        )
+        self.assertEqual(tool_id, "BiRefNet_v2_Still_v1")
+        cfg = preview.TOOL_PREVIEW_CONFIG[tool_id]
+        self.assertEqual(preview.preview_kind_for_config(cfg), "filter")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 1)
+        self.assertFalse(cfg.get("accumulate_outputs"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertFalse(preview.wants_history_knobs(cfg))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        self.assertIn("wire_group_outputs", self._birefnet_runner_text())
+
+
+class TestDepthAnythingV2Preview(unittest.TestCase):
+    def _depth_nk_text(self):
+        path = os.path.join(_ROOT, "nuke", "groups", "fal_depth_anything_v2.nk")
+        with open(path, "r") as f:
+            return f.read()
+
+    def _depth_runner_text(self):
+        path = os.path.join(
+            _ROOT, "nuke", "python", "fal_depth_anything_v2_runner_v1.py"
+        )
+        with open(path, "r") as f:
+            return f.read()
+
+    def test_depth_config_is_filter_without_history_or_roi(self):
+        cfg = preview.TOOL_PREVIEW_CONFIG.get("Depth_Anything_v2")
+        self.assertIsNotNone(cfg)
+        self.assertEqual(preview.preview_kind_for_config(cfg), "filter")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 1)
+        self.assertFalse(cfg.get("supports_generated_grid"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertFalse(preview.wants_history_knobs(cfg))
+        self.assertFalse(cfg.get("accumulate_outputs"))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg), ["Input", "Generated"]
+        )
+        self.assertNotIn("Generated grid", preview.viewer_modes_for_config(cfg))
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertIn("viewer_mode", knobs)
+        self.assertIn("spawn_reads_in_graph", knobs)
+        self.assertNotIn("preview_index", knobs)
+        self.assertNotIn(preview.EXTRACT_SELECTED_KNOB, knobs)
+        self.assertNotIn(preview.CLEAR_HISTORY_KNOB, knobs)
+        self.assertNotIn(preview.OUTPUT_PATHS_REGISTRY_KNOB, knobs)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+
+    def test_depth_nk_has_filter_preview_without_history_or_roi(self):
+        text = self._depth_nk_text()
+        self.assertIn("viewer_mode_switch", text)
+        self.assertIn("M {Input Generated \"\"}", text)
+        self.assertIn("generated_read_01", text)
+        self.assertIn("name preview_source_01", text)
+        self.assertIn("fal_tool_id Depth_Anything_v2", text)
+        self.assertIn("name source_image", text)
+        self.assertIn("spawn_reads_in_graph false", text)
+        self.assertNotIn("Generated grid", text)
+        self.assertNotIn("preview_index", text)
+        self.assertNotIn("extract_selected_generation", text)
+        self.assertNotIn("clear_generated_outputs", text)
+        self.assertNotIn("generated_output_paths", text)
+        self.assertNotIn("generated_read_02", text)
+        self.assertNotIn("generated_contactsheet", text)
+        self.assertNotIn("ROI_rectangle", text)
+        self.assertNotIn("use_roi", text)
+        self.assertNotIn("roi_area", text)
+        self.assertNotIn("name Text1", text)
+
+    def test_resolve_depth_runner_basename(self):
+        tool_id = preview.resolve_tool_id_from_runner_path(
+            "__INSTALL_ROOT__/nuke/python/fal_depth_anything_v2_runner_v1.py"
+        )
+        self.assertEqual(tool_id, "Depth_Anything_v2")
+        cfg = preview.TOOL_PREVIEW_CONFIG[tool_id]
+        self.assertEqual(preview.preview_kind_for_config(cfg), "filter")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 1)
+        self.assertFalse(cfg.get("accumulate_outputs"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertFalse(preview.wants_history_knobs(cfg))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        self.assertIn("wire_group_outputs", self._depth_runner_text())
+
+
+class TestFinegrainEraserPreview(unittest.TestCase):
+    def _finegrain_nk_text(self):
+        path = os.path.join(_ROOT, "nuke", "groups", "fal_finegrain_eraser_v1.nk")
+        with open(path, "r") as f:
+            return f.read()
+
+    def _finegrain_runner_text(self):
+        path = os.path.join(
+            _ROOT, "nuke", "python", "fal_finegrain_eraser_runner_v1.py"
+        )
+        with open(path, "r") as f:
+            return f.read()
+
+    def test_finegrain_config_is_filter_without_history_or_roi(self):
+        cfg = preview.TOOL_PREVIEW_CONFIG.get("Finegrain_Eraser_v1")
+        self.assertIsNotNone(cfg)
+        self.assertEqual(preview.preview_kind_for_config(cfg), "filter")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertNotIn("mask", cfg["preview_inputs"])
+        self.assertEqual(cfg["max_outputs"], 1)
+        self.assertFalse(cfg.get("supports_generated_grid"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertFalse(preview.wants_history_knobs(cfg))
+        self.assertFalse(cfg.get("accumulate_outputs"))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg), ["Input", "Generated"]
+        )
+        self.assertNotIn("Generated grid", preview.viewer_modes_for_config(cfg))
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertIn("viewer_mode", knobs)
+        self.assertIn("spawn_reads_in_graph", knobs)
+        self.assertNotIn("preview_index", knobs)
+        self.assertNotIn(preview.EXTRACT_SELECTED_KNOB, knobs)
+        self.assertNotIn(preview.CLEAR_HISTORY_KNOB, knobs)
+        self.assertNotIn(preview.OUTPUT_PATHS_REGISTRY_KNOB, knobs)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+
+    def test_finegrain_nk_has_filter_preview_without_history_or_roi(self):
+        text = self._finegrain_nk_text()
+        self.assertIn("viewer_mode_switch", text)
+        self.assertIn("M {Input Generated \"\"}", text)
+        self.assertIn("generated_read_01", text)
+        self.assertIn("name preview_source_01", text)
+        self.assertIn("fal_tool_id Finegrain_Eraser_v1", text)
+        self.assertIn("name source_image", text)
+        self.assertIn("name mask", text)
+        self.assertIn("name mask_use_alpha", text)
+        self.assertIn("red alpha", text)
+        self.assertIn("green alpha", text)
+        self.assertIn("blue alpha", text)
+        self.assertIn("name mask_match_format", text)
+        self.assertIn("name mask_for_execute", text)
+        self.assertIn("spawn_reads_in_graph false", text)
+        self.assertNotIn("Generated grid", text)
+        self.assertNotIn("preview_index", text)
+        self.assertNotIn("extract_selected_generation", text)
+        self.assertNotIn("clear_generated_outputs", text)
+        self.assertNotIn("generated_output_paths", text)
+        self.assertNotIn("generated_read_02", text)
+        self.assertNotIn("generated_contactsheet", text)
+        self.assertNotIn("ROI_rectangle", text)
+        self.assertNotIn("use_roi", text)
+        self.assertNotIn("roi_area", text)
+        self.assertNotIn("name Text1", text)
+
+    def test_resolve_finegrain_runner_basename(self):
+        tool_id = preview.resolve_tool_id_from_runner_path(
+            "__INSTALL_ROOT__/nuke/python/fal_finegrain_eraser_runner_v1.py"
+        )
+        self.assertEqual(tool_id, "Finegrain_Eraser_v1")
+        cfg = preview.TOOL_PREVIEW_CONFIG[tool_id]
+        self.assertEqual(preview.preview_kind_for_config(cfg), "filter")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 1)
+        self.assertFalse(cfg.get("accumulate_outputs"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertFalse(preview.wants_history_knobs(cfg))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        runner = self._finegrain_runner_text()
+        self.assertIn("wire_group_outputs", runner)
+        self.assertIn("g.input(1)", runner)
+        self.assertIn("mask_for_execute", runner)
+        self.assertIn("render_still_inside_group", runner)
+        self.assertIn("channel_list_has_alpha", runner)
+        self.assertIn("spawn_reads_in_graph", runner)
+
+
+class TestTopazPrecisionPreview(unittest.TestCase):
+    def _topaz_nk_text(self):
+        path = os.path.join(
+            _ROOT, "nuke", "groups", "fal_topaz_upscale_image_precision_v1.nk"
+        )
+        with open(path, "r") as f:
+            return f.read()
+
+    def _topaz_runner_text(self):
+        path = os.path.join(
+            _ROOT, "nuke", "python", "fal_topaz_upscale_image_precision_runner_v1.py"
+        )
+        with open(path, "r") as f:
+            return f.read()
+
+    def test_topaz_config_is_filter_without_history_or_roi(self):
+        cfg = preview.TOOL_PREVIEW_CONFIG.get("Topaz_Upscale_Image_Precision_v1")
+        self.assertIsNotNone(cfg)
+        self.assertEqual(preview.preview_kind_for_config(cfg), "filter")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 1)
+        self.assertFalse(cfg.get("supports_generated_grid"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertFalse(preview.wants_history_knobs(cfg))
+        self.assertFalse(cfg.get("accumulate_outputs"))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg), ["Input", "Generated"]
+        )
+        self.assertNotIn("Generated grid", preview.viewer_modes_for_config(cfg))
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertIn("viewer_mode", knobs)
+        self.assertIn("spawn_reads_in_graph", knobs)
+        self.assertNotIn("preview_index", knobs)
+        self.assertNotIn(preview.EXTRACT_SELECTED_KNOB, knobs)
+        self.assertNotIn(preview.CLEAR_HISTORY_KNOB, knobs)
+        self.assertNotIn(preview.OUTPUT_PATHS_REGISTRY_KNOB, knobs)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+
+    def test_topaz_nk_has_filter_preview_without_history_or_roi(self):
+        text = self._topaz_nk_text()
+        self.assertIn("viewer_mode_switch", text)
+        self.assertIn("M {Input Generated \"\"}", text)
+        self.assertIn("generated_read_01", text)
+        self.assertIn("name preview_source_01", text)
+        self.assertIn("fal_tool_id Topaz_Upscale_Image_Precision_v1", text)
+        self.assertIn("name source_image", text)
+        self.assertIn("spawn_reads_in_graph false", text)
+        self.assertNotIn("Generated grid", text)
+        self.assertNotIn("preview_index", text)
+        self.assertNotIn("extract_selected_generation", text)
+        self.assertNotIn("clear_generated_outputs", text)
+        self.assertNotIn("generated_output_paths", text)
+        self.assertNotIn("generated_read_02", text)
+        self.assertNotIn("generated_contactsheet", text)
+        self.assertNotIn("ROI_rectangle", text)
+        self.assertNotIn("use_roi", text)
+        self.assertNotIn("roi_area", text)
+        self.assertNotIn("name Text1", text)
+
+    def test_resolve_topaz_runner_basename(self):
+        tool_id = preview.resolve_tool_id_from_runner_path(
+            "__INSTALL_ROOT__/nuke/python/fal_topaz_upscale_image_precision_runner_v1.py"
+        )
+        self.assertEqual(tool_id, "Topaz_Upscale_Image_Precision_v1")
+        cfg = preview.TOOL_PREVIEW_CONFIG[tool_id]
+        self.assertEqual(preview.preview_kind_for_config(cfg), "filter")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 1)
+        self.assertFalse(cfg.get("accumulate_outputs"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertFalse(preview.wants_history_knobs(cfg))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        runner = self._topaz_runner_text()
+        self.assertIn("wire_group_outputs", runner)
+        self.assertIn("spawn_reads_in_graph", runner)
+
+
+class TestBriaExtractObjectPreview(unittest.TestCase):
+    def _bria_nk_text(self):
+        path = os.path.join(_ROOT, "nuke", "groups", "fal_bria_extract_object_v1.nk")
+        with open(path, "r") as f:
+            return f.read()
+
+    def _bria_runner_text(self):
+        path = os.path.join(
+            _ROOT, "nuke", "python", "fal_bria_extract_object_runner_v1.py"
+        )
+        with open(path, "r") as f:
+            return f.read()
+
+    def test_bria_config_is_filter_without_history_or_roi(self):
+        cfg = preview.TOOL_PREVIEW_CONFIG.get("Bria_Extract_Object_v1")
+        self.assertIsNotNone(cfg)
+        self.assertEqual(preview.preview_kind_for_config(cfg), "filter")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertNotIn("prompt_text", cfg["preview_inputs"])
+        self.assertEqual(cfg["max_outputs"], 1)
+        self.assertFalse(cfg.get("supports_generated_grid"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertFalse(preview.wants_history_knobs(cfg))
+        self.assertFalse(cfg.get("accumulate_outputs"))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg), ["Input", "Generated"]
+        )
+        self.assertNotIn("Generated grid", preview.viewer_modes_for_config(cfg))
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertIn("viewer_mode", knobs)
+        self.assertIn("spawn_reads_in_graph", knobs)
+        self.assertNotIn("preview_index", knobs)
+        self.assertNotIn(preview.EXTRACT_SELECTED_KNOB, knobs)
+        self.assertNotIn(preview.CLEAR_HISTORY_KNOB, knobs)
+        self.assertNotIn(preview.OUTPUT_PATHS_REGISTRY_KNOB, knobs)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+
+    def test_bria_nk_has_filter_preview_without_history_or_roi(self):
+        text = self._bria_nk_text()
+        self.assertIn("viewer_mode_switch", text)
+        self.assertIn("M {Input Generated \"\"}", text)
+        self.assertIn("generated_read_01", text)
+        self.assertIn("name preview_source_01", text)
+        self.assertIn("fal_tool_id Bria_Extract_Object_v1", text)
+        self.assertIn("name source_image", text)
+        self.assertIn("name prompt_text", text)
+        self.assertIn("spawn_reads_in_graph false", text)
+        self.assertNotIn("Generated grid", text)
+        self.assertNotIn("preview_index", text)
+        self.assertNotIn("extract_selected_generation", text)
+        self.assertNotIn("clear_generated_outputs", text)
+        self.assertNotIn("generated_output_paths", text)
+        self.assertNotIn("generated_read_02", text)
+        self.assertNotIn("generated_contactsheet", text)
+        self.assertNotIn("ROI_rectangle", text)
+        self.assertNotIn("use_roi", text)
+        self.assertNotIn("roi_area", text)
+        self.assertNotIn("name Text1", text)
+
+    def test_resolve_bria_runner_basename(self):
+        tool_id = preview.resolve_tool_id_from_runner_path(
+            "__INSTALL_ROOT__/nuke/python/fal_bria_extract_object_runner_v1.py"
+        )
+        self.assertEqual(tool_id, "Bria_Extract_Object_v1")
+        cfg = preview.TOOL_PREVIEW_CONFIG[tool_id]
+        self.assertEqual(preview.preview_kind_for_config(cfg), "filter")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 1)
+        self.assertFalse(cfg.get("accumulate_outputs"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertFalse(preview.wants_history_knobs(cfg))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        runner = self._bria_runner_text()
+        self.assertIn("wire_group_outputs", runner)
+        self.assertIn("spawn_reads_in_graph", runner)
+        self.assertIn("get_prompt_from_input_or_group", runner)
+
+
+class TestSAM31ImagePreview(unittest.TestCase):
+    def _sam_nk_text(self):
+        path = os.path.join(_ROOT, "nuke", "groups", "fal_sam_3_1_image_v1.nk")
+        with open(path, "r") as f:
+            return f.read()
+
+    def _sam_runner_text(self):
+        path = os.path.join(
+            _ROOT, "nuke", "python", "fal_sam_3_1_image_runner_v1.py"
+        )
+        with open(path, "r") as f:
+            return f.read()
+
+    def test_sam_config_is_filter_without_history_or_roi(self):
+        cfg = preview.TOOL_PREVIEW_CONFIG.get("SAM_3_1_Image_v1")
+        self.assertIsNotNone(cfg)
+        self.assertEqual(preview.preview_kind_for_config(cfg), "filter")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertNotIn("prompt_text", cfg["preview_inputs"])
+        self.assertEqual(cfg["max_outputs"], 1)
+        self.assertFalse(cfg.get("supports_generated_grid"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertFalse(preview.wants_history_knobs(cfg))
+        self.assertFalse(cfg.get("accumulate_outputs"))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg), ["Input", "Generated"]
+        )
+        self.assertNotIn("Generated grid", preview.viewer_modes_for_config(cfg))
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertIn("viewer_mode", knobs)
+        self.assertIn("spawn_reads_in_graph", knobs)
+        self.assertNotIn("preview_index", knobs)
+        self.assertNotIn(preview.EXTRACT_SELECTED_KNOB, knobs)
+        self.assertNotIn(preview.CLEAR_HISTORY_KNOB, knobs)
+        self.assertNotIn(preview.OUTPUT_PATHS_REGISTRY_KNOB, knobs)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+
+    def test_sam_nk_has_filter_preview_without_history_or_roi(self):
+        text = self._sam_nk_text()
+        self.assertIn("viewer_mode_switch", text)
+        self.assertIn("M {Input Generated \"\"}", text)
+        self.assertIn("generated_read_01", text)
+        self.assertIn("name preview_source_01", text)
+        self.assertIn("fal_tool_id SAM_3_1_Image_v1", text)
+        self.assertIn("name source_image", text)
+        self.assertIn("name prompt_text", text)
+        self.assertIn("spawn_reads_in_graph false", text)
+        self.assertIn("apply_mask false", text)
+        self.assertIn('prompt "person"', text)
+        self.assertNotIn("Describe the object to segment", text)
+        self.assertNotIn("Generated grid", text)
+        self.assertNotIn("preview_index", text)
+        self.assertNotIn("extract_selected_generation", text)
+        self.assertNotIn("clear_generated_outputs", text)
+        self.assertNotIn("generated_output_paths", text)
+        self.assertNotIn("generated_read_02", text)
+        self.assertNotIn("generated_contactsheet", text)
+        self.assertNotIn("ROI_rectangle", text)
+        self.assertNotIn("use_roi", text)
+        self.assertNotIn("roi_area", text)
+        self.assertNotIn("name Text1", text)
+
+    def test_resolve_sam_runner_basename(self):
+        tool_id = preview.resolve_tool_id_from_runner_path(
+            "__INSTALL_ROOT__/nuke/python/fal_sam_3_1_image_runner_v1.py"
+        )
+        self.assertEqual(tool_id, "SAM_3_1_Image_v1")
+        cfg = preview.TOOL_PREVIEW_CONFIG[tool_id]
+        self.assertEqual(preview.preview_kind_for_config(cfg), "filter")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 1)
+        self.assertFalse(cfg.get("accumulate_outputs"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertFalse(preview.wants_history_knobs(cfg))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        runner = self._sam_runner_text()
+        self.assertIn("wire_group_outputs", runner)
+        self.assertIn("spawn_reads_in_graph", runner)
+        self.assertIn("get_prompt_from_input_or_group", runner)
+        self.assertIn("--apply-mask", runner)
+        self.assertIn("--no-apply-mask", runner)
+
 
 class TestOutputRegistry(unittest.TestCase):
     def test_parse_empty_registry(self):
@@ -187,6 +1128,16 @@ class TestOutputRegistry(unittest.TestCase):
         self.assertEqual(preview.generated_read_node_name(1), "generated_read_01")
         self.assertEqual(preview.generated_read_node_name(99), "generated_read_99")
         self.assertEqual(preview.generated_read_node_name(100), "generated_read_100")
+
+    def test_selected_output_path(self):
+        paths = ["C:/a/1.png", "C:/a/2.png", "C:/a/3.png"]
+        self.assertEqual(preview.selected_output_path(paths, 1), "C:/a/1.png")
+        self.assertEqual(preview.selected_output_path(paths, 3), "C:/a/3.png")
+        self.assertIsNone(preview.selected_output_path(paths, 0))
+        self.assertIsNone(preview.selected_output_path(paths, 4))
+        self.assertIsNone(preview.selected_output_path([], 1))
+        self.assertIsNone(preview.selected_output_path(None, 1))
+        self.assertIsNone(preview.selected_output_path(paths, "x"))
 
 
 class TestRoiBboxValidation(unittest.TestCase):

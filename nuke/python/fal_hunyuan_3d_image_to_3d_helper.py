@@ -1,7 +1,9 @@
 # Purpose:
 # - Python 3 helper for Nuke (Python 2.7) to run fal.ai Hunyuan 3D Pro image-to-3D on a still image.
 # - Uploads a local front-view image, calls `fal-ai/hunyuan-3d/v3.1/pro/image-to-3d`,
-#   downloads GLB, texture PNG, MTL, OBJ (optional), and preview thumbnail into one output folder.
+#   downloads GLB, fal's single texture PNG, MTL, OBJ (optional), and preview thumbnail.
+#   Then extracts PBR maps (albedo / metallic-roughness / normal) from the GLB. fal's
+#   model_urls.texture is one file and is often the normal map when enable_pbr is on.
 #
 # Usage (example):
 #   py -3 fal_hunyuan_3d_image_to_3d_helper.py --image "C:/in.png" --out-dir "C:/temp/run" --verbose
@@ -20,15 +22,18 @@ import argparse
 import json
 import os
 import sys
-import time
 
 from fal_common import (
-    compute_retry_sleep_seconds,
     download,
+    emit_result_summary,
     ensure_dir,
     format_fal_error_summary,
-    should_retry_fal_error,
+    subscribe_with_retry,
 )
+from fal_glb_textures import extract_glb_textures
+
+_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp")
+_SKIP_MODEL_KEYS = ("glb", "obj", "fbx", "usdz", "mtl", "texture")
 
 _ENDPOINT_ID = "fal-ai/hunyuan-3d/v3.1/pro/image-to-3d"
 _FACE_COUNT_MIN = 40000
@@ -80,6 +85,37 @@ def _download_model_urls(
     for key in keys:
         file_obj = model_urls.get(key)
         if not isinstance(file_obj, dict):
+            continue
+        out_path = _out_path_for_model_url(key, file_obj, out_dir)
+        if skip_if_exists and os.path.isfile(out_path):
+            downloaded[key] = out_path
+            continue
+        saved = _download_file_obj(file_obj, out_path, user_agent, verbose)
+        if saved:
+            downloaded[key] = saved
+
+
+def _looks_like_image(key: str, file_obj: dict) -> bool:
+    ctype = str(file_obj.get("content_type") or "").lower()
+    if ctype.startswith("image/"):
+        return True
+    name = str(file_obj.get("file_name") or key or "").lower()
+    return name.endswith(_IMAGE_EXTS)
+
+
+def _download_extra_image_urls(
+    model_urls: dict,
+    out_dir: str,
+    user_agent: str,
+    verbose: bool,
+    downloaded: dict[str, str],
+    skip_if_exists: bool = True,
+) -> None:
+    """Download any extra image File objects if fal adds PBR map URLs later."""
+    for key, file_obj in model_urls.items():
+        if key in _SKIP_MODEL_KEYS or key in downloaded:
+            continue
+        if not isinstance(file_obj, dict) or not _looks_like_image(key, file_obj):
             continue
         out_path = _out_path_for_model_url(key, file_obj, out_dir)
         if skip_if_exists and os.path.isfile(out_path):
@@ -170,10 +206,6 @@ def main(argv: list[str]) -> int:
         print("ERROR: failed to import fal_client. Did you `pip install fal-client`? (%s)" % (e,), file=sys.stderr)
         return 3
 
-    try:
-        from fal_client.client import FalClientHTTPError  # type: ignore
-    except Exception:
-        FalClientHTTPError = Exception  # type: ignore
 
     client = fal_client.SyncClient(key=fal_key)
     user_agent = "nuke-fal-hunyuan-3d-image-to-3d-helper"
@@ -194,36 +226,19 @@ def main(argv: list[str]) -> int:
         print("Submitting request: %s" % _ENDPOINT_ID)
         print("Arguments: %s" % json.dumps({k: v for k, v in arguments.items() if k != "input_image_url"}))
 
-    result = None
-    last_exc: BaseException | None = None
-    max_attempts = max(1, int(args.max_retries) + 1)
-    for attempt in range(1, max_attempts + 1):
-        try:
-            result = client.subscribe(
-                _ENDPOINT_ID,
-                arguments=arguments,
-            )
-            last_exc = None
-            break
-        except FalClientHTTPError as e:
-            last_exc = e
-            if (attempt >= max_attempts) or (not should_retry_fal_error(e)):
-                break
-            sleep_s = compute_retry_sleep_seconds(attempt, float(args.retry_base_seconds))
-            print(
-                "WARNING: fal request failed (attempt %d/%d). Retrying in %.1fs.\n%s"
-                % (attempt, max_attempts, sleep_s, format_fal_error_summary(e)),
-                file=sys.stderr,
-            )
-            time.sleep(sleep_s)
-        except Exception as e:
-            last_exc = e
-            break
-
-    if result is None:
+    try:
+        result = subscribe_with_retry(
+            client,
+            _ENDPOINT_ID,
+            arguments,
+            max_retries=args.max_retries,
+            retry_base_seconds=args.retry_base_seconds,
+            verbose=args.verbose,
+        )
+    except Exception as e:
         print(
             "ERROR: Hunyuan 3D image-to-3D request failed.\n%s"
-            % (format_fal_error_summary(last_exc) if last_exc else "Unknown error"),
+            % format_fal_error_summary(e),
             file=sys.stderr,
         )
         return 5
@@ -265,6 +280,17 @@ def main(argv: list[str]) -> int:
                 keys=("obj", "fbx", "usdz"),
                 downloaded=downloaded,
             )
+        _download_extra_image_urls(
+            model_urls,
+            out_dir,
+            user_agent,
+            args.verbose,
+            downloaded=downloaded,
+        )
+
+    extracted_textures = extract_glb_textures(
+        downloaded["glb"], out_dir, verbose=args.verbose
+    )
 
     thumb_obj = result.get("thumbnail")
     preview_path = os.path.join(out_dir, "preview.png")
@@ -279,9 +305,10 @@ def main(argv: list[str]) -> int:
         "generate_type": args.generate_type,
         "enable_pbr": bool(args.enable_pbr and args.generate_type != "Geometry"),
         "downloaded": downloaded,
+        "extracted_textures": extracted_textures,
         "seed": result.get("seed"),
     }
-    print(json.dumps(summary))
+    emit_result_summary(summary)
     return 0
 
 

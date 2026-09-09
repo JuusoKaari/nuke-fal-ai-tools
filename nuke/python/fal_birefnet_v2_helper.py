@@ -20,7 +20,13 @@ import os
 import re
 import sys
 
-from fal_common import download, ensure_dir
+from fal_common import (
+    download,
+    emit_result_summary,
+    ensure_dir,
+    format_fal_error_summary,
+    subscribe_with_retry,
+)
 
 
 _ENDPOINT_ID = "fal-ai/birefnet/v2"
@@ -109,6 +115,18 @@ def main(argv: list[str]) -> int:
         default=None,
         help="Frame padding for output filenames. If omitted, inferred from input pattern (default 4).",
     )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=3,
+        help="Max retries for transient fal backend errors (5xx/429/downstream_service_error). Default: 3.",
+    )
+    parser.add_argument(
+        "--retry-base-seconds",
+        type=float,
+        default=2.0,
+        help="Base backoff seconds for retries (exponential with jitter). Default: 2.0.",
+    )
     parser.add_argument("--verbose", action="store_true", help="Print more logs.")
     args = parser.parse_args(argv)
 
@@ -142,6 +160,7 @@ def main(argv: list[str]) -> int:
     if args.output_mask:
         ensure_dir(mask_dir)
 
+    primary_out = None
     for frame in range(first, last + 1):
         in_path = _resolve_frame_path(pattern, frame, pad)
         in_path = os.path.abspath(in_path)
@@ -158,17 +177,29 @@ def main(argv: list[str]) -> int:
         if args.verbose:
             print("Frame %d: submit %s" % (frame, _ENDPOINT_ID))
 
-        result = client.subscribe(
-            _ENDPOINT_ID,
-            arguments={
-                "image_url": image_url,
-                "model": args.model,
-                "operating_resolution": args.operating_resolution,
-                "output_mask": bool(args.output_mask),
-                "refine_foreground": bool(args.refine_foreground),
-                "output_format": args.output_format,
-            },
-        )
+        try:
+            result = subscribe_with_retry(
+                client,
+                _ENDPOINT_ID,
+                {
+                    "image_url": image_url,
+                    "model": args.model,
+                    "operating_resolution": args.operating_resolution,
+                    "output_mask": bool(args.output_mask),
+                    "refine_foreground": bool(args.refine_foreground),
+                    "output_format": args.output_format,
+                },
+                max_retries=args.max_retries,
+                retry_base_seconds=args.retry_base_seconds,
+                verbose=args.verbose,
+            )
+        except Exception as e:
+            print(
+                "ERROR: BiRefNet v2 request failed.\n%s"
+                % format_fal_error_summary(e),
+                file=sys.stderr,
+            )
+            return 5
 
         try:
             image_out_url = result["image"]["url"]
@@ -188,6 +219,8 @@ def main(argv: list[str]) -> int:
             print("Frame %d: download image -> %s" % (frame, out_path))
 
         download(image_out_url, out_path, user_agent=user_agent)
+        if primary_out is None:
+            primary_out = out_path
 
         if args.output_mask and result.get("mask_image"):
             try:
@@ -204,19 +237,19 @@ def main(argv: list[str]) -> int:
                     print("Frame %d: download mask -> %s" % (frame, mask_path))
                 download(mask_out_url, mask_path, user_agent=user_agent)
 
-    print(
-        json.dumps(
-            {
-                "ok": True,
-                "endpoint": _ENDPOINT_ID,
-                "first": first,
-                "last": last,
-                "out_dir": out_dir,
-                "output_format": args.output_format,
-                "pad": pad,
-                "mask_dir": mask_dir if args.output_mask else None,
-            }
-        )
+    emit_result_summary(
+        {
+            "ok": True,
+            "endpoint": _ENDPOINT_ID,
+            "first": first,
+            "last": last,
+            "out_dir": out_dir,
+            "downloaded": primary_out,
+            "output_format": args.output_format,
+            "pad": pad,
+            "mask_dir": mask_dir if args.output_mask else None,
+        },
+        result_path=primary_out,
     )
     return 0
 

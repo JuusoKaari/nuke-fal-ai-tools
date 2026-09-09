@@ -1,0 +1,648 @@
+# Purpose:
+# - fal.ai Settings panel (API key, optional output dir, video output mode, connection test).
+# - Output dir is used by runners via make_run_dirs when writable.
+# - Open temp/output folder buttons reveal those parent dirs (shared open-folders module).
+# - Video output chooses DWAB EXR sequence (default) vs MP4 Read after video Executes.
+# - Test connection validates the key via fal platform models list (not a
+#   generative run). Uses nukescripts.PythonPanel; setMinimumSize plus
+#   optional Qt resize so help text is readable.
+# - Python 2.7 compatible.
+
+from __future__ import print_function
+
+import os
+import subprocess
+
+import nuke
+import nukescripts
+
+import nuke_fal_config_v1 as fal_config
+import nuke_fal_runner_util_v1 as runner_util
+
+
+_KEY_HELP = (
+    "Paste a new fal.ai API key below to replace the saved one, or leave\n"
+    "the field blank to keep the key already stored in\n"
+    "~/.nuke-fal-ai/config.json.\n"
+    "Cascade: studio-wide FAL_KEY (fallback) -> this Settings file\n"
+    "(this machine) -> per-node FAL knob (script override). The Settings\n"
+    "key is not written into your .nk script."
+)
+
+_OUT_HELP = (
+    "Optional default output folder. When set and writable, Execute writes\n"
+    "nuke_fal_temp/ and nuke_fal_output/ under this folder. Leave empty\n"
+    "to keep writing next to the saved Nuke script. Open temp folder /\n"
+    "Open output folder reveals those parent dirs (creates them if Execute\n"
+    "could)."
+)
+
+_VIDEO_OUT_HELP = (
+    "Video tools: fal.ai returns an MP4. By default, Execute then renders a\n"
+    "DWAB EXR sequence in Nuke and spawns a Read on that sequence. The MP4\n"
+    "is kept on disk (audio and fallback). Choose MP4 to spawn a Read on\n"
+    "the movie instead."
+)
+
+_BTN_HELP = (
+    "Save -- write the fields above to the config file\n"
+    "(blank API key keeps the existing saved key).\n"
+    "Clear key -- remove only the saved API key from the config file.\n"
+    "Test connection -- check system Python 3, fal-client, and that the\n"
+    "API key is accepted by fal.ai (models list ping; no generative run)."
+)
+
+# PythonPanel default is too narrow for these help lines; setMinimumSize
+# before show, then resize after. Help strings are also wrapped.
+_SETTINGS_PANEL_WIDTH = 820
+_SETTINGS_PANEL_HEIGHT = 720
+_SETTINGS_PANEL_TITLE = "fal.ai Settings"
+
+_VIDEO_OUTPUT_LABELS = ["DWAB EXR sequence", "MP4"]
+_VIDEO_OUTPUT_VALUES = [
+    fal_config.VIDEO_OUTPUT_EXR_SEQUENCE,
+    fal_config.VIDEO_OUTPUT_MP4,
+]
+
+
+def _import_qt_widgets():
+    """Return QtWidgets (or PySide1 QtGui) module, or None if unavailable."""
+    try:
+        from PySide6 import QtWidgets
+        return QtWidgets
+    except Exception:
+        pass
+    try:
+        from PySide2 import QtWidgets
+        return QtWidgets
+    except Exception:
+        pass
+    try:
+        from PySide import QtGui
+        return QtGui
+    except Exception:
+        return None
+
+
+def _coerce_qt_widget(obj, QWidget):
+    """Return obj if it is a QWidget; do not call bound methods like .window."""
+    if obj is None or QWidget is None:
+        return None
+    try:
+        if isinstance(obj, QWidget):
+            return obj
+    except Exception:
+        return None
+    return None
+
+
+def _find_settings_panel_widget(panel, QtWidgets):
+    """Locate a QWidget for a shown PythonPanel (the Dialog, or its window)."""
+    QWidget = getattr(QtWidgets, "QWidget", None)
+    found = _coerce_qt_widget(panel, QWidget)
+    if found is not None:
+        return found
+    for attr in ("_widget", "widget", "_window", "window"):
+        found = _coerce_qt_widget(getattr(panel, attr, None), QWidget)
+        if found is not None:
+            return found
+    found = _coerce_qt_widget(
+        getattr(panel, "_PythonPanel__widget", None), QWidget
+    )
+    if found is not None:
+        return found
+    try:
+        app = QtWidgets.QApplication.instance()
+    except Exception:
+        return None
+    if app is None:
+        return None
+    try:
+        for w in app.topLevelWidgets():
+            try:
+                if w.isVisible() and w.windowTitle() == _SETTINGS_PANEL_TITLE:
+                    return w
+            except Exception:
+                continue
+    except Exception:
+        return None
+    return None
+
+
+def _resize_settings_panel(panel, width=None, height=None):
+    """
+    Best-effort enlarge after show(). PythonPanel is a Dialog with
+    setMinimumSize; also call resize, then Qt, if needed. Failures are
+    ignored so Nuke 8+ still opens the panel.
+    """
+    if width is None:
+        width = _SETTINGS_PANEL_WIDTH
+    if height is None:
+        height = _SETTINGS_PANEL_HEIGHT
+    width = int(width)
+    height = int(height)
+    try:
+        panel.setMinimumSize(width, height)
+    except Exception:
+        pass
+    try:
+        resize = getattr(panel, "resize", None)
+        if callable(resize):
+            resize(width, height)
+    except Exception:
+        pass
+    try:
+        QtWidgets = _import_qt_widgets()
+        if QtWidgets is None:
+            return
+        widget = _find_settings_panel_widget(panel, QtWidgets)
+        if widget is None:
+            return
+        try:
+            widget.setMinimumWidth(width)
+            widget.setMinimumHeight(height)
+        except Exception:
+            pass
+        try:
+            widget.resize(width, height)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+
+def _default_python3_argv():
+    """Platform default python3 launcher when no group node is selected."""
+    class _Empty(object):
+        def knob(self, _name):
+            return None
+
+    return runner_util.resolve_python3_cmd(_Empty())
+
+
+def _make_key_knob(name, label, value):
+    """Prefer Password_Knob when available; else String_Knob."""
+    try:
+        knob = nuke.Password_Knob(name, label)
+    except Exception:
+        knob = nuke.String_Knob(name, label)
+    try:
+        knob.setValue(value or "")
+    except Exception:
+        pass
+    return knob
+
+
+def _add_divider(panel, name):
+    """Horizontal rule between sections (empty-label Text_Knob)."""
+    panel.addKnob(nuke.Text_Knob(name, ""))
+
+
+def _mask_key(key):
+    """Short masked preview for status text (never show the full secret)."""
+    key = (key or "").strip()
+    if not key:
+        return "(none)"
+    if len(key) <= 8:
+        return "set (%d chars)" % len(key)
+    return "set (...%s, %d chars)" % (key[-4:], len(key))
+
+
+def _key_status_text(key):
+    return "Saved API key: %s" % _mask_key(key)
+
+
+def resolve_key_for_test(panel_key):
+    """
+    Key for connection test: panel field if non-empty, else config, else env.
+    Does not use a per-node knob (settings has no group context).
+    """
+    panel_key = (panel_key or "").strip()
+    if panel_key and not fal_config.is_placeholder_fal_key(panel_key):
+        return panel_key, "settings panel"
+    cfg_key = fal_config.get_fal_key_from_config()
+    if cfg_key:
+        return cfg_key, "config file"
+    env_key = (os.environ.get("FAL_KEY") or "").strip()
+    if env_key:
+        return env_key, "environment FAL_KEY"
+    return "", "none"
+
+
+def _decode_proc_output(b):
+    if b is None:
+        return ""
+    if isinstance(b, bytes):
+        # On Py2, bytes is an alias of str; decode still works for UTF-8 payloads.
+        try:
+            return b.decode("utf-8", "replace")
+        except Exception:
+            return str(b)
+    return str(b)
+
+
+def run_connection_test(fal_key, python3_argv=None):
+    """
+    Lightweight check via system Python 3 subprocess:
+    1. fal_client imports
+    2. SyncClient constructs with the key
+    3. Authenticated GET https://api.fal.ai/v1/models?limit=1
+       (validates the key with fal.ai; not a generative / paid model run)
+    Returns (ok: bool, message: str).
+    """
+    if not (fal_key or "").strip():
+        return False, (
+            "No fal.ai API key found.\n\n"
+            "Set one in fal.ai -> Settings..., or set the FAL_KEY environment variable."
+        )
+
+    if python3_argv is None:
+        python3_argv = _default_python3_argv()
+
+    # Runs under system Python 3. Keep this string ASCII-only.
+    snippet = (
+        "import os, sys\n"
+        "try:\n"
+        "    import fal_client\n"
+        "except Exception as e:\n"
+        "    sys.stderr.write('IMPORT_FAIL:%s\\n' % e)\n"
+        "    sys.exit(1)\n"
+        "key = (os.environ.get('FAL_KEY') or '').strip()\n"
+        "if not key:\n"
+        "    sys.stderr.write('NO_KEY\\n')\n"
+        "    sys.exit(2)\n"
+        "try:\n"
+        "    fal_client.SyncClient(key=key)\n"
+        "except Exception as e:\n"
+        "    sys.stderr.write('CLIENT_FAIL:%s\\n' % e)\n"
+        "    sys.exit(3)\n"
+        "try:\n"
+        "    from urllib.request import Request, urlopen\n"
+        "    from urllib.error import HTTPError, URLError\n"
+        "except ImportError:\n"
+        "    from urllib2 import Request, urlopen, HTTPError, URLError\n"
+        "url = 'https://api.fal.ai/v1/models?limit=1'\n"
+        "req = Request(\n"
+        "    url,\n"
+        "    headers={\n"
+        "        'Authorization': 'Key %s' % key,\n"
+        "        'User-Agent': 'nuke-fal-ai-tools-settings',\n"
+        "        'Accept': 'application/json',\n"
+        "    },\n"
+        ")\n"
+        "try:\n"
+        "    resp = urlopen(req, timeout=30)\n"
+        "    try:\n"
+        "        status = int(getattr(resp, 'status', None) or resp.getcode())\n"
+        "    except Exception:\n"
+        "        status = 200\n"
+        "    try:\n"
+        "        resp.read(64)\n"
+        "    except Exception:\n"
+        "        pass\n"
+        "    if status < 200 or status >= 300:\n"
+        "        sys.stderr.write('AUTH_FAIL:%s:unexpected status\\n' % status)\n"
+        "        sys.exit(4)\n"
+        "    sys.stdout.write('OK\\n')\n"
+        "    sys.exit(0)\n"
+        "except HTTPError as e:\n"
+        "    body = b''\n"
+        "    try:\n"
+        "        body = e.read(500)\n"
+        "    except Exception:\n"
+        "        pass\n"
+        "    try:\n"
+        "        body_txt = body.decode('utf-8', 'replace')\n"
+        "    except Exception:\n"
+        "        body_txt = str(body)\n"
+        "    sys.stderr.write('AUTH_FAIL:%s:%s\\n' % (getattr(e, 'code', 0), body_txt))\n"
+        "    sys.exit(4)\n"
+        "except URLError as e:\n"
+        "    sys.stderr.write('NET_FAIL:%s\\n' % e)\n"
+        "    sys.exit(5)\n"
+        "except Exception as e:\n"
+        "    sys.stderr.write('NET_FAIL:%s\\n' % e)\n"
+        "    sys.exit(5)\n"
+    )
+
+    env = os.environ.copy()
+    env["FAL_KEY"] = fal_key.strip()
+    if "PYTHONUTF8" not in env:
+        env["PYTHONUTF8"] = "1"
+    if "PYTHONIOENCODING" not in env:
+        env["PYTHONIOENCODING"] = "utf-8:replace"
+
+    argv = list(python3_argv) + ["-c", snippet]
+    try:
+        proc = subprocess.Popen(
+            argv,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+        )
+        out_b, err_b = proc.communicate()
+    except Exception as e:
+        return False, (
+            "Failed to launch system Python 3 (%s).\n\n"
+            "Command: %s\n\n"
+            "Install Python 3 and fal-client, or set Advanced / Python 3 cmd on a group node.\n"
+            "See docs/INSTALL.md."
+            % (e, " ".join(python3_argv))
+        )
+
+    out = _decode_proc_output(out_b).strip()
+    err = _decode_proc_output(err_b).strip()
+    code = int(proc.returncode or 0)
+
+    if code == 0 and out.startswith("OK"):
+        return True, (
+            "fal.ai connection check passed.\n\n"
+            "- API key is present\n"
+            "- System Python 3 can import fal_client\n"
+            "- fal.ai accepted the API key "
+            "(GET /v1/models?limit=1)\n\n"
+            "(No generative / paid model run was made.)"
+        )
+
+    if code == 1 or err.startswith("IMPORT_FAIL:"):
+        detail = err.split("IMPORT_FAIL:", 1)[-1].strip() if "IMPORT_FAIL:" in err else err
+        return False, (
+            "System Python 3 could not import fal_client.\n\n"
+            "%s\n\n"
+            "Install with:\n"
+            "  py -3 -m pip install -r requirements-python3.txt\n"
+            "(or python3 -m pip ... on macOS/Linux)\n\n"
+            "See docs/INSTALL.md."
+            % (detail or err or "import failed")
+        )
+
+    if code == 2 or "NO_KEY" in err:
+        return False, "API key was not passed to the helper process."
+
+    if code == 3 or err.startswith("CLIENT_FAIL:"):
+        detail = err.split("CLIENT_FAIL:", 1)[-1].strip() if "CLIENT_FAIL:" in err else err
+        return False, (
+            "fal_client.SyncClient failed to initialize with this key.\n\n%s"
+            % (detail or err or "client init failed")
+        )
+
+    if code == 4 or err.startswith("AUTH_FAIL:"):
+        detail = err.split("AUTH_FAIL:", 1)[-1].strip() if "AUTH_FAIL:" in err else err
+        http_code = ""
+        body = detail
+        if ":" in detail:
+            http_code, body = detail.split(":", 1)
+            http_code = http_code.strip()
+            body = body.strip()
+        lines = [
+            "fal.ai rejected this API key (or the auth request failed).",
+            "",
+        ]
+        if http_code:
+            lines.append("HTTP status: %s" % http_code)
+        if body:
+            lines.append(body[:800])
+        lines.extend(
+            [
+                "",
+                "Check the key at https://fal.ai/dashboard/keys",
+                "then Save again in fal.ai -> Settings...",
+            ]
+        )
+        return False, "\n".join(lines)
+
+    if code == 5 or err.startswith("NET_FAIL:"):
+        detail = err.split("NET_FAIL:", 1)[-1].strip() if "NET_FAIL:" in err else err
+        return False, (
+            "Could not reach fal.ai to validate the API key.\n\n"
+            "%s\n\n"
+            "Check internet access / proxy / firewall, then try again."
+            % (detail or err or "network error")
+        )
+
+    return False, (
+        "Connection check failed (exit %d).\n\nstdout:\n%s\n\nstderr:\n%s"
+        % (code, out or "(empty)", err or "(empty)")
+    )
+
+
+class FalSettingsPanel(nukescripts.PythonPanel):
+    """Settings UI with Save / Clear key / Test connection buttons."""
+
+    def __init__(self):
+        # No persistent id: Nuke would otherwise restore stale empty Password_Knob
+        # values across sessions and hide the key loaded from config.
+        nukescripts.PythonPanel.__init__(self, _SETTINGS_PANEL_TITLE)
+        try:
+            self.setMinimumSize(_SETTINGS_PANEL_WIDTH, _SETTINGS_PANEL_HEIGHT)
+        except Exception:
+            pass
+
+        cfg = fal_config.load_config()
+        self._saved_key = (cfg.get("fal_key") or "").strip()
+        current_out = cfg.get("output_dir") or ""
+        current_video = fal_config.normalize_video_output(cfg.get("video_output"))
+
+        self.addKnob(nuke.Text_Knob("key_help", "", _KEY_HELP))
+        self._key_status = nuke.Text_Knob("key_status", "", _key_status_text(self._saved_key))
+        self.addKnob(self._key_status)
+        # Leave the field empty on open. Password_Knob often will not display a
+        # restored secret; blank means "keep saved key" on Save.
+        self._key = _make_key_knob("api_key", "New API key (optional)", "")
+        self.addKnob(self._key)
+
+        _add_divider(self, "div_after_key")
+
+        self.addKnob(nuke.Text_Knob("out_help", "", _OUT_HELP))
+        self._out = nuke.File_Knob("output_dir", "Default output folder")
+        self.addKnob(self._out)
+        try:
+            self._out.setValue(current_out or "")
+        except Exception:
+            pass
+
+        self._btn_open_temp = nuke.PyScript_Knob("open_temp_folder", "Open temp folder")
+        self._btn_open_temp.setFlag(nuke.STARTLINE)
+        self.addKnob(self._btn_open_temp)
+        self._btn_open_output = nuke.PyScript_Knob("open_output_folder", "Open output folder")
+        self.addKnob(self._btn_open_output)
+
+        _add_divider(self, "div_after_out")
+
+        self.addKnob(nuke.Text_Knob("video_help", "", _VIDEO_OUT_HELP))
+        self._video_out = nuke.Enumeration_Knob(
+            "video_output", "Video output", _VIDEO_OUTPUT_LABELS
+        )
+        self.addKnob(self._video_out)
+        try:
+            if current_video == fal_config.VIDEO_OUTPUT_MP4:
+                self._video_out.setValue("MP4")
+            else:
+                self._video_out.setValue("DWAB EXR sequence")
+        except Exception:
+            try:
+                self._video_out.setValue(
+                    1 if current_video == fal_config.VIDEO_OUTPUT_MP4 else 0
+                )
+            except Exception:
+                pass
+
+        _add_divider(self, "div_after_video")
+
+        self.addKnob(nuke.Text_Knob("btn_help", "", _BTN_HELP))
+
+        _add_divider(self, "div_before_buttons")
+
+        self._btn_save = nuke.PyScript_Knob("save_settings", "Save")
+        self._btn_save.setFlag(nuke.STARTLINE)
+        self.addKnob(self._btn_save)
+
+        self._btn_clear = nuke.PyScript_Knob("clear_key", "Clear key")
+        self.addKnob(self._btn_clear)
+
+        self._btn_test = nuke.PyScript_Knob("test_connection", "Test connection")
+        self.addKnob(self._btn_test)
+
+    def _refresh_key_status(self, key=None):
+        if key is None:
+            key = self._saved_key
+        try:
+            self._key_status.setValue(_key_status_text(key))
+        except Exception:
+            pass
+
+    def _read_fields(self):
+        try:
+            key = self._key.value() or ""
+        except Exception:
+            key = ""
+        try:
+            out = self._out.value() or ""
+        except Exception:
+            out = ""
+        return str(key), str(out), self._read_video_output()
+
+    def _read_video_output(self):
+        default = fal_config.VIDEO_OUTPUT_DEFAULT
+        try:
+            v = self._video_out.value()
+        except Exception:
+            return default
+        if isinstance(v, int):
+            if 0 <= v < len(_VIDEO_OUTPUT_VALUES):
+                return _VIDEO_OUTPUT_VALUES[v]
+            return default
+        s = str(v or "").strip()
+        for label, value in zip(_VIDEO_OUTPUT_LABELS, _VIDEO_OUTPUT_VALUES):
+            if s == label or s == value:
+                return value
+        return fal_config.normalize_video_output(s)
+
+    def _video_output_label(self, value):
+        value = fal_config.normalize_video_output(value)
+        for label, stored in zip(_VIDEO_OUTPUT_LABELS, _VIDEO_OUTPUT_VALUES):
+            if stored == value:
+                return label
+        return _VIDEO_OUTPUT_LABELS[0]
+
+    def _on_save(self):
+        panel_key, panel_out, panel_video = self._read_fields()
+        panel_key = (panel_key or "").strip()
+        # Blank password field means keep the existing saved key.
+        if panel_key and not fal_config.is_placeholder_fal_key(panel_key):
+            key_to_save = panel_key
+        else:
+            key_to_save = self._saved_key
+        fal_config.save_config(
+            {
+                "fal_key": key_to_save,
+                "output_dir": panel_out,
+                "video_output": panel_video,
+            }
+        )
+        self._saved_key = (key_to_save or "").strip()
+        self._refresh_key_status(self._saved_key)
+        try:
+            self._key.setValue("")
+        except Exception:
+            pass
+        saved = fal_config.config_path()
+        has_key = bool(self._saved_key)
+        has_out = bool((panel_out or "").strip())
+        nuke.message(
+            "Settings saved to:\n%s\n\nAPI key: %s\nDefault output folder: %s\n"
+            "Video output: %s"
+            % (
+                saved,
+                "set" if has_key else "empty",
+                "set" if has_out else "empty (use script folder)",
+                self._video_output_label(panel_video),
+            )
+        )
+
+    def _on_clear(self):
+        _panel_key, panel_out, panel_video = self._read_fields()
+        fal_config.save_config(
+            {
+                "fal_key": "",
+                "output_dir": panel_out,
+                "video_output": panel_video,
+            }
+        )
+        self._saved_key = ""
+        self._refresh_key_status("")
+        try:
+            self._key.setValue("")
+        except Exception:
+            pass
+        nuke.message("API key cleared from ~/.nuke-fal-ai/config.json.")
+
+    def _on_test(self):
+        panel_key, _panel_out, _panel_video = self._read_fields()
+        key, source = resolve_key_for_test(panel_key)
+        _ok, msg = run_connection_test(key)
+        nuke.message("Key source: %s\n\n%s" % (source, msg))
+
+    def _on_open_folder(self, kind):
+        import nuke_fal_open_folders_v1 as open_folders
+        import nuke_ui_error_v1 as ui_error
+
+        _key, panel_out, _video = self._read_fields()
+        panel_out = (panel_out or "").strip()
+        kwargs = {}
+        if panel_out:
+            kwargs["run_base_dir"] = panel_out
+        try:
+            open_folders.open_folder(kind, **kwargs)
+        except Exception as exc:
+            label = "temp" if kind == "temp" else "output"
+            ui_error.report_unexpected_ui_error("open the %s folder" % label, exc)
+
+    def knobChanged(self, knob):
+        if knob is self._btn_save:
+            self._on_save()
+        elif knob is self._btn_clear:
+            self._on_clear()
+        elif knob is self._btn_test:
+            self._on_test()
+        elif knob is self._btn_open_temp:
+            self._on_open_folder("temp")
+        elif knob is self._btn_open_output:
+            self._on_open_folder("output")
+
+
+def show_settings_panel():
+    """Open fal.ai Settings panel. Returns True after the panel is shown."""
+    panel = FalSettingsPanel()
+    try:
+        panel.setMinimumSize(_SETTINGS_PANEL_WIDTH, _SETTINGS_PANEL_HEIGHT)
+    except Exception:
+        pass
+    # Non-modal so Save / Clear / Test can run without closing first.
+    try:
+        panel.show()
+    except Exception:
+        # Older Nuke builds may only support modal show.
+        panel.showModalDialog()
+    _resize_settings_panel(panel)
+    return True

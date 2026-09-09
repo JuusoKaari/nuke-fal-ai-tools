@@ -1,6 +1,6 @@
 # Purpose:
 # - Nuke Group node that runs fal.ai Hunyuan 3D Pro image-to-3D on a single front-view still image.
-# - Downloads GLB (and optionally OBJ) plus a preview thumbnail; spawns a Read for the preview.
+# - Downloads GLB (and optionally OBJ) plus a preview thumbnail; extracts PBR maps from the GLB.
 # - Model: https://fal.ai/models/fal-ai/hunyuan-3d/v3.1/pro/image-to-3d
 
 set cut_paste_input [stack 0]
@@ -9,8 +9,6 @@ push $cut_paste_input
 Group {
  name Hunyuan_3D_Image_to_3D_v1
  selected true
- xpos -331
- ypos 7
  addUserKnob {20 Settings}
  addUserKnob {1 face_count l "Face count (40k-1.5M)"}
  face_count "100000"
@@ -24,18 +22,22 @@ Group {
  show_success_popup true
  addUserKnob {22 execute T "import _nuke_runner_launcher\n_nuke_runner_launcher.execute_this_node()\n" +STARTLINE}
  addUserKnob {20 endGroup n -1}
- addUserKnob {1 python3_cmd l "Python 3 cmd" +INVISIBLE}
+ addUserKnob {20 Advanced l Advanced +CLOSED}
+ addUserKnob {1 python3_cmd l "Python 3 cmd"}
  python3_cmd "py -3"
+ addUserKnob {1 FAL}
+ FAL "insert fal key to override for this node"
+ addUserKnob {22 open_temp_folder l "Open temp folder" T "import nuke_fal_open_folders_v1 as _of\n_of.open_temp_folder()\n" +STARTLINE}
+ addUserKnob {22 open_output_folder l "Open output folder" T "import nuke_fal_open_folders_v1 as _of\n_of.open_output_folder()\n"}
+ addUserKnob {20 endAdvanced n -1}
  addUserKnob {1 helper_path l "Helper path" +INVISIBLE}
  helper_path "__INSTALL_ROOT__/nuke/python/fal_hunyuan_3d_image_to_3d_helper.py"
  addUserKnob {1 runner_path l "Runner path" +INVISIBLE}
  runner_path "__INSTALL_ROOT__/nuke/python/fal_hunyuan_3d_image_to_3d_runner_v1.py"
- addUserKnob {1 FAL +INVISIBLE}
- FAL "insert your secret key here or use env variable FAL_KEY"
 }
 Text {
  inputs 0
- message "Connect a front-view still (single object, simple background) and press Execute.\nOutputs: model.glb, texture PNG, material.mtl (+ optional OBJ) in one folder.\nSpawns Read (texture/preview) and ReadGeo2 (OBJ); texture Read pipes to ReadGeo img.\nView mesh in 3D Viewer (Viewer mode: 3D); wire ReadGeo into your Scene/ScanlineRender."
+ message "Connect a front-view still (single object, simple background) and press Execute.\nOutputs: model.glb, extracted PBR maps (albedo / metallic-roughness / normal), material.mtl (+ optional OBJ).\nfal only returns one texture URL; extra maps are pulled out of the GLB.\nSpawns Read nodes per map and ReadGeo2 (OBJ); albedo pipes to ReadGeo img.\nView mesh in 3D Viewer (Viewer mode: 3D); wire ReadGeo into your Scene/ScanlineRender."
  font C:/Windows/Fonts/arial.ttf
  yjustify bottom
  Transform 1

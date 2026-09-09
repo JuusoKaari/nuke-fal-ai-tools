@@ -3,6 +3,7 @@
 # - Renders a connected pipe to a video file by:
 #   - Rendering a temp PNG sequence from Nuke.
 #   - Encoding that sequence to mp4 using ffmpeg.
+# - libx264 + yuv420p need even width and height, so encode snaps odd axes down by 1px.
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -15,6 +16,9 @@ import subprocess
 
 from nuke_prerender_core_v1 import ensure_dir, render_sequence_from_node
 
+# Drop 1px on any odd axis. pad would add a black line; 1px scale is invisible.
+_EVEN_DIM_VF = "scale=trunc(iw/2)*2:trunc(ih/2)*2"
+
 
 def _ffmpeg_exists():
     try:
@@ -25,8 +29,8 @@ def _ffmpeg_exists():
         return False
 
 
-def _run_ffmpeg_encode(pattern, first, fps, out_path):
-    args = [
+def ffmpeg_encode_args(pattern, first, fps, out_path):
+    return [
         "ffmpeg",
         "-y",
         "-hide_banner",
@@ -38,12 +42,18 @@ def _run_ffmpeg_encode(pattern, first, fps, out_path):
         str(int(first)),
         "-i",
         pattern,
+        "-vf",
+        _EVEN_DIM_VF,
         "-c:v",
         "libx264",
         "-pix_fmt",
         "yuv420p",
         out_path,
     ]
+
+
+def _run_ffmpeg_encode(pattern, first, fps, out_path):
+    args = ffmpeg_encode_args(pattern, first, fps, out_path)
     p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     out = []
     while True:

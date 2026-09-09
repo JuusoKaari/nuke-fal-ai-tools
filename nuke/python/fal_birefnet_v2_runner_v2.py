@@ -13,32 +13,17 @@ from __future__ import print_function
 
 import os
 import re
-import time
-
 import sys
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
-import _path_util
-import _install_help
 import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
+import nuke_fal_runner_util_v1 as runner_util
 import nuke_spawn_read_position_v1 as spawn_pos
-
-
-def _ensure_dir(path):
-    if path and (not os.path.isdir(path)):
-        try:
-            os.makedirs(path)
-        except Exception:
-            pass
-
-
-def _norm_slashes(p):
-    return (p or "").replace("\\", "/")
 
 
 def _infer_pad_from_pattern(pattern):
@@ -54,49 +39,6 @@ def _infer_pad_from_pattern(pattern):
     return 4
 
 
-def _split_cmd(cmd):
-    cmd = (cmd or "").strip()
-    if not cmd:
-        return []
-    try:
-        import shlex
-
-        return shlex.split(cmd)
-    except Exception:
-        return cmd.split()
-
-
-def _get_frame_range_from_knobs(group_node, nuke_module):
-    try:
-        mode = (group_node.knob("frame_range").value() or "root").strip().lower()
-    except Exception:
-        mode = "root"
-
-    if mode == "current":
-        f = int(nuke_module.frame())
-        return f, f
-
-    if mode == "custom":
-        try:
-            start = int(float((group_node.knob("custom_start").value() or "1").strip()))
-            end = int(float((group_node.knob("custom_end").value() or "1").strip()))
-            if end < start:
-                start, end = end, start
-            return start, end
-        except Exception:
-            pass
-
-    try:
-        start = int(nuke_module.root().firstFrame())
-        end = int(nuke_module.root().lastFrame())
-    except Exception:
-        start = 1
-        end = 1
-    if end < start:
-        start, end = end, start
-    return start, end
-
-
 def main():
     import nuke  # imported inside for Nuke environment
 
@@ -104,7 +46,7 @@ def main():
         nuke, caller_globals=globals()
     )
 
-    default_first, default_last = _get_frame_range_from_knobs(g, nuke)
+    default_first, default_last = runner_util.frame_range_from_knobs(g, nuke)
 
     src_node = g.input(0)
     if not src_node:
@@ -114,6 +56,7 @@ def main():
     temp_dir, out_dir, ts = prerender.make_run_dirs(
         nuke_module=nuke,
         prefix="birefnet_v2",
+        group_node=g,
     )
 
     try:
@@ -132,11 +75,6 @@ def main():
 
     pad = _infer_pad_from_pattern(pattern)
 
-    python3_cmd = (g.knob("python3_cmd").value() or "").strip() or "py -3"
-    helper_path = _install_help.require_helper_path(
-        nuke,
-        (g.knob("helper_path").value() or "").strip(),
-    )
 
     model = g.knob("model").value()
     operating_resolution = g.knob("operating_resolution").value()
@@ -144,10 +82,8 @@ def main():
     output_mask = bool(g.knob("output_mask").value())
     refine_foreground = bool(g.knob("refine_foreground").value())
 
-    py_parts = _split_cmd(python3_cmd) or ["py", "-3"]
 
-    args = list(py_parts) + [
-        helper_path,
+    extra_args = [
         "--in-pattern",
         pattern,
         "--first",
@@ -167,36 +103,20 @@ def main():
         "--verbose",
     ]
     if output_mask:
-        args += ["--output-mask"]
+        extra_args += ["--output-mask"]
     if not refine_foreground:
-        args += ["--no-refine-foreground"]
+        extra_args += ["--no-refine-foreground"]
 
-    # Pass auth via env var (do NOT override env with the placeholder text)
-    env = prerender.helper_subprocess_env()
-    fal_knob = (g.knob("FAL").value() or "").strip()
-    if fal_knob and ("insert your secret" not in fal_knob.lower()):
-        env.update({"FAL_KEY": fal_knob})
-
-    try:
-        returncode, _stdout_lines = prerender.run_helper_subprocess(
-            args,
-            env=env,
-            title="BiRefNet v2",
-        )
-    except prerender.FalProgressCancelled:
-        nuke.message("BiRefNet v2 request cancelled.")
-        raise Exception("cancelled")
-
-    if returncode != 0:
-        nuke.message("BiRefNet helper failed (exit %d). Check the Script Editor output for details." % returncode)
-        raise Exception("BiRefNet helper failed")
+    returncode, _stdout_lines = runner_util.run_group_helper(
+        nuke, g, extra_args, 'BiRefNet v2'
+    )
 
     # Create a new Read node in the main node graph (not inside the group)
     xpos = int(g.xpos())
     ypos = int(g.ypos())
 
     out_pattern = os.path.join(out_dir, ("frame_%%0%dd.%s" % (int(pad), output_format)))
-    out_pattern_nk = _norm_slashes(out_pattern)
+    out_pattern_nk = prerender.norm_slashes(out_pattern)
 
     nuke.root().begin()
     try:

@@ -3,7 +3,8 @@
 # - Accepts any upstream image input; if it's a suitable Read node, uses its file at the current frame directly
 #   (no re-render), otherwise pre-renders a still to a temp folder.
 # - Calls the external Python 3 helper `fal_qwen_image_layered_helper.py` to decompose the image into
-#   RGBA layers via fal.ai, and creates multiple Read nodes (one per layer) in the main graph.
+#   RGBA layers via fal.ai, then wires the layer stack into the baked in-group preview.
+# - Root Reads spawn one per layer when spawn_reads_in_graph is on (default on). Each Execute replaces the layer set.
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -19,28 +20,12 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
-import _path_util
-import _install_help
 import _nuke_runner_launcher
 
+import nuke_group_output_preview_v1 as preview
 import nuke_prerender_v1 as prerender
+import nuke_fal_runner_util_v1 as runner_util
 import nuke_spawn_read_position_v1 as spawn_pos
-
-
-def _norm_slashes(p):
-    return (p or "").replace("\\", "/")
-
-
-def _split_cmd(cmd):
-    cmd = (cmd or "").strip()
-    if not cmd:
-        return []
-    try:
-        import shlex
-
-        return shlex.split(cmd)
-    except Exception:
-        return cmd.split()
 
 
 def _layer_output_path(layer_dir, output_format):
@@ -72,6 +57,7 @@ def main():
     temp_dir, out_dir, ts = prerender.make_run_dirs(
         nuke_module=nuke,
         prefix="qwen_layered",
+        group_node=g,
     )
 
     try:
@@ -82,11 +68,6 @@ def main():
         nuke.message("Failed to prepare input image:\n%s" % str(e))
         raise
 
-    python3_cmd = (g.knob("python3_cmd").value() or "").strip() or "py -3"
-    helper_path = _install_help.require_helper_path(
-        nuke,
-        (g.knob("helper_path").value() or "").strip(),
-    )
 
     num_layers = (g.knob("num_layers").value() or "4").strip()
     num_inference_steps = (g.knob("num_inference_steps").value() or "28").strip()
@@ -98,10 +79,8 @@ def main():
     seed = (g.knob("seed").value() or "").strip()
     enable_safety_checker = bool(g.knob("enable_safety_checker").value())
 
-    py_parts = _split_cmd(python3_cmd) or ["py", "-3"]
 
-    args = list(py_parts) + [
-        helper_path,
+    extra_args = [
         "--image",
         image_path,
         "--out-dir",
@@ -119,39 +98,20 @@ def main():
         "--verbose",
     ]
     if prompt:
-        args += ["--prompt", prompt]
+        extra_args += ["--prompt", prompt]
     if negative_prompt:
-        args += ["--negative-prompt", negative_prompt]
+        extra_args += ["--negative-prompt", negative_prompt]
     if seed:
         try:
-            args += ["--seed", str(int(seed))]
+            extra_args += ["--seed", str(int(seed))]
         except (ValueError, TypeError):
             pass
     if not enable_safety_checker:
-        args += ["--no-enable-safety-checker"]
+        extra_args += ["--no-enable-safety-checker"]
 
-    # Pass auth via env var (do NOT override env with the placeholder text)
-    env = prerender.helper_subprocess_env()
-    fal_knob = (g.knob("FAL").value() or "").strip()
-    if fal_knob and ("insert your secret" not in fal_knob.lower()):
-        env.update({"FAL_KEY": fal_knob})
-
-    try:
-        returncode, _stdout_lines = prerender.run_helper_subprocess(
-            args,
-            env=env,
-            title="Qwen Image Layered",
-        )
-    except prerender.FalProgressCancelled:
-        nuke.message("Qwen Image Layered request cancelled.")
-        raise Exception("cancelled")
-
-    if returncode != 0:
-        nuke.message(
-            "Qwen Image Layered helper failed (exit %d). Check the Script Editor output for details."
-            % returncode
-        )
-        raise Exception("Qwen Image Layered helper failed")
+    returncode, _stdout_lines = runner_util.run_group_helper(
+        nuke, g, extra_args, 'Qwen Image Layered'
+    )
 
     # Discover actual layer count from output dir (layer_0, layer_1, ...)
     layer_indices = []
@@ -163,46 +123,64 @@ def main():
                 pass
     layer_indices.sort()
 
-    xpos = int(g.xpos())
-    ypos = int(g.ypos())
+    created = []
+    layer_paths = []
+    for layer_idx in layer_indices:
+        layer_dir = os.path.join(out_dir, "layer_%d" % layer_idx)
+        out_path = _layer_output_path(layer_dir, output_format)
+        if not os.path.isfile(out_path):
+            continue
+        out_path_nk = prerender.norm_slashes(out_path)
+        created.append(out_path_nk)
+        layer_paths.append((layer_idx, out_path_nk))
 
-    nuke.root().begin()
+    if not created:
+        nuke.message("No layer output found. Check the helper script output.")
+        raise Exception("no outputs")
+
     try:
-        read_nodes = []
-        for layer_idx in layer_indices:
-            layer_dir = os.path.join(out_dir, "layer_%d" % layer_idx)
-            out_path = _layer_output_path(layer_dir, output_format)
-            out_path_nk = _norm_slashes(out_path)
+        preview.wire_group_outputs(g, created)
+    except Exception as e:
+        nuke.message("Failed to wire in-group preview outputs:\n%s" % str(e))
+        raise
 
-            if not os.path.isfile(out_path):
-                continue
+    spawn_reads = True
+    try:
+        sk = g.knob("spawn_reads_in_graph")
+        if sk is not None:
+            spawn_reads = bool(sk.value())
+    except Exception:
+        spawn_reads = True
 
-            bx = xpos + (layer_idx * 120)
-            by = ypos + 140
-            fx, fy = spawn_pos.resolve_spawn_xy(nuke, bx, by, exclude_nodes=read_nodes)
-            r = nuke.nodes.Read(file=out_path_nk)
-            try:
-                r.setName("%s_layer_%d_%s" % (g.name(), layer_idx, ts), unique=True)
-            except Exception:
-                pass
-            try:
-                r.knob("label").setValue("Layer %d\n%s" % (layer_idx, out_path_nk))
-            except Exception:
-                pass
-            r.setXpos(fx)
-            r.setYpos(fy)
-            read_nodes.append(r)
-
-        if not read_nodes:
-            nuke.message("No layer output found. Check the helper script output.")
-
-    finally:
-        nuke.endGroup()
+    if spawn_reads:
+        xpos = int(g.xpos())
+        ypos = int(g.ypos())
+        nuke.root().begin()
+        try:
+            read_nodes = []
+            for layer_idx, out_path_nk in layer_paths:
+                bx = xpos + (layer_idx * 120)
+                by = ypos + 140
+                fx, fy = spawn_pos.resolve_spawn_xy(nuke, bx, by, exclude_nodes=read_nodes)
+                r = nuke.nodes.Read(file=out_path_nk)
+                try:
+                    r.setName("%s_layer_%d_%s" % (g.name(), layer_idx, ts), unique=True)
+                except Exception:
+                    pass
+                try:
+                    r.knob("label").setValue("Layer %d\n%s" % (layer_idx, out_path_nk))
+                except Exception:
+                    pass
+                r.setXpos(fx)
+                r.setYpos(fy)
+                read_nodes.append(r)
+        finally:
+            nuke.endGroup()
 
     if _nuke_runner_launcher.should_show_success_popup(g):
         nuke.message(
-            "Qwen Image Layered: created %d Read node(s).\n%s"
-            % (len(read_nodes), _norm_slashes(out_dir))
+            "Qwen Image Layered: %d layer(s).\n%s"
+            % (len(created), prerender.norm_slashes(out_dir))
         )
 
 

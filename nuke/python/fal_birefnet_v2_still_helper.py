@@ -21,7 +21,13 @@ import json
 import os
 import sys
 
-from fal_common import download, ensure_dir
+from fal_common import (
+    download,
+    emit_result_summary,
+    ensure_dir,
+    format_fal_error_summary,
+    subscribe_with_retry,
+)
 
 _ENDPOINT_ID = "fal-ai/birefnet/v2"
 
@@ -73,6 +79,18 @@ def main(argv: list[str]) -> int:
         choices=["png", "webp", "gif"],
         help="Output format for the composited image.",
     )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=3,
+        help="Max retries for transient fal backend errors (5xx/429/downstream_service_error). Default: 3.",
+    )
+    parser.add_argument(
+        "--retry-base-seconds",
+        type=float,
+        default=2.0,
+        help="Base backoff seconds for retries (exponential with jitter). Default: 2.0.",
+    )
     parser.add_argument("--verbose", action="store_true", help="Print more logs.")
     args = parser.parse_args(argv)
 
@@ -105,17 +123,29 @@ def main(argv: list[str]) -> int:
     if args.verbose:
         print("Submitting request: %s" % _ENDPOINT_ID)
 
-    result = client.subscribe(
-        _ENDPOINT_ID,
-        arguments={
-            "image_url": image_url,
-            "model": args.model,
-            "operating_resolution": args.operating_resolution,
-            "output_mask": bool(args.output_mask),
-            "refine_foreground": bool(args.refine_foreground),
-            "output_format": args.output_format,
-        },
-    )
+    try:
+        result = subscribe_with_retry(
+            client,
+            _ENDPOINT_ID,
+            {
+                "image_url": image_url,
+                "model": args.model,
+                "operating_resolution": args.operating_resolution,
+                "output_mask": bool(args.output_mask),
+                "refine_foreground": bool(args.refine_foreground),
+                "output_format": args.output_format,
+            },
+            max_retries=args.max_retries,
+            retry_base_seconds=args.retry_base_seconds,
+            verbose=args.verbose,
+        )
+    except Exception as e:
+        print(
+            "ERROR: BiRefNet v2 request failed.\n%s"
+            % format_fal_error_summary(e),
+            file=sys.stderr,
+        )
+        return 5
 
     try:
         image_out_url = result["image"]["url"]
@@ -147,17 +177,15 @@ def main(argv: list[str]) -> int:
                 print("Downloading mask -> %s" % mask_path)
             download(mask_out_url, mask_path, user_agent=user_agent)
 
-    print(
-        json.dumps(
-            {
-                "ok": True,
-                "endpoint": _ENDPOINT_ID,
-                "out_dir": out_dir,
-                "downloaded": out_path,
-                "mask": mask_path,
-                "output_format": args.output_format,
-            }
-        )
+    emit_result_summary(
+        {
+            "ok": True,
+            "endpoint": _ENDPOINT_ID,
+            "out_dir": out_dir,
+            "downloaded": out_path,
+            "mask": mask_path,
+            "output_format": args.output_format,
+        }
     )
     return 0
 

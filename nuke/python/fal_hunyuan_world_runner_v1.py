@@ -2,8 +2,8 @@
 # - Runner script for the Nuke Group node `Hunyuan_World_v1` (executes inside Nuke / Python 2.7).
 # - Accepts any upstream image input; if it's a suitable Read node, uses its file directly (no re-render),
 #   otherwise pre-renders a still to a temp folder.
-# - Calls the external Python 3 helper `fal_hunyuan_world_helper.py` via subprocess, then creates
-#   a Read node in the main graph for the downloaded panorama image.
+# - Calls the external Python 3 helper `fal_hunyuan_world_helper.py` via subprocess, then wires the
+#   panorama into the baked in-group preview. Root Reads spawn only when spawn_reads_in_graph is on.
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -19,11 +19,11 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
-import _path_util
-import _install_help
 import _nuke_runner_launcher
 
+import nuke_group_output_preview_v1 as preview
 import nuke_prerender_v1 as prerender
+import nuke_fal_runner_util_v1 as runner_util
 import nuke_spawn_read_position_v1 as spawn_pos
 
 
@@ -48,6 +48,7 @@ def main():
     temp_dir, out_dir, ts = prerender.make_run_dirs(
         nuke_module=nuke,
         prefix="hunyuan_world",
+        group_node=g,
     )
 
     try:
@@ -58,16 +59,8 @@ def main():
         nuke.message("Failed to prepare input image:\n%s" % str(e))
         raise
 
-    python3_cmd = (g.knob("python3_cmd").value() or "").strip() or "py -3"
-    helper_path = _install_help.require_helper_path(
-        nuke,
-        (g.knob("helper_path").value() or "").strip(),
-    )
 
-    py_parts = prerender.split_cmd(python3_cmd) or ["py", "-3"]
-
-    args = list(py_parts) + [
-        helper_path,
+    extra_args = [
         "--image",
         image_path,
         "--prompt",
@@ -77,29 +70,9 @@ def main():
         "--verbose",
     ]
 
-    env = prerender.helper_subprocess_env()
-    fal_knob = (g.knob("FAL").value() or "").strip()
-    if fal_knob and ("insert your secret" not in fal_knob.lower()):
-        env.update({"FAL_KEY": fal_knob})
-
-    try:
-        returncode, _stdout_lines = prerender.run_helper_subprocess(
-            args,
-            env=env,
-            title="Hunyuan World",
-        )
-    except prerender.FalProgressCancelled:
-        nuke.message("Hunyuan World request cancelled.")
-        raise Exception("cancelled")
-
-    if returncode != 0:
-        nuke.message(
-            "Hunyuan World helper failed (exit %d). Check the Script Editor output for details." % returncode
-        )
-        raise Exception("Hunyuan World helper failed")
-
-    xpos = int(g.xpos())
-    ypos = int(g.ypos())
+    returncode, _stdout_lines = runner_util.run_group_helper(
+        nuke, g, extra_args, 'Hunyuan World'
+    )
 
     out_path = os.path.join(out_dir, "panorama.png")
     if not os.path.isfile(out_path):
@@ -111,23 +84,41 @@ def main():
         raise Exception("no output")
 
     out_path_nk = prerender.norm_slashes(out_path)
+    created = [out_path_nk]
 
-    nuke.root().begin()
     try:
-        fx, fy = spawn_pos.resolve_spawn_xy(nuke, xpos, ypos + 140)
-        r = nuke.nodes.Read(file=out_path_nk)
+        preview.wire_group_outputs(g, created)
+    except Exception as e:
+        nuke.message("Failed to wire in-group preview outputs:\n%s" % str(e))
+        raise
+
+    spawn_reads = False
+    try:
+        sk = g.knob("spawn_reads_in_graph")
+        if sk is not None:
+            spawn_reads = bool(sk.value())
+    except Exception:
+        spawn_reads = False
+
+    if spawn_reads:
+        xpos = int(g.xpos())
+        ypos = int(g.ypos())
+        nuke.root().begin()
         try:
-            r.setName("%s_%s" % (g.name(), ts), unique=True)
-        except Exception:
-            pass
-        try:
-            r.knob("label").setValue("Hunyuan World\n%s" % out_path_nk)
-        except Exception:
-            pass
-        r.setXpos(fx)
-        r.setYpos(fy)
-    finally:
-        nuke.endGroup()
+            fx, fy = spawn_pos.resolve_spawn_xy(nuke, xpos, ypos + 140)
+            r = nuke.nodes.Read(file=out_path_nk)
+            try:
+                r.setName("%s_%s" % (g.name(), ts), unique=True)
+            except Exception:
+                pass
+            try:
+                r.knob("label").setValue("Hunyuan World\n%s" % out_path_nk)
+            except Exception:
+                pass
+            r.setXpos(fx)
+            r.setYpos(fy)
+        finally:
+            nuke.endGroup()
 
     if _nuke_runner_launcher.should_show_success_popup(g):
         nuke.message("Hunyuan World panorama created:\n%s" % out_path_nk)

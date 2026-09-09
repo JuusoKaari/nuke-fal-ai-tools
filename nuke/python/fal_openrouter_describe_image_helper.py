@@ -18,13 +18,12 @@ import argparse
 import json
 import os
 import sys
-import time
 
 from fal_common import (
-    compute_retry_sleep_seconds,
+    emit_result_summary,
     ensure_dir,
     format_fal_error_summary,
-    should_retry_fal_error,
+    subscribe_with_retry,
 )
 
 _ENDPOINT_ID = "openrouter/router/vision"
@@ -96,10 +95,6 @@ def main(argv: list[str]) -> int:
         print("ERROR: failed to import fal_client. Did you `pip install fal-client`? (%s)" % (e,), file=sys.stderr)
         return 3
 
-    try:
-        from fal_client.client import FalClientHTTPError  # type: ignore
-    except Exception:
-        FalClientHTTPError = Exception  # type: ignore
 
     client = fal_client.SyncClient(key=fal_key)
 
@@ -125,36 +120,19 @@ def main(argv: list[str]) -> int:
     if args.verbose:
         print("Submitting request: %s (model=%s)" % (_ENDPOINT_ID, model))
 
-    result = None
-    last_exc: BaseException | None = None
-    max_attempts = max(1, int(args.max_retries) + 1)
-    for attempt in range(1, max_attempts + 1):
-        try:
-            result = client.subscribe(
-                _ENDPOINT_ID,
-                arguments=arguments,
-            )
-            last_exc = None
-            break
-        except FalClientHTTPError as e:
-            last_exc = e
-            if (attempt >= max_attempts) or (not should_retry_fal_error(e)):
-                break
-            sleep_s = compute_retry_sleep_seconds(attempt, float(args.retry_base_seconds))
-            print(
-                "WARNING: fal request failed (attempt %d/%d). Retrying in %.1fs.\n%s"
-                % (attempt, max_attempts, sleep_s, format_fal_error_summary(e)),
-                file=sys.stderr,
-            )
-            time.sleep(sleep_s)
-        except Exception as e:
-            last_exc = e
-            break
-
-    if result is None:
+    try:
+        result = subscribe_with_retry(
+            client,
+            _ENDPOINT_ID,
+            arguments,
+            max_retries=args.max_retries,
+            retry_base_seconds=args.retry_base_seconds,
+            verbose=args.verbose,
+        )
+    except Exception as e:
         print(
             "ERROR: OpenRouter vision request failed.\n%s"
-            % (format_fal_error_summary(last_exc) if last_exc else "Unknown error"),
+            % format_fal_error_summary(e),
             file=sys.stderr,
         )
         return 5
@@ -187,7 +165,7 @@ def main(argv: list[str]) -> int:
     }
     if usage is not None:
         summary["usage"] = usage
-    print(json.dumps(summary))
+    emit_result_summary(summary)
     return 0
 
 

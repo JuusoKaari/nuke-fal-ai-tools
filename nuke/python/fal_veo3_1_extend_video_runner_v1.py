@@ -3,8 +3,8 @@
 # - Accepts any upstream video input; if it's a suitable Read node, uses its file directly (no re-render),
 #   otherwise pre-renders a temp video from the connected pipe.
 # - Writes a timestamped output mp4 path under a writable temp folder, then calls the external Python 3 helper
-#   `fal_veo3_1_extend_video_helper.py` via subprocess, and finally creates a Read node in the main graph
-#   pointing at the resulting video (frame range set via `nuke_read_video_frames_v1`).
+#   `fal_veo3_1_extend_video_helper.py` via subprocess, and finally creates a Read for the result
+#   (DWAB EXR sequence by default; MP4 if chosen in Settings).
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -22,13 +22,11 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
-import _path_util
-import _install_help
 import _nuke_runner_launcher
 
 import nuke_prerender_v1 as prerender
 import nuke_read_video_frames_v1 as video_frames
-import nuke_spawn_read_position_v1 as spawn_pos
+import nuke_video_output_v1 as video_out
 
 
 def _reload_runner_modules():
@@ -38,7 +36,7 @@ def _reload_runner_modules():
     """
     import _nuke_py_compat
 
-    for mod in (prerender, video_frames, spawn_pos):
+    for mod in (prerender, video_frames, video_out):
         try:
             _nuke_py_compat.reload_module(mod)
         except Exception:
@@ -47,23 +45,9 @@ def _reload_runner_modules():
 
 _reload_runner_modules()
 
+import nuke_fal_runner_util_v1 as runner_util
+
 _MAX_INPUT_SECONDS = 8.0
-
-
-def _norm_slashes(p):
-    return (p or "").replace("\\", "/")
-
-
-def _split_cmd(cmd):
-    cmd = (cmd or "").strip()
-    if not cmd:
-        return []
-    try:
-        import shlex
-
-        return shlex.split(cmd)
-    except Exception:
-        return cmd.split()
 
 
 def _cap_frame_range_to_max_seconds(first, last, fps, max_seconds):
@@ -139,22 +123,6 @@ def _trim_video_tail_if_needed(in_path, temp_dir, base_name, max_seconds):
     return out_path, msg
 
 
-def _summarize_helper_failure(lines):
-    err_lines = []
-    for ln in lines or []:
-        s = (ln or "").strip()
-        if not s:
-            continue
-        if s.startswith("ERROR:") or s.startswith("WARNING:"):
-            err_lines.append(s)
-    if err_lines:
-        return "\n".join(err_lines[-12:])
-    tail = [ln for ln in (lines or []) if (ln or "").strip()][-8:]
-    if tail:
-        return "\n".join(tail)
-    return "No helper output captured. Check Script Editor."
-
-
 def main():
     import nuke  # imported inside for Nuke environment
 
@@ -168,35 +136,6 @@ def main():
         nuke.message("Input 0 (source_video) is not connected.")
         raise Exception("missing input 0")
 
-    def _get_frame_range_from_knobs(group_node, nuke_module):
-        try:
-            mode = (group_node.knob("frame_range").value() or "root").strip().lower()
-        except Exception:
-            mode = "root"
-
-        if mode == "current":
-            f = int(nuke_module.frame())
-            return f, f
-
-        if mode == "custom":
-            try:
-                start = int(float((group_node.knob("custom_start").value() or "1").strip()))
-                end = int(float((group_node.knob("custom_end").value() or "1").strip()))
-                if end < start:
-                    start, end = end, start
-                return start, end
-            except Exception:
-                pass
-
-        try:
-            start = int(nuke_module.root().firstFrame())
-            end = int(nuke_module.root().lastFrame())
-        except Exception:
-            start = 1
-            end = 1
-        if end < start:
-            start, end = end, start
-        return start, end
 
     prompt = (g.knob("prompt").value() or "").strip()
     if not prompt:
@@ -217,7 +156,7 @@ def main():
             nuke.message("Seed must be an integer (or leave empty).")
             raise Exception("invalid seed")
 
-    default_first, default_last = _get_frame_range_from_knobs(g, nuke)
+    default_first, default_last = runner_util.frame_range_from_knobs(g, nuke)
     try:
         fps = float(nuke.root().fps())
     except Exception:
@@ -229,6 +168,7 @@ def main():
     temp_dir, out_dir, ts = prerender.make_run_dirs(
         nuke_module=nuke,
         prefix="veo3_1_extend_video",
+        group_node=g,
     )
 
     try:
@@ -268,17 +208,8 @@ def main():
         raise Exception("unsupported input resolution")
 
     out_path = os.path.join(out_dir, "veo3_1_extend_video_%s.mp4" % ts)
-    out_path_nk = _norm_slashes(out_path)
 
-    python3_cmd = (g.knob("python3_cmd").value() or "").strip() or "py -3"
-    helper_path = _install_help.require_helper_path(
-        nuke,
-        (g.knob("helper_path").value() or "").strip(),
-    )
-
-    py_parts = _split_cmd(python3_cmd) or ["py", "-3"]
-    args = list(py_parts) + [
-        helper_path,
+    extra_args = [
         "--video",
         video_path,
         "--prompt",
@@ -295,66 +226,27 @@ def main():
     ]
 
     if generate_audio:
-        args += ["--generate-audio"]
+        extra_args += ["--generate-audio"]
     else:
-        args += ["--no-generate-audio"]
+        extra_args += ["--no-generate-audio"]
 
     if negative_prompt:
-        args += ["--negative-prompt", negative_prompt]
+        extra_args += ["--negative-prompt", negative_prompt]
 
     if seed_val is not None:
-        args += ["--seed", str(seed_val)]
+        extra_args += ["--seed", str(seed_val)]
 
-    env = prerender.helper_subprocess_env()
-    fal_knob = (g.knob("FAL").value() or "").strip()
-    if fal_knob and ("insert your secret" not in fal_knob.lower()):
-        env.update({"FAL_KEY": fal_knob})
+    returncode, _helper_lines = runner_util.run_group_helper(
+        nuke, g, extra_args, 'Veo 3.1 Extend Video'
+    )
 
-    try:
-        returncode, helper_lines = prerender.run_helper_subprocess(
-            args,
-            env=env,
-            title="Veo 3.1 Extend Video",
-        )
-    except prerender.FalProgressCancelled:
-        nuke.message("Veo 3.1 Extend Video request cancelled.")
-        raise Exception("cancelled")
-
-    if returncode != 0:
-        summary = _summarize_helper_failure(helper_lines)
-        nuke.message(
-            "Veo 3.1 extend-video helper failed (exit %d).\n\n%s"
-            % (returncode, summary)
-        )
-        raise Exception("Veo 3.1 extend-video helper failed")
-
-    xpos = int(g.xpos())
-    ypos = int(g.ypos())
-
-    nuke.root().begin()
-    try:
-        fx, fy = spawn_pos.resolve_spawn_xy(nuke, xpos, ypos + 140)
-        r = nuke.nodes.Read(file=out_path_nk)
-        try:
-            r.setName("%s_result_%s" % (g.name(), ts), unique=True)
-        except Exception:
-            pass
-        try:
-            r.knob("label").setValue("Veo 3.1 extend video\n%s" % out_path_nk)
-        except Exception:
-            pass
-        r.setXpos(fx)
-        r.setYpos(fy)
-        try:
-            video_frames.set_read_frame_range_from_video_file(r, out_path)
-        except Exception:
-            pass
-    finally:
-        nuke.endGroup()
+    display_path = video_out.spawn_video_output_read(
+        nuke, g, out_path, "Veo 3.1 extend video", "%s_result_%s" % (g.name(), ts)
+    )
 
     if _nuke_runner_launcher.should_show_success_popup(g):
         extra = ("\n\n%s" % trim_msg) if trim_msg else ""
-        nuke.message("Veo 3.1 extend-video output created:\n%s%s" % (out_path_nk, extra))
+        nuke.message("Veo 3.1 extend-video output created:\n%s%s" % (display_path, extra))
 
 
 if __name__ == "__main__":
