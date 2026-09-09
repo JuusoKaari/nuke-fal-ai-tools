@@ -5,6 +5,10 @@ TODO.md
 # Local agent guidance (not shipped)
 AGENTS.md
 
+# Private unattended runner (lives in nuke-fal-ai-tools_devtools)
+dev_tools/
+unattended-todo.json
+
 # Python bytecode
 __pycache__/
 *.py[cod]
