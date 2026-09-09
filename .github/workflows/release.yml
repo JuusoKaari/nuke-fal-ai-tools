@@ -1,4 +1,4 @@
-# Purpose: Build a clean install zip and publish a GitHub Release when a v* tag is pushed.
+# Purpose: Run the same unit tests as CI, then build a clean install zip and publish a GitHub Release when a v* tag is pushed.
 
 name: Release
 
@@ -15,6 +15,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Run tests
+        run: python -m unittest discover -s tests
 
       - name: Build release zip
         shell: bash

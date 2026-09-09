@@ -1,4 +1,4 @@
-# Purpose: Run unit tests on push and pull_request. Release zip stays test-free.
+# Purpose: Run unit tests on push and pull_request. Tag releases run the same suite in release.yml before zip/publish.
 
 name: Tests
 
