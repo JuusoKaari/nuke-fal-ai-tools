@@ -5,6 +5,7 @@
 # - Otherwise, pre-renders a still image or image sequence to a writable temp folder (`nuke_fal_temp`) and returns that path/pattern.
 # - Mask / paired stills can pass `match_format_node` so Write uses that node's format (not root).
 # - `make_run_dirs()` also creates a paired output folder (`nuke_fal_output`) for FAL API results.
+# - `ensure_parent_run_dirs()` returns those parent leaf folders (no timestamped run subfolder).
 # - `require_saved_nuke_script()` blocks runners when the script has no saved path on disk.
 # - Temp/output folders prefer Settings `output_dir` when usable; else next to the saved .nk script.
 # - `group_scope()` resets to root, enters a Group, and always returns to root afterward.
@@ -452,7 +453,7 @@ def _show_nuke_message(nuke_module, message):
         pass
 
 
-def pick_writable_temp_dir(nuke_module, leaf_dir_name, env_subdir_name=None):
+def pick_writable_temp_dir(nuke_module, leaf_dir_name, env_subdir_name=None, show_messages=True):
     """
     Return `<script_dir>/<leaf_dir_name>` for the saved Nuke script.
     Raises UnsavedNukeScriptError or ScriptOutputDirError when the folder cannot be used.
@@ -461,7 +462,8 @@ def pick_writable_temp_dir(nuke_module, leaf_dir_name, env_subdir_name=None):
 
     script_dirs = _nuke_script_dir_candidates(nuke_module)
     if not script_dirs:
-        _show_nuke_message(nuke_module, unsaved_nuke_script_message())
+        if show_messages:
+            _show_nuke_message(nuke_module, unsaved_nuke_script_message())
         raise UnsavedNukeScriptError("running fal.ai nodes")
 
     for sd in script_dirs:
@@ -470,7 +472,8 @@ def pick_writable_temp_dir(nuke_module, leaf_dir_name, env_subdir_name=None):
             return target
 
     exc = ScriptOutputDirError(script_dirs[0], leaf_dir_name)
-    _show_nuke_message(nuke_module, str(exc))
+    if show_messages:
+        _show_nuke_message(nuke_module, str(exc))
     raise exc
 
 
@@ -542,6 +545,67 @@ def _resolve_configured_run_base(nuke_module, run_base_dir=None, home=None, conf
     return ""
 
 
+def ensure_parent_run_dirs(
+    nuke_module,
+    temp_leaf_dir_name="nuke_fal_temp",
+    temp_env_subdir_name="nuke_fal_temp",
+    output_leaf_dir_name="nuke_fal_output",
+    output_env_subdir_name="nuke_fal_output",
+    run_base_dir=None,
+    home=None,
+    config_file=None,
+    show_messages=True,
+):
+    """
+    Return (temp_base, out_base) parent dirs Execute would write under.
+
+    Creates `nuke_fal_temp` / `nuke_fal_output` when they are writable.
+    Does not create timestamped run subfolders.
+
+    Parent for those leaf folders:
+    1. Explicit run_base_dir when non-empty and writable
+    2. Else Settings output_dir when non-empty and writable
+    3. Else next to the saved Nuke script
+
+    Raises UnsavedNukeScriptError or ScriptOutputDirError when no parent can
+    be used. Does not fall back to system temp.
+    """
+    configured_base = _resolve_configured_run_base(
+        nuke_module, run_base_dir=run_base_dir, home=home, config_file=config_file
+    )
+    if configured_base:
+        temp_base = os.path.join(configured_base, temp_leaf_dir_name)
+        out_base = os.path.join(configured_base, output_leaf_dir_name)
+        if (not _can_write_dir(temp_base)) or (not _can_write_dir(out_base)):
+            _tprint_warning(
+                nuke_module,
+                "nuke-fal-ai: could not create temp/output under Settings folder; "
+                "falling back to script folder:\n%s" % norm_slashes(configured_base),
+            )
+            configured_base = ""
+
+    if configured_base:
+        ensure_dir(temp_base)
+        ensure_dir(out_base)
+        return temp_base, out_base
+
+    temp_base = pick_writable_temp_dir(
+        nuke_module,
+        leaf_dir_name=temp_leaf_dir_name,
+        env_subdir_name=temp_env_subdir_name,
+        show_messages=show_messages,
+    )
+    out_base = pick_writable_temp_dir(
+        nuke_module,
+        leaf_dir_name=output_leaf_dir_name,
+        env_subdir_name=output_env_subdir_name,
+        show_messages=show_messages,
+    )
+    ensure_dir(temp_base)
+    ensure_dir(out_base)
+    return temp_base, out_base
+
+
 def make_run_dirs(
     nuke_module,
     prefix,
@@ -580,32 +644,16 @@ def make_run_dirs(
             group_token = "_group_%d" % (id(group_node) % 10000)
     sub = "%s%s_%s" % (prefix, group_token, ts)
 
-    configured_base = _resolve_configured_run_base(
-        nuke_module, run_base_dir=run_base_dir, home=home, config_file=config_file
+    temp_base, out_base = ensure_parent_run_dirs(
+        nuke_module,
+        temp_leaf_dir_name=temp_leaf_dir_name,
+        temp_env_subdir_name=temp_env_subdir_name,
+        output_leaf_dir_name=output_leaf_dir_name,
+        output_env_subdir_name=output_env_subdir_name,
+        run_base_dir=run_base_dir,
+        home=home,
+        config_file=config_file,
     )
-    if configured_base:
-        temp_base = os.path.join(configured_base, temp_leaf_dir_name)
-        out_base = os.path.join(configured_base, output_leaf_dir_name)
-        if (not _can_write_dir(temp_base)) or (not _can_write_dir(out_base)):
-            _tprint_warning(
-                nuke_module,
-                "nuke-fal-ai: could not create temp/output under Settings folder; "
-                "falling back to script folder:\n%s" % norm_slashes(configured_base),
-            )
-            configured_base = ""
-
-    if configured_base:
-        ensure_dir(temp_base)
-        ensure_dir(out_base)
-    else:
-        temp_base = pick_writable_temp_dir(
-            nuke_module, leaf_dir_name=temp_leaf_dir_name, env_subdir_name=temp_env_subdir_name
-        )
-        out_base = pick_writable_temp_dir(
-            nuke_module, leaf_dir_name=output_leaf_dir_name, env_subdir_name=output_env_subdir_name
-        )
-        ensure_dir(temp_base)
-        ensure_dir(out_base)
 
     temp_dir = os.path.join(temp_base, sub)
     out_dir = os.path.join(out_base, sub)

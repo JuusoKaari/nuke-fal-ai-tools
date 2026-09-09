@@ -22,6 +22,7 @@ from nuke_prerender_core_v1 import (
     looks_like_sequence_pattern,
     make_run_dir,
     make_run_dirs,
+    ensure_parent_run_dirs,
     norm_slashes,
     pick_writable_temp_dir,
     reset_to_root_graph,

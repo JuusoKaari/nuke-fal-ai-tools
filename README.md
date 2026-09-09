@@ -59,7 +59,7 @@ Runners pre-render inputs inside Nuke, call helpers via subprocess, then wire re
 
 - Each Execute call bills your fal.ai account.
 - API key cascade: studio-wide `FAL_KEY` -> local Settings (`~/.nuke-fal-ai/config.json`) -> per-node **FAL** knob.
-- Output lands in `nuke_fal_temp/` and `nuke_fal_output/` next to your script (or system temp), plus a `.json` sidecar next to each primary result. Video tools default to a DWAB EXR sequence Read (MP4 kept on disk; toggle in **fal.ai -> Settings...**).
+- Output lands in `nuke_fal_temp/` and `nuke_fal_output/` next to your script (or under **fal.ai -> Settings...** Default output folder), plus a `.json` sidecar next to each primary result. **Open temp folder** / **Open output folder** on each Group Advanced tab (and in Settings) reveal those parent dirs. Video tools default to a DWAB EXR sequence Read (MP4 kept on disk; toggle in **fal.ai -> Settings...**).
 - Best-effort support via [GitHub issues](https://github.com/JuusoKaari/nuke-fal-ai-tools/issues). No warranty.
 
 ## License

@@ -1,6 +1,7 @@
 # Purpose:
 # - fal.ai Settings panel (API key, optional output dir, video output mode, connection test).
 # - Output dir is used by runners via make_run_dirs when writable.
+# - Open temp/output folder buttons reveal those parent dirs (shared open-folders module).
 # - Video output chooses DWAB EXR sequence (default) vs MP4 Read after video Executes.
 # - Test connection validates the key via fal platform models list (not a
 #   generative run). Uses nukescripts.PythonPanel; optional Qt resize.
@@ -29,7 +30,8 @@ _KEY_HELP = (
 _OUT_HELP = (
     "Optional default output folder. When set and writable, Execute writes "
     "nuke_fal_temp/ and nuke_fal_output/ under this folder. Leave empty to "
-    "keep writing next to the saved Nuke script."
+    "keep writing next to the saved Nuke script. Open temp folder / Open "
+    "output folder reveals those parent dirs (creates them if Execute could)."
 )
 
 _VIDEO_OUT_HELP = (
@@ -49,7 +51,7 @@ _BTN_HELP = (
 
 # Comfortable open size so multiline help text is readable without shrinking.
 _SETTINGS_PANEL_WIDTH = 640
-_SETTINGS_PANEL_HEIGHT = 580
+_SETTINGS_PANEL_HEIGHT = 640
 _SETTINGS_PANEL_TITLE = "fal.ai Settings"
 
 _VIDEO_OUTPUT_LABELS = ["DWAB EXR sequence", "MP4"]
@@ -420,6 +422,12 @@ class FalSettingsPanel(nukescripts.PythonPanel):
         except Exception:
             pass
 
+        self._btn_open_temp = nuke.PyScript_Knob("open_temp_folder", "Open temp folder")
+        self._btn_open_temp.setFlag(nuke.STARTLINE)
+        self.addKnob(self._btn_open_temp)
+        self._btn_open_output = nuke.PyScript_Knob("open_output_folder", "Open output folder")
+        self.addKnob(self._btn_open_output)
+
         _add_divider(self, "div_after_out")
 
         self.addKnob(nuke.Text_Knob("video_help", "", _VIDEO_OUT_HELP))
@@ -556,6 +564,21 @@ class FalSettingsPanel(nukescripts.PythonPanel):
         _ok, msg = run_connection_test(key)
         nuke.message("Key source: %s\n\n%s" % (source, msg))
 
+    def _on_open_folder(self, kind):
+        import nuke_fal_open_folders_v1 as open_folders
+        import nuke_ui_error_v1 as ui_error
+
+        _key, panel_out, _video = self._read_fields()
+        panel_out = (panel_out or "").strip()
+        kwargs = {}
+        if panel_out:
+            kwargs["run_base_dir"] = panel_out
+        try:
+            open_folders.open_folder(kind, **kwargs)
+        except Exception as exc:
+            label = "temp" if kind == "temp" else "output"
+            ui_error.report_unexpected_ui_error("open the %s folder" % label, exc)
+
     def knobChanged(self, knob):
         if knob is self._btn_save:
             self._on_save()
@@ -563,6 +586,10 @@ class FalSettingsPanel(nukescripts.PythonPanel):
             self._on_clear()
         elif knob is self._btn_test:
             self._on_test()
+        elif knob is self._btn_open_temp:
+            self._on_open_folder("temp")
+        elif knob is self._btn_open_output:
+            self._on_open_folder("output")
 
 
 def show_settings_panel():

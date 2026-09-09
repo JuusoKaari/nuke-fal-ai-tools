@@ -6,6 +6,7 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- **Open temp folder** and **Open output folder** on every fal Group Advanced tab, and next to Default output folder in **fal.ai -> Settings...**. They reveal the parent `nuke_fal_temp/` / `nuke_fal_output/` dirs Execute would use (Settings folder when usable, else next to the saved script). Shared helper: `nuke_fal_open_folders_v1.py`. Recreate nodes from **Nodes -> fal.ai** to pick up the knobs.
 - SAM 3.1 Image (`fal_sam_3_1_image_v1.nk`) - text-prompted segmentation mask (Apply mask for RGBA cutout) via `fal-ai/sam-3-1/image`. Joins Image Utility. v1 is text + one still only (no boxes, points, or multi-mask).
 - Bria Extract Object (`fal_bria_extract_object_v1.nk`) - prompt-guided object cutout as an RGBA PNG (optional mask) via `bria/extract-object`. Stays flat under Image until a second Bria node ships.
 - Hunyuan 3D Part (`fal_hunyuan_3d_part_v1.nk`) - splits a local FBX into part FBX files via `fal-ai/hunyuan-3d/v3.1/part`. Creates the Hunyuan 3D submenu next to Hunyuan 3D Image to 3D.

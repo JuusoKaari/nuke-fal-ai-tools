@@ -123,6 +123,8 @@ ffprobe -version
 
 **Expected:** Each Execute adds timestamped subfolders under `nuke_fal_temp/` (scratch) and `nuke_fal_output/` (downloads). Video tools that render DWAB EXR sequences (default in Settings) add a `name/` folder of `.exr` frames next to the MP4; those are much larger than the movie. Nothing is auto-cleaned. Successful runs also write a `.json` sidecar next to the primary downloaded file.
 
+**Where they live:** Settings **Default output folder** when usable, otherwise next to the saved `.nk`. **Open temp folder** / **Open output folder** (Group Advanced tab, or Settings next to the default folder knob) open those parent dirs in the OS file manager.
+
 **Fix:** Delete old `*_YYYYMMDD_*` subfolders when you no longer need them. Keep folders for runs whose Read nodes still point at those files.
 
 ## Prerender / sequence issues
