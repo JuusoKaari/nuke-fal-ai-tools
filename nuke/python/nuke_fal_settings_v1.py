@@ -4,7 +4,8 @@
 # - Open temp/output folder buttons reveal those parent dirs (shared open-folders module).
 # - Video output chooses DWAB EXR sequence (default) vs MP4 Read after video Executes.
 # - Test connection validates the key via fal platform models list (not a
-#   generative run). Uses nukescripts.PythonPanel; optional Qt resize.
+#   generative run). Uses nukescripts.PythonPanel; setMinimumSize plus
+#   optional Qt resize so help text is readable.
 # - Python 2.7 compatible.
 
 from __future__ import print_function
@@ -20,38 +21,41 @@ import nuke_fal_runner_util_v1 as runner_util
 
 
 _KEY_HELP = (
-    "Paste a new fal.ai API key below to replace the saved one, or leave the "
-    "field blank to keep the key already stored in ~/.nuke-fal-ai/config.json.\n"
-    "Cascade: studio-wide FAL_KEY (fallback) -> this Settings file (this machine) "
-    "-> per-node FAL knob (script override). The Settings key is not written "
-    "into your .nk script."
+    "Paste a new fal.ai API key below to replace the saved one, or leave\n"
+    "the field blank to keep the key already stored in\n"
+    "~/.nuke-fal-ai/config.json.\n"
+    "Cascade: studio-wide FAL_KEY (fallback) -> this Settings file\n"
+    "(this machine) -> per-node FAL knob (script override). The Settings\n"
+    "key is not written into your .nk script."
 )
 
 _OUT_HELP = (
-    "Optional default output folder. When set and writable, Execute writes "
-    "nuke_fal_temp/ and nuke_fal_output/ under this folder. Leave empty to "
-    "keep writing next to the saved Nuke script. Open temp folder / Open "
-    "output folder reveals those parent dirs (creates them if Execute could)."
+    "Optional default output folder. When set and writable, Execute writes\n"
+    "nuke_fal_temp/ and nuke_fal_output/ under this folder. Leave empty\n"
+    "to keep writing next to the saved Nuke script. Open temp folder /\n"
+    "Open output folder reveals those parent dirs (creates them if Execute\n"
+    "could)."
 )
 
 _VIDEO_OUT_HELP = (
-    "Video tools: fal.ai returns an MP4. By default, Execute then renders a "
-    "DWAB EXR sequence in Nuke and spawns a Read on that sequence. The MP4 is "
-    "kept on disk (audio and fallback). Choose MP4 to spawn a Read on the "
-    "movie instead."
+    "Video tools: fal.ai returns an MP4. By default, Execute then renders a\n"
+    "DWAB EXR sequence in Nuke and spawns a Read on that sequence. The MP4\n"
+    "is kept on disk (audio and fallback). Choose MP4 to spawn a Read on\n"
+    "the movie instead."
 )
 
 _BTN_HELP = (
-    "Save -- write the fields above to the config file "
+    "Save -- write the fields above to the config file\n"
     "(blank API key keeps the existing saved key).\n"
     "Clear key -- remove only the saved API key from the config file.\n"
-    "Test connection -- check system Python 3, fal-client, and that the "
+    "Test connection -- check system Python 3, fal-client, and that the\n"
     "API key is accepted by fal.ai (models list ping; no generative run)."
 )
 
-# Comfortable open size so multiline help text is readable without shrinking.
-_SETTINGS_PANEL_WIDTH = 640
-_SETTINGS_PANEL_HEIGHT = 640
+# PythonPanel default is too narrow for these help lines; setMinimumSize
+# before show, then resize after. Help strings are also wrapped.
+_SETTINGS_PANEL_WIDTH = 820
+_SETTINGS_PANEL_HEIGHT = 720
 _SETTINGS_PANEL_TITLE = "fal.ai Settings"
 
 _VIDEO_OUTPUT_LABELS = ["DWAB EXR sequence", "MP4"]
@@ -80,15 +84,33 @@ def _import_qt_widgets():
         return None
 
 
+def _coerce_qt_widget(obj, QWidget):
+    """Return obj if it is a QWidget; do not call bound methods like .window."""
+    if obj is None or QWidget is None:
+        return None
+    try:
+        if isinstance(obj, QWidget):
+            return obj
+    except Exception:
+        return None
+    return None
+
+
 def _find_settings_panel_widget(panel, QtWidgets):
-    """Locate the floating dialog widget for a shown PythonPanel."""
+    """Locate a QWidget for a shown PythonPanel (the Dialog, or its window)."""
+    QWidget = getattr(QtWidgets, "QWidget", None)
+    found = _coerce_qt_widget(panel, QWidget)
+    if found is not None:
+        return found
     for attr in ("_widget", "widget", "_window", "window"):
-        candidate = getattr(panel, attr, None)
-        if candidate is not None:
-            return candidate
-    mangled = getattr(panel, "_PythonPanel__widget", None)
-    if mangled is not None:
-        return mangled
+        found = _coerce_qt_widget(getattr(panel, attr, None), QWidget)
+        if found is not None:
+            return found
+    found = _coerce_qt_widget(
+        getattr(panel, "_PythonPanel__widget", None), QWidget
+    )
+    if found is not None:
+        return found
     try:
         app = QtWidgets.QApplication.instance()
     except Exception:
@@ -109,13 +131,26 @@ def _find_settings_panel_widget(panel, QtWidgets):
 
 def _resize_settings_panel(panel, width=None, height=None):
     """
-    Best-effort enlarge after show(). PythonPanel has no size API; use Qt
-    when available. Failures are ignored so Nuke 8+ still opens the panel.
+    Best-effort enlarge after show(). PythonPanel is a Dialog with
+    setMinimumSize; also call resize, then Qt, if needed. Failures are
+    ignored so Nuke 8+ still opens the panel.
     """
     if width is None:
         width = _SETTINGS_PANEL_WIDTH
     if height is None:
         height = _SETTINGS_PANEL_HEIGHT
+    width = int(width)
+    height = int(height)
+    try:
+        panel.setMinimumSize(width, height)
+    except Exception:
+        pass
+    try:
+        resize = getattr(panel, "resize", None)
+        if callable(resize):
+            resize(width, height)
+    except Exception:
+        pass
     try:
         QtWidgets = _import_qt_widgets()
         if QtWidgets is None:
@@ -124,12 +159,12 @@ def _resize_settings_panel(panel, width=None, height=None):
         if widget is None:
             return
         try:
-            widget.setMinimumWidth(int(width))
-            widget.setMinimumHeight(int(height))
+            widget.setMinimumWidth(width)
+            widget.setMinimumHeight(height)
         except Exception:
             pass
         try:
-            widget.resize(int(width), int(height))
+            widget.resize(width, height)
         except Exception:
             pass
     except Exception:
@@ -398,6 +433,10 @@ class FalSettingsPanel(nukescripts.PythonPanel):
         # No persistent id: Nuke would otherwise restore stale empty Password_Knob
         # values across sessions and hide the key loaded from config.
         nukescripts.PythonPanel.__init__(self, _SETTINGS_PANEL_TITLE)
+        try:
+            self.setMinimumSize(_SETTINGS_PANEL_WIDTH, _SETTINGS_PANEL_HEIGHT)
+        except Exception:
+            pass
 
         cfg = fal_config.load_config()
         self._saved_key = (cfg.get("fal_key") or "").strip()
@@ -595,6 +634,10 @@ class FalSettingsPanel(nukescripts.PythonPanel):
 def show_settings_panel():
     """Open fal.ai Settings panel. Returns True after the panel is shown."""
     panel = FalSettingsPanel()
+    try:
+        panel.setMinimumSize(_SETTINGS_PANEL_WIDTH, _SETTINGS_PANEL_HEIGHT)
+    except Exception:
+        pass
     # Non-modal so Save / Clear / Test can run without closing first.
     try:
         panel.show()

@@ -299,6 +299,8 @@ class TestShippedUiHasOpenFolderButtons(unittest.TestCase):
         self.assertIn('PyScript_Knob("open_output_folder", "Open output folder")', text)
         self.assertIn("_on_open_folder", text)
         self.assertIn("nuke_fal_open_folders_v1", text)
+        self.assertIn("setMinimumSize", text)
+        self.assertIn("_SETTINGS_PANEL_WIDTH = 820", text)
 
 
 if __name__ == "__main__":
