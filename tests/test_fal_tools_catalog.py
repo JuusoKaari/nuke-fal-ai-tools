@@ -1,5 +1,6 @@
 # Run: py -3 -m unittest tests.test_fal_tools_catalog
-# Catalog consistency: menu _TOOLS rows match shipped group/helper/runner files.
+# Catalog consistency: menu _TOOLS rows match shipped group/helper/runner files
+# and README lists every catalog label with the same tool count.
 
 from __future__ import print_function
 
@@ -199,6 +200,14 @@ class TestFalToolsCatalog(unittest.TestCase):
         menu = _menu_map()
         self.assertEqual(menu["image"][-1][:2], ("submenu", "utility"))
         self.assertEqual(menu["video"][-1][:2], ("submenu", "utility"))
+
+    def test_readme_tool_count_matches_catalog(self):
+        readme_path = os.path.join(_ROOT, "README.md")
+        with open(readme_path, "r") as f:
+            text = f.read()
+        self.assertIn("%s tools under" % len(_TOOLS), text)
+        for _cat, _family, label, _group, _helper, _runner in _TOOLS:
+            self.assertIn(label, text, "README missing catalog label: %s" % label)
 
 
 if __name__ == "__main__":

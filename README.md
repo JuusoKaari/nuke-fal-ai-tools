@@ -6,17 +6,17 @@
   <img src="docs/demo.gif" alt="nuke-fal-ai-tools demo (click to watch on YouTube)" width="960">
 </a>
 
-**v1.0.2** early release. APIs and models may change. Full tool list: [CHANGELOG.md](CHANGELOG.md).
+Upcoming **v1.1.0**. APIs and models may change. Release notes: [CHANGELOG.md](CHANGELOG.md).
 
 ## Tools
 
-21 groups under **Nodes -> fal.ai** (families with 2+ tools are submenus; singles stay flat; Utility last):
+32 tools under **Nodes -> fal.ai** (families with 2+ tools are submenus; singles stay flat; Utility last):
 
 | Category | Tools |
 |----------|--------|
-| **Image** | Bria Extract Object, GPT Image 2, Hunyuan World, Nano Banana 2, **Qwen** (Inpaint, Layered, Max Edit), Seedream 5.0 Pro Edit, **Utility** (BiRefNet still, Depth, Finegrain, Topaz Precision, SAM 3.1 Image) |
-| **Video** | DreamActor v2, **FLUX 3** (First/Last, Keyframes), Kling O3, **LTX** (2.3, 2.5 Pro), **MiniMax** (H3, H3 Max), Pika v2.2, **Seedance** (2 I2V, 2 Reference, 2.5), Veo 3.1, **Utility** (BiRefNet, ByteDance upscale) |
-| **3D** | **Hunyuan 3D** (Image to 3D, Part) |
+| **Image** | Bria Extract Object, GPT Image 2 Edit, Hunyuan World, Nano Banana 2 Generate, **Qwen** (Qwen Image Inpaint, Qwen Image Layered, Qwen Image Max Edit), Seedream 5.0 Pro Edit, **Utility** (BiRefNet v2 Still, Depth Anything v2, Finegrain Eraser, Image upscale (Topaz Precision), SAM 3.1 Image) |
+| **Video** | DreamActor v2 Motion Control, **FLUX 3** (FLUX 3 First/Last Frame to Video, FLUX 3 Keyframes to Video), Kling O3 V2V Edit, **LTX** (LTX 2.3 Image to Video, LTX 2.5 Image to Video Pro), **MiniMax** (MiniMax H3 Image to Video, MiniMax H3 Max Image to Video), Pika v2.2 Pikaframes, **Seedance** (Seedance 2 Image to Video, Seedance 2 Reference to Video, Seedance 2.5 Image to Video), Veo 3.1 Extend Video, **Utility** (BiRefNet v2, ByteDance Video Upscale) |
+| **3D** | **Hunyuan 3D** (Hunyuan 3D Image to 3D, Hunyuan 3D Part) |
 | **Text** | **OpenRouter** (Describe image, Generate text) |
 
 ## Quick start
