@@ -22,6 +22,8 @@ INSTALL_ROOT_NAME = "nuke-fal-ai-tools"
 DEFAULT_VERSION = "dev"
 
 # Files that must exist at the repo root of the ZIP.
+# User docs only: INSTALL and troubleshooting. Maintainer smoke
+# (docs/RELEASE_CHECK.md) and planning stay out of the archive.
 REQUIRED_FILES = (
     "init.py",
     "menu.py",

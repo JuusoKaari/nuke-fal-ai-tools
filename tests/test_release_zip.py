@@ -87,6 +87,11 @@ FORBIDDEN_SEGMENTS = frozenset(
     )
 )
 
+# Maintainer docs that live in the repo but must not ship in the install ZIP.
+FORBIDDEN_ZIP_FILES = (
+    "nuke-fal-ai-tools/docs/RELEASE_CHECK.md",
+)
+
 # Helper-side modules that must import without Nuke or fal-client.
 EXTRACT_IMPORT_MODULES = (
     ("extract_print_install_line", os.path.join("tools", "print_install_line.py")),
@@ -110,6 +115,9 @@ def layout_problems(names):
     for prefix in REQUIRED_ZIP_PREFIXES:
         if not any(name.startswith(prefix) for name in names):
             problems.append("missing tree %s" % prefix)
+    for forbidden in FORBIDDEN_ZIP_FILES:
+        if forbidden in name_set:
+            problems.append("forbidden %s" % forbidden)
     for name in names:
         for part in name.split("/"):
             if part in FORBIDDEN_SEGMENTS:
@@ -139,6 +147,9 @@ def extract_layout_problems(plugin_root):
     planning = os.path.join(plugin_root, "docs", "planning")
     if os.path.exists(planning):
         problems.append("dev leftover docs/planning")
+    release_check = os.path.join(plugin_root, "docs", "RELEASE_CHECK.md")
+    if os.path.exists(release_check):
+        problems.append("dev leftover docs/RELEASE_CHECK.md")
     return problems
 
 
@@ -192,6 +203,25 @@ class TestReleaseZipLayout(unittest.TestCase):
         self.assertEqual(layout_problems(self._names), [])
         self.assertIn(INSTALL_PREFIX + "init.py", self._names)
         self.assertIn(INSTALL_PREFIX + "tools/print_install_line.py", self._names)
+
+    def test_maintainer_release_check_doc_exists_but_not_packed(self):
+        repo_doc = os.path.join(_ROOT, "docs", "RELEASE_CHECK.md")
+        self.assertTrue(os.path.isfile(repo_doc), repo_doc)
+        packed = INSTALL_PREFIX + "docs/RELEASE_CHECK.md"
+        self.assertNotIn(packed, [_posix(name) for name in self._names])
+        self.assertFalse(
+            os.path.isfile(
+                os.path.join(self._plugin_root, "docs", "RELEASE_CHECK.md")
+            )
+        )
+
+    def test_layout_check_fails_when_release_check_shipped(self):
+        names = list(self._names) + ["nuke-fal-ai-tools/docs/RELEASE_CHECK.md"]
+        problems = layout_problems(names)
+        self.assertTrue(
+            any("RELEASE_CHECK.md" in item for item in problems),
+            problems,
+        )
 
     def test_extracted_tree_is_standalone_install(self):
         self.assertTrue(os.path.isdir(self._plugin_root), self._plugin_root)
