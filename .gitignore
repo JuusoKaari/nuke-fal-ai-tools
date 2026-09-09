@@ -3,8 +3,7 @@
 /planning/
 /TODO.md
 
-# Local agent guidance (not shipped)
-AGENTS.md
+# AGENTS.md is tracked so clones see contributor rules. The release ZIP still excludes it.
 
 # Private unattended runner (lives in nuke-fal-ai-tools_devtools)
 dev_tools/
