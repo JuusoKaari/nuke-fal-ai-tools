@@ -59,19 +59,21 @@ py -3 --version
 py -3 -m pip install -r requirements-python3.txt
 ```
 
+Helpers need system Python 3.9+ (not Nuke's embedded interpreter). If `py -3 --version` is older than 3.9, install a newer system Python and point **Advanced / Python 3 cmd** at it. Do not replace Nuke's Python.
+
 If `py` is unavailable on Windows, set the node's **Advanced / Python 3 cmd** to your launcher, e.g. `python3` or `C:\Python312\python.exe`. On macOS/Linux the runner already treats the shipped `py -3` default as `python3`.
 
 ## `failed to import fal_client`
 
 **Symptom:** Helper stderr mentions `fal_client` import error.
 
-**Fix:** Install into the **same** Python 3 that `py -3` runs:
+**Fix:** Install into the **same** system Python 3.9+ that `py -3` runs:
 
 ```powershell
 py -3 -m pip install fal-client
 ```
 
-You can also open **fal.ai -> Settings...** and click **Test connection** to verify system Python 3 + `fal_client`, then that fal.ai accepts the API key (models list ping; not a generative run).
+You can also open **fal.ai -> Settings...** and click **Test connection** to verify system Python 3.9+ + `fal_client`, then that fal.ai accepts the API key (models list ping; not a generative run).
 
 ## fal.ai API / authentication errors
 

@@ -2,7 +2,7 @@
 
 Setup guide for **nuke-fal-ai-tools**.
 
-If an AI agent is installing this for a user: follow this document exactly. Point Nuke at the folder that contains `init.py` (not the inner `nuke/` folder). Use system Python 3 for pip (`py -3` on Windows, `python3` elsewhere), not Nuke's embedded Python. Ask before editing `~/.nuke/init.py` or replacing an existing `NUKE_PATH`. Do not write the API key into a `.nk` script or a committed file; leave that to **fal.ai -> Settings...** or `FAL_KEY`.
+If an AI agent is installing this for a user: follow this document exactly. Point Nuke at the folder that contains `init.py` (not the inner `nuke/` folder). Use system Python 3.9+ for pip (`py -3` on Windows, `python3` elsewhere), not Nuke's embedded Python. Ask before editing `~/.nuke/init.py` or replacing an existing `NUKE_PATH`. Do not write the API key into a `.nk` script or a committed file; leave that to **fal.ai -> Settings...** or `FAL_KEY`.
 
 **Platform support:** Developed and tested on **Windows** only. macOS and Linux should work with the same env vars and folder layout, but path separators, Python launchers, and Nuke installs differ -- see [macOS / Linux](#macos--linux) below. Report platform-specific issues on GitHub.
 
@@ -11,8 +11,8 @@ If an AI agent is installing this for a user: follow this document exactly. Poin
 | Item | Notes |
 |------|--------|
 | **Foundry Nuke** | Nuke 8.0+ (tested on 11.3v6 and 17.0v2). Group nodes; **embedded Python 2.7 or 3.x** (toolkit auto-detects) |
-| **System Python 3** | Separate from Nuke - runs `*_helper.py` and `fal-client` via subprocess |
-| **`fal-client`** | Installed into system Python 3 (`pip install -r requirements-python3.txt`) |
+| **System Python 3.9+** | Separate from Nuke's embedded interpreter. Runs `*_helper.py` and `fal-client` via subprocess. Do not replace or upgrade Nuke's Python. |
+| **`fal-client`** | Installed into system Python 3.9+ (`pip install -r requirements-python3.txt`) |
 | **ffmpeg + ffprobe** | On `PATH` for video prerender, Read frame-range probing, and some video tools (e.g. Veo extend tail-trim). [ffmpeg.org](https://ffmpeg.org/download.html) builds usually include both. |
 | **fal.ai account** | Your own API key - usage is billed to you |
 | **Internet** | Helpers call fal.ai cloud APIs |
@@ -22,9 +22,9 @@ If an AI agent is installing this for a user: follow this document exactly. Poin
 | Runtime | Version | What runs there |
 |---------|---------|-----------------|
 | **Nuke embedded** | 2.7 (classic) or 3.x (Nuke 13.2+) | `init.py`, `menu.py`, `*_runner_*.py`, prerender utilities |
-| **System / shell** | Python 3 | `*_helper.py`, `fal-client`, fal.ai HTTP calls |
+| **System / shell** | Python 3.9+ | `*_helper.py`, `fal-client`, fal.ai HTTP calls |
 
-You need **both**: Nuke runs the graph-side runners; your OS Python 3 runs the API helpers. The **Python 3 cmd** knob (closed **Advanced** tab, default `py -3`) points at the system interpreter, not Nuke's. On macOS/Linux the runner treats that baked `py -3` value as `python3`.
+You need **both**: Nuke runs the graph-side runners; your OS Python 3.9+ runs the API helpers. Do not replace or upgrade Nuke's embedded Python. The **Python 3 cmd** knob (closed **Advanced** tab, default `py -3`) points at the system interpreter, not Nuke's. On macOS/Linux the runner treats that baked `py -3` value as `python3`.
 
 Some nodes walk the node graph for inputs (sequences, video). Non-Indie Nuke may be required for full graph-walking behavior; if a node fails to find upstream inputs, check your Nuke license tier.
 
@@ -55,7 +55,9 @@ Use this if you prefer `git pull` for updates.
 git clone https://github.com/JuusoKaari/nuke-fal-ai-tools.git C:\Tools\nuke-fal-ai-tools
 ```
 
-## 2. Install Python 3 dependencies
+## 2. Install system Python 3.9+ dependencies
+
+Helpers need system Python 3.9+ (`py -3 --version` or `python3 --version`). That is your OS interpreter, not Nuke's embedded Python. Do not replace Nuke's Python.
 
 From the repo root:
 
@@ -170,7 +172,7 @@ Same variables and repo layout as Windows; adjust paths and the system Python la
 | Install root example | `C:\Tools\nuke-fal-ai-tools` | `/opt/nuke-fal-ai-tools` or `~/tools/nuke-fal-ai-tools` |
 | `~/.nuke` | `%USERPROFILE%\.nuke` | `~/.nuke` |
 | `NUKE_PATH` separator | `;` between paths | `:` between paths |
-| System Python 3 | `py -3` (default on nodes) | Usually `python3`. The runner maps baked `py -3` to `python3`; override **Advanced / Python 3 cmd** only if needed |
+| System Python 3.9+ | `py -3` (default on nodes) | Usually `python3`. The runner maps baked `py -3` to `python3`; override **Advanced / Python 3 cmd** only if needed |
 | pip install | `py -3 -m pip install -r requirements-python3.txt` | `python3 -m pip install -r requirements-python3.txt` |
 
 **Download zip (recommended)**
@@ -207,7 +209,7 @@ export FAL_KEY="your-fal-api-key"   # optional if using Settings or per-node key
 
 Launch Nuke from a shell that has these exports, or set them in the same place you already configure `NUKE_PATH` for other tools. Restart Nuke after changes.
 
-**Verify Python 3 + fal-client**
+**Verify system Python 3.9+ + fal-client**
 
 ```bash
 python3 -c "import fal_client; print('ok')"

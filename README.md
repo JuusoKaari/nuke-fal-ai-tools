@@ -43,14 +43,14 @@ Install details: [docs/INSTALL.md](docs/INSTALL.md) · Issues: [docs/troubleshoo
 ## Requirements
 
 - Nuke 8.0+ (tested on 11.3v6 and 17.0v2)
-- System Python 3 with [`fal-client`](requirements-python3.txt) (`py -3` on Windows, `python3` elsewhere)
+- System Python 3.9+ with [`fal-client`](requirements-python3.txt) (`py -3` on Windows, `python3` elsewhere). Helpers use this OS interpreter, not Nuke's embedded Python 2.7 / 3.x.
 - ffmpeg and ffprobe on `PATH` for video tools
 - fal.ai account (usage is billed to you)
 
 ## How it works
 
 ```text
-Nuke Group  ->  runner (in Nuke)  ->  helper (system Python 3)  ->  fal.ai
+Nuke Group  ->  runner (in Nuke)  ->  helper (system Python 3.9+)  ->  fal.ai
 ```
 
 Runners pre-render inputs inside Nuke, call helpers via subprocess, then wire results. Image Groups look through the connected plate on Output1. Recreate those nodes from the menu after updating. Video, 3D, and Text still spawn Read, Geo, or Text nodes.
