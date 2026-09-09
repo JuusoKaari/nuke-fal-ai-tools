@@ -32,6 +32,13 @@ jobs:
             --exclude='planning' \
             --exclude='tests' \
             --exclude='dist' \
+            --exclude='docs/proposed-tools.md' \
+            --exclude='AGENTS.md' \
+            --exclude='TODO.md' \
+            --exclude='.cursor' \
+            --exclude='dev_tools' \
+            --exclude='unattended-todo.json' \
+            --exclude='nuke_fal_output' \
             ./ "dist/${STAGING}/"
           (cd dist && zip -rq "${ARCHIVE}" "${STAGING}")
           echo "ARCHIVE_PATH=dist/${ARCHIVE}" >> "${GITHUB_ENV}"

@@ -1,6 +1,7 @@
-# Local planning notes (not shipped)
-planning/
-TODO.md
+# Local planning notes at repo root (not shipped).
+# Anchor so docs/planning/ can still hold tracked specs.
+/planning/
+/TODO.md
 
 # Local agent guidance (not shipped)
 AGENTS.md
@@ -16,3 +17,7 @@ __pycache__/
 
 # Cursor
 .cursorignore
+.cursor/
+
+# Local Execute output
+nuke_fal_output/
