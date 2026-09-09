@@ -6,8 +6,8 @@ Run without a git tag:
 
     python .github/scripts/pack_release.py
 
-Default output is dist/nuke-fal-ai-tools-dev.zip. Tests (R6) can import this
-module and call pack_release_zip() / collect_install_members().
+Default output is dist/nuke-fal-ai-tools-dev.zip. Tests import this module and
+call pack_release_zip() / collect_install_members(), then extract and compile.
 """
 
 from __future__ import print_function

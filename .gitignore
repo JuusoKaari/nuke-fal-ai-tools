@@ -23,3 +23,4 @@ nuke_fal_output/
 
 # Release ZIP output (local dry pack / CI artifact)
 dist/
+*.zip
