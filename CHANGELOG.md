@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-09-25
+
+Recreate nodes from **Nodes -> fal.ai** after updating so the new Group is available.
+
+### Added
+
+**Video**
+
+- SDR to HDR (Topaz) - converts an SDR video to HDR via `topaz/sdr-to-hdr/video`. mp4 is 10-bit H.265 HDR10; prores is 10-bit ProRes 422 HQ in a .mov. Lives in Video Utility.
+
 ## [1.1.0] - 2026-09-09
 
 Recreate nodes from **Nodes -> fal.ai** after updating so baked graphs and new knobs pick up.

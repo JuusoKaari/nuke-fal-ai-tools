@@ -205,7 +205,7 @@ class TestFalToolsCatalog(unittest.TestCase):
         )
         self.assertEqual(
             video_sub["utility"],
-            ["BiRefNet v2", "ByteDance Video Upscale"],
+            ["BiRefNet v2", "ByteDance Video Upscale", "SDR to HDR (Topaz)"],
         )
         self.assertEqual(text_sub["openrouter"], ["Describe image", "Generate text"])
         three_d_sub = dict(
