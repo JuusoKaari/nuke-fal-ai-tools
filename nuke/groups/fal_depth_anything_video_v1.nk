@@ -43,7 +43,7 @@ Group {
 }
 Text {
  inputs 0
- message "Connect a video pipe to source_video and press Execute.\nInput frame range controls pre-render range when the input is not a Read with a video file. A Read of an mp4 or mov uploads the whole file.\nDepth Anything Video. $0.04 per second of video, at most 2400 frames. Grayscale is normalized depth. Other colormaps are color previews. Side by side puts the plate next to the depth."
+ message "Connect a video pipe to source_video and press Execute.\nInput frame range controls pre-render range when the input is not a Read with a video file. A Read of an mp4 or mov uploads the whole file.\nDepth Anything Video. $0.04 per second of video, at most 2400 frames. Grayscale is normalized depth. Other colormaps are color previews. Side by side puts the plate next to the depth.\nRaw float depths are also saved as a .npz next to the MP4. Nuke does not load that file."
  font C:/Windows/Fonts/arial.ttf
  yjustify bottom
  Transform 1

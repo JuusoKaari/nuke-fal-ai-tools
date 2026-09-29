@@ -1,6 +1,7 @@
 # Purpose:
 # - Python 3 helper for Nuke (Python 2.7) to estimate video depth via fal.ai Depth Anything Video.
-# - Uploads a local video to fal storage, calls `fal-ai/depth-anything-video`, downloads the MP4.
+# - Uploads a local video to fal storage, calls `fal-ai/depth-anything-video`, downloads the MP4
+#   and the raw float32 depths as a .npz next to that MP4. Nuke does not load the .npz.
 # - API reference: https://fal.ai/models/fal-ai/depth-anything-video
 #
 # Requirements:
@@ -35,6 +36,12 @@ def _norm_ext(p: str) -> str:
     return os.path.splitext(p)[1].lower().lstrip(".")
 
 
+def raw_depths_path_for_mp4(mp4_path: str) -> str:
+    """Sibling .npz for a depth MP4. Same folder, same stem."""
+    stem, _ext = os.path.splitext(os.path.abspath(mp4_path or ""))
+    return stem + ".npz"
+
+
 def build_arguments(video_url, model, colormap, resolution, side_by_side):
     """Payload for fal-ai/depth-anything-video. Output fps stays at the source rate."""
     if model not in _MODEL_CHOICES:
@@ -49,6 +56,7 @@ def build_arguments(video_url, model, colormap, resolution, side_by_side):
         "colormap": colormap,
         "resolution": resolution,
         "side_by_side": bool(side_by_side),
+        "include_raw_depths": True,
     }
 
 
@@ -171,9 +179,23 @@ def main(argv: list[str]) -> int:
         print("ERROR: unexpected response shape:\n%s" % json.dumps(result, indent=2), file=sys.stderr)
         return 4
 
+    raw_obj = result.get("raw_depths") if isinstance(result, dict) else None
+    raw_url = raw_obj.get("url") if isinstance(raw_obj, dict) else None
+    if not raw_url:
+        print(
+            "ERROR: response did not include raw_depths:\n%s" % json.dumps(result, indent=2),
+            file=sys.stderr,
+        )
+        return 4
+
     if args.verbose:
         print("Downloading output video -> %s" % out_path)
     download(str(video_out_url), out_path, user_agent=user_agent)
+
+    raw_path = raw_depths_path_for_mp4(out_path)
+    if args.verbose:
+        print("Downloading raw depths -> %s" % raw_path)
+    download(str(raw_url), raw_path, user_agent=user_agent)
 
     emit_result_summary(
         {
@@ -181,6 +203,8 @@ def main(argv: list[str]) -> int:
             "endpoint": _ENDPOINT_ID,
             "out_path": out_path,
             "video_url": video_out_url,
+            "raw_depths_path": raw_path,
+            "raw_depths_url": raw_url,
             "model": args.model,
             "colormap": args.colormap,
             "resolution": args.resolution,

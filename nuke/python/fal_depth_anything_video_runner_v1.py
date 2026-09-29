@@ -1,8 +1,9 @@
 # Purpose:
 # - Runner for the Nuke Group node `Depth_Anything_Video_v1` (executes inside Nuke / Python 2.7).
 # - Accepts upstream video on input 0; uses Read file when possible, otherwise pre-renders to a temp mp4/mov.
-# - Calls `fal_depth_anything_video_helper.py` (Python 3) via subprocess, then adds a Read for the result
-#   (DWAB EXR sequence by default; MP4 if chosen in Settings).
+# - Calls `fal_depth_anything_video_helper.py` (Python 3) via subprocess, then adds a Read for the
+#   depth movie (DWAB EXR sequence by default; MP4 if chosen in Settings).
+# - The helper also writes a raw float .npz next to that MP4. This runner does not load it.
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -112,8 +113,12 @@ def main():
         nuke, g, out_path, "Depth Anything Video", "%s_result_%s" % (g.name(), ts)
     )
 
+    raw_path = os.path.splitext(out_path)[0] + ".npz"
     if _nuke_runner_launcher.should_show_success_popup(g):
-        nuke.message("Depth Anything Video output created:\n%s" % display_path)
+        nuke.message(
+            "Depth Anything Video output created:\n%s\n\nRaw depths (not loaded in Nuke):\n%s"
+            % (display_path, prerender.norm_slashes(raw_path))
+        )
 
 
 if __name__ == "__main__":

@@ -32,11 +32,17 @@ class TestDepthAnythingVideoPayload(unittest.TestCase):
                 "colormap": "grayscale",
                 "resolution": "auto",
                 "side_by_side": False,
+                "include_raw_depths": True,
             },
         )
         self.assertNotIn("output_fps", payload)
-        self.assertNotIn("include_raw_depths", payload)
         self.assertNotIn("max_frames", payload)
+
+    def test_raw_depths_sit_next_to_the_mp4(self):
+        self.assertEqual(
+            helper.raw_depths_path_for_mp4(r"C:\jobs\out\depth_anything_video_20260101.mp4"),
+            os.path.abspath(r"C:\jobs\out\depth_anything_video_20260101.npz"),
+        )
 
     def test_side_by_side_is_sent_when_enabled(self):
         payload = helper.build_arguments(
