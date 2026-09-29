@@ -178,6 +178,10 @@ class TestFalToolsCatalog(unittest.TestCase):
             ["Qwen Image Inpaint", "Qwen Image Layered", "Qwen Image Max Edit"],
         )
         self.assertEqual(
+            image_sub["seedream"],
+            ["Seedream 5.0 Flash Layerize", "Seedream 5.0 Pro Edit"],
+        )
+        self.assertEqual(
             image_sub["utility"],
             [
                 "BiRefNet v2 Still",
@@ -205,7 +209,7 @@ class TestFalToolsCatalog(unittest.TestCase):
         )
         self.assertEqual(
             video_sub["utility"],
-            ["BiRefNet v2", "ByteDance Video Upscale", "SDR to HDR (Topaz)"],
+            ["BiRefNet v2", "ByteDance Video Upscale", "Depth Anything Video", "SDR to HDR (Topaz)"],
         )
         self.assertEqual(text_sub["openrouter"], ["Describe image", "Generate text"])
         three_d_sub = dict(
@@ -224,7 +228,8 @@ class TestFalToolsCatalog(unittest.TestCase):
         self.assertIn("Nano Banana 2 Generate", image_items)
         self.assertIn("GPT Image 2 Edit", image_items)
         self.assertIn("Hunyuan World", image_items)
-        self.assertIn("Seedream 5.0 Pro Edit", image_items)
+        self.assertNotIn("Seedream 5.0 Pro Edit", image_items)
+        self.assertNotIn("Seedream 5.0 Flash Layerize", image_items)
         self.assertIn("Kling O3 V2V Edit", video_items)
         self.assertIn("Pika v2.2 Pikaframes", video_items)
         self.assertIn("Veo 3.1 Extend Video", video_items)

@@ -189,6 +189,7 @@ class TestPreviewConfigKinds(unittest.TestCase):
                 "Qwen_Image_Edit_Inpaint_v1",
                 "Hunyuan_World_v1",
                 "Qwen_Image_Layered_v1",
+                "Seedream_5_Flash_Layerize_v1",
                 "BiRefNet_v2_Still_v1",
                 "Depth_Anything_v2",
                 "Finegrain_Eraser_v1",
@@ -588,6 +589,64 @@ class TestQwenImageLayeredPreview(unittest.TestCase):
         self.assertFalse(cfg.get("accumulate_outputs"))
         self.assertFalse(cfg.get("supports_roi"))
         self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertTrue(preview.spawn_reads_in_graph_default(cfg))
+
+
+class TestSeedreamFlashLayerizePreview(unittest.TestCase):
+    def _layerize_nk_text(self):
+        path = os.path.join(
+            _ROOT, "nuke", "groups", "fal_seedream_5_flash_layerize_v1.nk"
+        )
+        with open(path, "r") as f:
+            return f.read()
+
+    def test_layerize_config_is_layers_without_roi(self):
+        cfg = preview.TOOL_PREVIEW_CONFIG.get("Seedream_5_Flash_Layerize_v1")
+        self.assertIsNotNone(cfg)
+        self.assertEqual(preview.preview_kind_for_config(cfg), "layers")
+        self.assertEqual(cfg["preview_inputs"], ["source_image"])
+        self.assertEqual(cfg["max_outputs"], 17)
+        self.assertTrue(cfg.get("supports_generated_grid"))
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertFalse(cfg.get("accumulate_outputs"))
+        self.assertTrue(preview.wants_history_knobs(cfg))
+        self.assertTrue(preview.spawn_reads_in_graph_default(cfg))
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg),
+            ["Input", "Generated", "Generated grid"],
+        )
+
+    def test_layerize_nk_has_baked_preview_without_roi(self):
+        text = self._layerize_nk_text()
+        self.assertIn("viewer_mode_switch", text)
+        self.assertIn("generated_contactsheet", text)
+        self.assertIn("inputs 17", text)
+        self.assertIn("rows 4", text)
+        self.assertIn("columns 5", text)
+        self.assertIn("fal_tool_id Seedream_5_Flash_Layerize_v1", text)
+        self.assertIn("name source_image", text)
+        self.assertIn("name preview_source_01", text)
+        self.assertIn("spawn_reads_in_graph true", text)
+        self.assertIn("image_size auto", text)
+        self.assertIn("enhance_prompt_mode standard", text)
+        self.assertIn("auto_1.5K", text)
+        for i in range(1, 18):
+            self.assertIn("generated_read_%02d" % i, text)
+        self.assertNotIn("generated_read_18", text)
+        self.assertNotIn("ROI_rectangle", text)
+        self.assertNotIn("use_roi", text)
+        self.assertNotIn("roi_area", text)
+
+    def test_resolve_layerize_runner_basename(self):
+        tool_id = preview.resolve_tool_id_from_runner_path(
+            "__INSTALL_ROOT__/nuke/python/fal_seedream_5_flash_layerize_runner_v1.py"
+        )
+        self.assertEqual(tool_id, "Seedream_5_Flash_Layerize_v1")
+        cfg = preview.TOOL_PREVIEW_CONFIG[tool_id]
+        self.assertEqual(preview.preview_kind_for_config(cfg), "layers")
+        self.assertEqual(cfg["max_outputs"], 17)
+        self.assertFalse(cfg.get("accumulate_outputs"))
         self.assertTrue(preview.spawn_reads_in_graph_default(cfg))
 
 
