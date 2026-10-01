@@ -146,7 +146,6 @@ def main():
     frame = int(nuke.frame())
 
     num_images_s = (g.knob("num_images").value() or "1").strip()
-    image_size = (g.knob("image_size").value() or "auto").strip() or "auto"
     quality = (g.knob("quality").value() or "high").strip()
     output_format = (g.knob("output_format").value() or "png").strip().lower()
     try:
@@ -197,8 +196,6 @@ def main():
         output_format,
         "--num-images",
         str(int(num_images)),
-        "--image-size",
-        image_size,
         "--quality",
         quality,
         "--verbose",

@@ -97,6 +97,107 @@ class TestResetToRootGraph(unittest.TestCase):
         self.assertEqual(nuke.end_group_calls, 0)
 
 
+class _FakeMessageNuke(object):
+    def __init__(self):
+        self.messages = []
+
+    def message(self, msg):
+        self.messages.append(msg)
+
+
+class TestExecuteFailureDialogs(unittest.TestCase):
+    def tearDown(self):
+        launcher.set_batch_execute_active(False)
+        launcher._clear_pending_failure()
+
+    def test_model_error_keeps_the_runner_dialog_only(self):
+        nuke = _FakeMessageNuke()
+
+        def run():
+            nuke.message(
+                "GPT Image 2 Edit helper failed (exit 1).\n\nERROR: content policy"
+            )
+            raise Exception("GPT Image 2 Edit helper failed")
+
+        launcher._execute_guarded(nuke, run)
+        self.assertEqual(
+            nuke.messages,
+            ["GPT Image 2 Edit helper failed (exit 1).\n\nERROR: content policy"],
+        )
+
+    def test_unshown_exception_gets_one_execute_failed_dialog(self):
+        nuke = _FakeMessageNuke()
+
+        def run():
+            raise RuntimeError("disk full")
+
+        launcher._execute_guarded(nuke, run)
+        self.assertEqual(nuke.messages, ["Execute failed:\ndisk full"])
+
+    def test_unsaved_script_gets_one_dialog(self):
+        nuke = _FakeMessageNuke()
+
+        def run():
+            raise launcher.UnsavedNukeScriptError("running fal.ai nodes")
+
+        launcher._execute_guarded(nuke, run)
+        self.assertEqual(len(nuke.messages), 1)
+        self.assertIn("not saved", nuke.messages[0])
+
+    def test_script_output_dir_keeps_the_existing_dialog(self):
+        nuke = _FakeMessageNuke()
+
+        def run():
+            nuke.message("Could not create the fal.ai folder")
+            raise launcher.ScriptOutputDirError("C:/scripts", "nuke_fal_temp")
+
+        launcher._execute_guarded(nuke, run)
+        self.assertEqual(nuke.messages, ["Could not create the fal.ai folder"])
+
+    def test_batch_replays_one_dialog_with_the_node_name(self):
+        nuke = _FakeMessageNuke()
+        launcher.set_batch_execute_active(True)
+
+        def run():
+            nuke.message("ERROR: premium mode has been removed")
+            raise Exception("GPT Image 2 Edit helper failed")
+
+        launcher._execute_guarded(nuke, run)
+        self.assertEqual(nuke.messages, [])
+        stopped = launcher._report_batch_node_failure(nuke, "GPT_Image_2_Edit1")
+        self.assertTrue(stopped)
+        self.assertEqual(len(nuke.messages), 1)
+        self.assertIn("GPT_Image_2_Edit1", nuke.messages[0])
+        self.assertIn("premium mode has been removed", nuke.messages[0])
+        self.assertNotIn("Execute failed:", nuke.messages[0])
+
+    def test_batch_unshown_exception_is_one_dialog(self):
+        nuke = _FakeMessageNuke()
+        launcher.set_batch_execute_active(True)
+
+        def run():
+            raise RuntimeError("disk full")
+
+        launcher._execute_guarded(nuke, run)
+        stopped = launcher._report_batch_node_failure(nuke, "Nano_Banana1")
+        self.assertTrue(stopped)
+        self.assertEqual(
+            nuke.messages,
+            ["Execute failed on Nano_Banana1:\ndisk full"],
+        )
+
+    def test_batch_success_does_not_stop(self):
+        nuke = _FakeMessageNuke()
+        launcher.set_batch_execute_active(True)
+
+        def run():
+            return None
+
+        launcher._execute_guarded(nuke, run)
+        self.assertFalse(launcher._report_batch_node_failure(nuke, "Nano_Banana1"))
+        self.assertEqual(nuke.messages, [])
+
+
 class TestGroupScope(unittest.TestCase):
     def test_enters_and_returns_to_root(self):
         group = _FakeGroup("Nano_Banana_2_Generate_v1")

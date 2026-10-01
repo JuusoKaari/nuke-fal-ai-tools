@@ -18,7 +18,9 @@ Recreate nodes from **Nodes -> fal.ai** after updating so the new Group is avail
 
 ### Changed
 
+- A model or helper failure opens one Nuke error dialog. Execute keeps that dialog and returns, so Nuke does not add its own Python error popup on top.
 - Seedream is now an Image submenu (Seedream 5.0 Flash Layerize, Seedream 5.0 Pro Edit).
+- GPT Image 2 Edit no longer has an Image size knob. Output size always follows the input image (`auto`). Recreate the node so an older Group drops the knob. Execute already ignores a leftover value.
 
 ## [1.1.1] - 2026-09-25
 

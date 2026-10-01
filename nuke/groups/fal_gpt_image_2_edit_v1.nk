@@ -20,8 +20,6 @@ Group {
  prompt "Describe the edit you want (or connect a Text node with a message knob to override)"
  addUserKnob {1 num_images l "Num images (1-4)"}
  num_images "1"
- addUserKnob {1 image_size l "Image size"}
- image_size auto
  addUserKnob {4 quality l Quality M {auto low medium high ""}}
  quality high
  addUserKnob {4 output_format l "Output format" M {png jpeg webp ""}}

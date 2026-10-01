@@ -84,11 +84,6 @@ def main(argv: list[str]) -> int:
         help="Output image format. Default: png.",
     )
     parser.add_argument(
-        "--image-size",
-        default="auto",
-        help='Output size (e.g. "auto" or fal image_size). Default: auto.',
-    )
-    parser.add_argument(
         "--quality",
         default="high",
         choices=["auto", "low", "medium", "high"],
@@ -171,7 +166,8 @@ def main(argv: list[str]) -> int:
         "image_urls": image_urls,
         "num_images": int(num_images),
         "output_format": output_format,
-        "image_size": (args.image_size or "auto").strip() or "auto",
+        # Named fal sizes are stock frames (square, portrait_16_9, ...). Edits follow the plate.
+        "image_size": "auto",
         "quality": str(args.quality),
         "sync_mode": False,
     }
