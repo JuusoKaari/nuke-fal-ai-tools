@@ -95,6 +95,8 @@ class TestToolConfig(unittest.TestCase):
         self.assertIn(preview.USE_ROI_KNOB, knobs)
         self.assertIn("preview_index", knobs)
         self.assertIn(preview.OUTPUT_PATHS_REGISTRY_KNOB, knobs)
+        self.assertTrue(preview.wants_match_input_resolution(cfg))
+        self.assertIn(preview.MATCH_INPUT_RESOLUTION_KNOB, knobs)
 
 
 class TestPreviewConfigKinds(unittest.TestCase):
@@ -117,6 +119,8 @@ class TestPreviewConfigKinds(unittest.TestCase):
         self.assertNotIn(preview.EXTRACT_SELECTED_KNOB, knobs)
         self.assertNotIn(preview.CLEAR_HISTORY_KNOB, knobs)
         self.assertNotIn(preview.OUTPUT_PATHS_REGISTRY_KNOB, knobs)
+        self.assertTrue(preview.wants_match_input_resolution(cfg))
+        self.assertIn(preview.MATCH_INPUT_RESOLUTION_KNOB, knobs)
         self.assertNotIn(preview.USE_ROI_KNOB, knobs)
         self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
 
@@ -926,6 +930,7 @@ class TestTopazPrecisionPreview(unittest.TestCase):
         self.assertFalse(preview.wants_history_knobs(cfg))
         self.assertFalse(cfg.get("accumulate_outputs"))
         self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        self.assertFalse(preview.wants_match_input_resolution(cfg))
         self.assertEqual(
             preview.viewer_modes_for_config(cfg), ["Input", "Generated"]
         )
@@ -939,6 +944,7 @@ class TestTopazPrecisionPreview(unittest.TestCase):
         self.assertNotIn(preview.OUTPUT_PATHS_REGISTRY_KNOB, knobs)
         self.assertNotIn(preview.USE_ROI_KNOB, knobs)
         self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+        self.assertNotIn(preview.MATCH_INPUT_RESOLUTION_KNOB, knobs)
 
     def test_topaz_nk_has_filter_preview_without_history_or_roi(self):
         text = self._topaz_nk_text()
@@ -960,6 +966,8 @@ class TestTopazPrecisionPreview(unittest.TestCase):
         self.assertNotIn("use_roi", text)
         self.assertNotIn("roi_area", text)
         self.assertNotIn("name Text1", text)
+        self.assertNotIn("match_input_resolution", text)
+        self.assertNotIn("generated_output_reformat", text)
 
     def test_resolve_topaz_runner_basename(self):
         tool_id = preview.resolve_tool_id_from_runner_path(

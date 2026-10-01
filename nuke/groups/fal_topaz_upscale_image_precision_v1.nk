@@ -4,6 +4,7 @@
 # - One still in, one still out. Image Utility, not a Topaz family.
 # - Input: 0 source_image (look-through). After Execute, Generated is the upscaled still. No grid, history knobs, or ROI.
 # - Preview graph is baked (look-through + generated_read_01 + viewer_mode_switch). Spawn Reads default off.
+# - No Match input resolution knob. Generated keeps the upscaled size.
 # - Hidden fal_tool_id identifies the tool type; display name may be v1, v2, v3, etc.
 # - Delegates logic to Python runners in `nuke/python/`.
 
@@ -39,8 +40,6 @@ Group {
  viewer_mode Input
  addUserKnob {6 spawn_reads_in_graph l "Spawn reads in graph" +STARTLINE}
  spawn_reads_in_graph false
- addUserKnob {6 match_input_resolution l "Match input resolution" +STARTLINE}
- match_input_resolution true
  addUserKnob {6 has_generated_output -STARTLINE +DISABLED +INVISIBLE}
  has_generated_output false
  addUserKnob {26 generated_output_count l "Generated outputs:" T "0"}
@@ -112,20 +111,6 @@ push $N16c9200
  }
 set Ndb7c300 [stack 0]
 push $Ndb7c200
- Reformat {
-  type "to box"
-  box_width {{preview_source_01.width}}
-  box_height {{preview_source_01.height}}
-  box_fixed true
-  resize fit
-  center false
-  disable {{1-parent.match_input_resolution}}
-  name generated_output_reformat
-  xpos 1642
-  ypos 213
- }
-set Ndb7c210 [stack 0]
-push $Ndb7c210
 push $Ndb7c300
  Switch {
   inputs 2

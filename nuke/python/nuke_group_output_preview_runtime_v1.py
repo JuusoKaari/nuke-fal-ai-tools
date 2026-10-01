@@ -235,7 +235,7 @@ def _sync_generated_preview_wiring(group, config, paths):
         if generated_switch is None:
             generated_switch = _get_or_create_node(group, "generated_switch", "Switch")
 
-        _ensure_generated_resolution_wiring(group, active_reads)
+        _ensure_generated_resolution_wiring(group, active_reads, config)
 
     _update_generated_output_count_ui(group, count)
     _update_preview_index_range(group, max(count, 1))

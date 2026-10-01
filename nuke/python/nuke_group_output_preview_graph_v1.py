@@ -23,6 +23,7 @@ from nuke_group_output_preview_config_v1 import (
     spawn_reads_in_graph_default,
     viewer_modes_for_config,
     wants_history_knobs,
+    wants_match_input_resolution,
     wants_roi_knobs,
 )
 from nuke_group_output_preview_nodes_v1 import (
@@ -149,13 +150,23 @@ def _ensure_group_knobs(group, config):
             pass
         group.addKnob(k)
 
-    if group.knob(MATCH_INPUT_RESOLUTION_KNOB) is None:
-        k = nuke.Boolean_Knob(MATCH_INPUT_RESOLUTION_KNOB, "Match input resolution")
+    match_knob = group.knob(MATCH_INPUT_RESOLUTION_KNOB)
+    if wants_match_input_resolution(config):
+        if match_knob is None:
+            k = nuke.Boolean_Knob(MATCH_INPUT_RESOLUTION_KNOB, "Match input resolution")
+            try:
+                k.setValue(True)
+            except Exception:
+                pass
+            group.addKnob(k)
+    elif match_knob is not None:
         try:
-            k.setValue(True)
+            group.removeKnob(match_knob)
         except Exception:
-            pass
-        group.addKnob(k)
+            try:
+                match_knob.setFlag(nuke.INVISIBLE)
+            except Exception:
+                pass
 
     if wants_roi_knobs(config):
         if group.knob(USE_ROI_KNOB) is None:
@@ -174,9 +185,30 @@ def _ensure_group_knobs(group, config):
             group.addKnob(k)
 
 
-def _generated_preview_tail_node(group, generated_switch, format_ref_name):
+def _disable_generated_output_reformat(group):
+    """Turn off a leftover match-input Reformat so it cannot resize the still."""
+    import nuke
+
+    reform = nuke.toNode("generated_output_reformat")
+    if reform is None:
+        return
+    disable_knob = reform.knob("disable")
+    if disable_knob is None:
+        return
+    try:
+        disable_knob.clearAnimated()
+    except Exception:
+        pass
+    _safe_set_knob(reform, "disable", True)
+
+
+def _generated_preview_tail_node(group, generated_switch, format_ref_name, config=None):
     """Return the node wired to viewer_mode_switch for single generated preview."""
     import nuke
+
+    if not wants_match_input_resolution(config):
+        _disable_generated_output_reformat(group)
+        return generated_switch
 
     roi_switch = nuke.toNode("ROI_switch")
     if roi_switch is not None:
@@ -316,7 +348,7 @@ def _ensure_generated_output_reformat(group, generated_switch, format_ref_name):
     return reform
 
 
-def _ensure_generated_resolution_wiring(group, read_nodes):
+def _ensure_generated_resolution_wiring(group, read_nodes, config=None):
     """Wire generated_switch, contactsheet from reads, and single reformat branch."""
     import nuke
 
@@ -326,7 +358,7 @@ def _ensure_generated_resolution_wiring(group, read_nodes):
         generated_switch = _get_or_create_node(group, "generated_switch", "Switch")
     _wire_switch_inputs(generated_switch, read_nodes)
     generated_single = _generated_preview_tail_node(
-        group, generated_switch, format_ref_name
+        group, generated_switch, format_ref_name, config
     )
     generated_contactsheet = _wire_contactsheet(
         group,
@@ -361,10 +393,13 @@ def _apply_preview_switch_expressions(group, config):
     if wants_history_knobs(config):
         _set_switch_expression(nuke.toNode("ai_input_switch"), "parent.preview_index - 1")
         _set_switch_expression(nuke.toNode("generated_switch"), "parent.preview_index - 1")
-    _set_disable_expression(
-        nuke.toNode("generated_output_reformat"),
-        "1-parent.%s" % MATCH_INPUT_RESOLUTION_KNOB,
-    )
+    if wants_match_input_resolution(config):
+        _set_disable_expression(
+            nuke.toNode("generated_output_reformat"),
+            "1-parent.%s" % MATCH_INPUT_RESOLUTION_KNOB,
+        )
+    else:
+        _disable_generated_output_reformat(group)
     if wants_roi_knobs(config):
         _set_switch_expression(
             nuke.toNode("ROI_switch"),
@@ -434,7 +469,7 @@ def ensure_group_preview_graph(group, config):
             if r is not None:
                 generated_reads.append(r)
 
-        _ensure_generated_resolution_wiring(group, generated_reads)
+        _ensure_generated_resolution_wiring(group, generated_reads, config)
 
         viewer_mode_switch = nuke.toNode("viewer_mode_switch")
         if viewer_mode_switch is None:

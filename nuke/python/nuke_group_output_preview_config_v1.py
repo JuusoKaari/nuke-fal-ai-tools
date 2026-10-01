@@ -198,6 +198,7 @@ TOOL_PREVIEW_CONFIG = {
         "supports_ai_input_grid": False,
         "supports_generated_grid": False,
         "supports_roi": False,
+        "supports_match_input_resolution": False,
         "accumulate_outputs": False,
         "viewer_modes": ["Input", "Generated"],
     },
@@ -261,6 +262,19 @@ def wants_history_knobs(config):
     return preview_kind_for_config(config) != PREVIEW_KIND_FILTER
 
 
+def wants_match_input_resolution(config):
+    """Reformat generated output to the input size unless the tool opts out.
+
+    Omitted supports_match_input_resolution stays on. Upscale tools set it false
+    so the new size is the output.
+    """
+    if not config:
+        return True
+    if "supports_match_input_resolution" not in config:
+        return True
+    return bool(config.get("supports_match_input_resolution"))
+
+
 def viewer_modes_for_config(config):
     """Per-tool viewer_modes, else Input+Generated when grid is off, else the global editor list."""
     if config is not None:
@@ -285,9 +299,10 @@ def requested_preview_knob_names(config):
         "viewer_mode",
         "spawn_reads_in_graph",
         "has_generated_output",
-        MATCH_INPUT_RESOLUTION_KNOB,
         OUTPUT_COUNT_KNOB,
     ]
+    if wants_match_input_resolution(config):
+        names.append(MATCH_INPUT_RESOLUTION_KNOB)
     if wants_history_knobs(config):
         names.extend(
             [
