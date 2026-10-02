@@ -10,11 +10,11 @@
 
 ## Tools
 
-35 tools under **Nodes -> fal.ai** (families with 2+ tools are submenus; singles stay flat; Utility last):
+36 tools under **Nodes -> fal.ai** (families with 2+ tools are submenus; singles stay flat; Utility last):
 
 | Category | Tools |
 |----------|--------|
-| **Image** | Bria Extract Object, GPT Image 2 Edit, Hunyuan World, Nano Banana 2 Generate, **Qwen** (Qwen Image Inpaint, Qwen Image Layered, Qwen Image Max Edit), **Seedream** (Seedream 5.0 Flash Layerize, Seedream 5.0 Pro Edit), **Utility** (BiRefNet v2 Still, Depth Anything v2, Finegrain Eraser, Image upscale (Topaz Precision), SAM 3.1 Image) |
+| **Image** | Bria Extract Object, **GPT Image** (GPT Image 2 Edit, GPT Image 2.5), Hunyuan World, Nano Banana 2 Generate, **Qwen** (Qwen Image Inpaint, Qwen Image Layered, Qwen Image Max Edit), **Seedream** (Seedream 5.0 Flash Layerize, Seedream 5.0 Pro Edit), **Utility** (BiRefNet v2 Still, Depth Anything v2, Finegrain Eraser, Image upscale (Topaz Precision), SAM 3.1 Image) |
 | **Video** | DreamActor v2 Motion Control, **FLUX 3** (FLUX 3 First/Last Frame to Video, FLUX 3 Keyframes to Video), Kling O3 V2V Edit, **LTX** (LTX 2.3 Image to Video, LTX 2.5 Image to Video Pro), **MiniMax** (MiniMax H3 Image to Video, MiniMax H3 Max Image to Video), Pika v2.2 Pikaframes, **Seedance** (Seedance 2 Image to Video, Seedance 2 Reference to Video, Seedance 2.5 Image to Video), Veo 3.1 Extend Video, **Utility** (BiRefNet v2, ByteDance Video Upscale, Depth Anything Video, SDR to HDR (Topaz)) |
 | **3D** | **Hunyuan 3D** (Hunyuan 3D Image to 3D, Hunyuan 3D Part) |
 | **Text** | **OpenRouter** (Describe image, Generate text) |

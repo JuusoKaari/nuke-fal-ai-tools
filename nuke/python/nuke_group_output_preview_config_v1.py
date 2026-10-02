@@ -46,6 +46,7 @@ DEFAULT_MAX_STORED_OUTPUTS = 128
 RUNNER_BASENAME_TO_TOOL_ID = {
     "fal_nano_banana_2_generate_runner_v1.py": "Nano_Banana_2_Generate_v1",
     "fal_gpt_image_2_edit_runner_v1.py": "GPT_Image_2_Edit_v1",
+    "fal_gpt_image_25_runner_v1.py": "GPT_Image_25_v1",
     "fal_qwen_image_max_edit_runner_v1.py": "Qwen_Image_Max_Edit_v1",
     "fal_seedream_5_pro_edit_runner_v1.py": "Seedream_5_Pro_Edit_v1",
     "fal_qwen_image_inpaint_runner_v1.py": "Qwen_Image_Edit_Inpaint_v1",
@@ -84,6 +85,17 @@ TOOL_PREVIEW_CONFIG = {
         "supports_ai_input_grid": False,
         "supports_generated_grid": True,
         "supports_roi": True,
+        "accumulate_outputs": True,
+    },
+    "GPT_Image_25_v1": {
+        "preview_kind": PREVIEW_KIND_EDITOR,
+        "preview_inputs": ["image_1", "image_2"],
+        "max_ai_inputs": 2,
+        "max_outputs": 4,
+        "max_stored_outputs": DEFAULT_MAX_STORED_OUTPUTS,
+        "supports_ai_input_grid": False,
+        "supports_generated_grid": True,
+        "supports_roi": False,
         "accumulate_outputs": True,
     },
     "Qwen_Image_Max_Edit_v1": {

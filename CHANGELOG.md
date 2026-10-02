@@ -10,6 +10,7 @@ Recreate nodes from **Nodes -> fal.ai** after updating so the new Group is avail
 
 **Image**
 
+- GPT Image 2.5 - text-to-image or edit via OpenAI GPT Image 2.5 (Flare default, or Sunburst). No stills generate; connected stills edit. Optional mask. Quality, background, up to 4 outputs. The API allows 16 refs; the Group exposes four. Lives under Image -> GPT Image with GPT Image 2 Edit. No ROI.
 - Seedream 5.0 Flash Layerize - splits one still into a full-frame base plus cropped RGBA elements via `bytedance/seedream/v5/flash/layerize`. Optional prompt, image size (`auto`, `auto_1K`, `auto_1.5K`, `auto_2K`), and prompt mode (`standard` or `fast`). Each crop gets `layer_meta.json` with the box in base pixels. Execute spawns a row under the Group: Read, Reformat (resize none, to the connected plate), and Transform (places the crop). Build merge stack is off by default. Lives under Image -> Seedream with Seedream 5.0 Pro Edit. No ROI.
 
 **Video**

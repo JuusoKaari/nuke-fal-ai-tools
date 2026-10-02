@@ -54,6 +54,7 @@ _TOOLS = sorted(
         ("image", "utility", "SAM 3.1 Image", "fal_sam_3_1_image_v1.nk", "fal_sam_3_1_image_helper.py", "fal_sam_3_1_image_runner_v1.py"),
         ("image", "bria", "Bria Extract Object", "fal_bria_extract_object_v1.nk", "fal_bria_extract_object_helper.py", "fal_bria_extract_object_runner_v1.py"),
         ("image", "gpt-image", "GPT Image 2 Edit", "fal_gpt_image_2_edit_v1.nk", "fal_gpt_image_2_edit_helper.py", "fal_gpt_image_2_edit_runner_v1.py"),
+        ("image", "gpt-image", "GPT Image 2.5", "fal_gpt_image_25_v1.nk", "fal_gpt_image_25_helper.py", "fal_gpt_image_25_runner_v1.py"),
         ("image", "hunyuan-world", "Hunyuan World", "fal_hunyuan_world_v1.nk", "fal_hunyuan_world_helper.py", "fal_hunyuan_world_runner_v1.py"),
         ("image", "nano-banana", "Nano Banana 2 Generate", "fal_nano_banana_2_generate_v1.nk", "fal_nano_banana_2_generate_helper.py", "fal_nano_banana_2_generate_runner_v1.py"),
         ("image", "qwen", "Qwen Image Inpaint", "fal_qwen_image_inpaint_v1.nk", "fal_qwen_image_inpaint_helper.py", "fal_qwen_image_inpaint_runner_v1.py"),

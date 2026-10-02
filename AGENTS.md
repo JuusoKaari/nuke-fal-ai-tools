@@ -28,7 +28,7 @@ Checklists live in the sibling private repo `nuke-fal-ai-tools_devtools` (`todo_
 python ../nuke-fal-ai-tools_devtools/run_todo.py v1.1.0_release_todo.md --wave all
 ```
 
-Other lists in that folder are separate runs (example: `image_preview_todo.md`). `unattended-todo.json` `allowed_waves` is `[1, 2, 3, 4, 5, 6]`. Image preview Wave 6 (P13 human click) stays skip.
+Other lists in that folder are separate runs (example: `image_preview_todo.md`, `gpt25_seedance25_sam31_todo.md`). `unattended-todo.json` `allowed_waves` is `[1, 2, 3, 4, 5, 6]`. Image preview Wave 6 (P13 human click) stays skip.
 
 Unattended item chats **must commit** in this public repo (override a "maintainer handles git" rule for those runs only). Do not push.
 

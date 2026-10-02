@@ -174,6 +174,10 @@ class TestFalToolsCatalog(unittest.TestCase):
             (row[1], row[2]) for row in menu["text"] if row[0] == "submenu"
         )
         self.assertEqual(
+            image_sub["gpt-image"],
+            ["GPT Image 2 Edit", "GPT Image 2.5"],
+        )
+        self.assertEqual(
             image_sub["qwen"],
             ["Qwen Image Inpaint", "Qwen Image Layered", "Qwen Image Max Edit"],
         )
@@ -226,7 +230,8 @@ class TestFalToolsCatalog(unittest.TestCase):
         video_items = [row[1] for row in menu["video"] if row[0] == "item"]
         self.assertIn("Bria Extract Object", image_items)
         self.assertIn("Nano Banana 2 Generate", image_items)
-        self.assertIn("GPT Image 2 Edit", image_items)
+        self.assertNotIn("GPT Image 2 Edit", image_items)
+        self.assertNotIn("GPT Image 2.5", image_items)
         self.assertIn("Hunyuan World", image_items)
         self.assertNotIn("Seedream 5.0 Pro Edit", image_items)
         self.assertNotIn("Seedream 5.0 Flash Layerize", image_items)

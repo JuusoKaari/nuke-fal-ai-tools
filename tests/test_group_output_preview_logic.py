@@ -188,6 +188,7 @@ class TestPreviewConfigKinds(unittest.TestCase):
             [
                 "Nano_Banana_2_Generate_v1",
                 "GPT_Image_2_Edit_v1",
+                "GPT_Image_25_v1",
                 "Qwen_Image_Max_Edit_v1",
                 "Seedream_5_Pro_Edit_v1",
                 "Qwen_Image_Edit_Inpaint_v1",
@@ -317,6 +318,58 @@ class TestGptImage2EditPreview(unittest.TestCase):
         self.assertIn("name prompt_text", text)
         self.assertIn("name mask", text)
         self.assertNotIn("name Text1", text)
+
+
+class TestGptImage25Preview(unittest.TestCase):
+    def _gpt25_nk_text(self):
+        path = os.path.join(_ROOT, "nuke", "groups", "fal_gpt_image_25_v1.nk")
+        with open(path, "r") as f:
+            return f.read()
+
+    def test_gpt25_config_is_editor_without_roi(self):
+        cfg = preview.TOOL_PREVIEW_CONFIG.get("GPT_Image_25_v1")
+        self.assertIsNotNone(cfg)
+        self.assertEqual(preview.preview_kind_for_config(cfg), "editor")
+        self.assertEqual(cfg["preview_inputs"], ["image_1", "image_2"])
+        self.assertEqual(cfg["max_outputs"], 4)
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
+        self.assertTrue(cfg.get("accumulate_outputs"))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertNotIn(preview.USE_ROI_KNOB, knobs)
+        self.assertNotIn(preview.ROI_AREA_KNOB, knobs)
+        self.assertIn("preview_index", knobs)
+
+    def test_gpt25_nk_has_baked_preview_without_roi(self):
+        text = self._gpt25_nk_text()
+        self.assertIn("fal_tool_id GPT_Image_25_v1", text)
+        self.assertIn("viewer_mode_switch", text)
+        self.assertIn("generated_read_01", text)
+        self.assertIn("name image_1", text)
+        self.assertIn("name image_2", text)
+        self.assertIn("name image_3", text)
+        self.assertIn("name image_4", text)
+        self.assertIn("name prompt_text", text)
+        self.assertIn("name mask", text)
+        self.assertIn("The API allows 16 refs", text)
+        self.assertNotIn("ROI_rectangle", text)
+        self.assertNotIn("use_roi", text)
+        self.assertNotIn("roi_area", text)
+        self.assertNotIn("name Text1", text)
+
+    def test_resolve_gpt25_runner_basename(self):
+        tool_id = preview.resolve_tool_id_from_runner_path(
+            "__INSTALL_ROOT__/nuke/python/fal_gpt_image_25_runner_v1.py"
+        )
+        self.assertEqual(tool_id, "GPT_Image_25_v1")
+        cfg = preview.TOOL_PREVIEW_CONFIG[tool_id]
+        self.assertEqual(cfg["preview_inputs"], ["image_1", "image_2"])
+        self.assertEqual(cfg["max_outputs"], 4)
+        self.assertFalse(cfg.get("supports_roi"))
+        self.assertFalse(preview.config_supports_roi(cfg))
+        self.assertFalse(preview.wants_roi_knobs(cfg))
 
 
 class TestQwenImageMaxEditPreview(unittest.TestCase):
