@@ -67,6 +67,7 @@ _TOOLS = sorted(
         ("video", "utility", "BiRefNet v2", "fal_birefnet_v2.nk", "fal_birefnet_v2_helper.py", "fal_birefnet_v2_runner_v2.py"),
         ("video", "utility", "ByteDance Video Upscale", "fal_bytedance_video_upscale_v1.nk", "fal_bytedance_video_upscale_helper.py", "fal_bytedance_video_upscale_runner_v1.py"),
         ("video", "utility", "Depth Anything Video", "fal_depth_anything_video_v1.nk", "fal_depth_anything_video_helper.py", "fal_depth_anything_video_runner_v1.py"),
+        ("video", "utility", "SAM 3.1 Video", "fal_sam_3_1_video_v1.nk", "fal_sam_3_1_video_helper.py", "fal_sam_3_1_video_runner_v1.py"),
         ("video", "utility", "SDR to HDR (Topaz)", "fal_topaz_sdr_to_hdr_video_v1.nk", "fal_topaz_sdr_to_hdr_video_helper.py", "fal_topaz_sdr_to_hdr_video_runner_v1.py"),
         ("video", "dreamactor", "DreamActor v2 Motion Control", "fal_dreamactor_v2_motion_control_v1.nk", "fal_dreamactor_v2_helper.py", "fal_dreamactor_v2_motion_control_runner_v1.py"),
         ("video", "flux", "FLUX 3 First/Last Frame to Video", "fal_flux_3_first_last_frame_to_video_v1.nk", "fal_flux_3_first_last_frame_to_video_helper.py", "fal_flux_3_first_last_frame_to_video_runner_v1.py"),
