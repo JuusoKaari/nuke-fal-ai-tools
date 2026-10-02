@@ -39,6 +39,24 @@ def _name_token(node_name):
     return " name %s\n" % node_name
 
 
+def _input_indices(text):
+    """Map each Input node name to its external index. Omitted number means 0."""
+    indices = {}
+    for block in text.split("Input {")[1:]:
+        body = block.split("}", 1)[0]
+        name = None
+        number = 0
+        for line in body.splitlines():
+            line = line.strip()
+            if line.startswith("name "):
+                name = line.split(" ", 1)[1].strip()
+            elif line.startswith("number "):
+                number = int(line.split(" ", 1)[1].strip())
+        if name:
+            indices[name] = number
+    return indices
+
+
 class TestI2VLookthroughNk(unittest.TestCase):
     def test_each_group_looks_through_primary_still(self):
         for filename, primary in _LOOKTHROUGH_GROUPS:
@@ -73,6 +91,23 @@ class TestI2VLookthroughNk(unittest.TestCase):
         self.assertIn(_name_token("image_9"), ref)
         self.assertIn(_name_token("video_1"), ref)
         self.assertIn(_name_token("video_3"), ref)
+        self.assertEqual(
+            _input_indices(ref),
+            {
+                "image_1": 0,
+                "image_2": 1,
+                "video_1": 2,
+                "video_2": 3,
+                "image_3": 4,
+                "image_4": 5,
+                "image_5": 6,
+                "image_6": 7,
+                "image_7": 8,
+                "image_8": 9,
+                "image_9": 10,
+                "video_3": 11,
+            },
+        )
 
 
 if __name__ == "__main__":

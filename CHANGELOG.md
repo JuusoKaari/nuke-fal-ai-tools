@@ -22,6 +22,7 @@ Recreate nodes from **Nodes -> fal.ai** after updating so the new Group is avail
 
 ### Changed
 
+- Seedance 2 Reference to Video pipes are image_1, image_2, video_1, and video_2. image_3 through image_9 and video_3 stay on Connect inputs. Recreate the node so an older Group picks up the new pipe order.
 - A model or helper failure opens one Nuke error dialog. Execute keeps that dialog and returns, so Nuke does not add its own Python error popup on top.
 - Seedream is now an Image submenu (Seedream 5.0 Flash Layerize, Seedream 5.0 Pro Edit).
 - GPT Image 2 Edit no longer has an Image size knob. Output size always follows the input image (`auto`). Recreate the node so an older Group drops the knob. Execute already ignores a leftover value.

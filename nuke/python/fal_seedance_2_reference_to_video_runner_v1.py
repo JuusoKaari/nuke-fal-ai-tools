@@ -1,6 +1,7 @@
 # Purpose:
 # - Runner script for the Nuke Group node `Seedance_2_Reference_To_Video_v1` (executes inside Nuke / Python 2.7).
 # - Collects named still inputs image_1..image_9, optional video_1..video_3, and optional audio file knobs.
+# - Visible pipes are image_1, image_2, video_1, video_2. Fallback indices match that Group.
 # - Stills use Read fast-path or prerender; videos use Read fast-path or prerender via prepare_video_input_path.
 # - Calls `fal_seedance_2_reference_to_video_helper.py` via subprocess, then creates a Read for the result
 #   (DWAB EXR sequence by default; MP4 if chosen in Settings).
@@ -24,8 +25,24 @@ import nuke_prerender_v1 as prerender
 import nuke_fal_runner_util_v1 as runner_util
 import nuke_video_output_v1 as video_out
 
-_IMAGE_INPUTS = tuple(("image_%d" % i, i - 1) for i in range(1, 10))
-_VIDEO_INPUTS = tuple(("video_%d" % i, 8 + i) for i in range(1, 4))
+# Name, external input index. Nuke draws pipes for 0-3 only.
+# 0 image_1, 1 image_2, 2 video_1, 3 video_2, then image_3..image_9, then video_3.
+_IMAGE_INPUTS = (
+    ("image_1", 0),
+    ("image_2", 1),
+    ("image_3", 4),
+    ("image_4", 5),
+    ("image_5", 6),
+    ("image_6", 7),
+    ("image_7", 8),
+    ("image_8", 9),
+    ("image_9", 10),
+)
+_VIDEO_INPUTS = (
+    ("video_1", 2),
+    ("video_2", 3),
+    ("video_3", 11),
+)
 _MAX_TOTAL_FILES = 12
 
 
