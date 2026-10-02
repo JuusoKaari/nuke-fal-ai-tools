@@ -223,7 +223,7 @@ After restart:
 
 1. **Nodes -> fal.ai** - pick a tool (recommended; paths are set automatically). Tab search matches labels prefixed with `fal ` (e.g. type `fal nano`).
 2. Or use the top **fal.ai** menu (includes **Settings...**).
-3. Connect inputs as described in each node's on-graph hint text.
+3. Connect inputs as described in each node's on-graph hint text. Nuke only draws the first 4 input pipes on a Group. When a fal node has more, open the **Connect inputs** tab and use **Create ...** for each later input (for example Create Video Input 1). That adds a labeled Dot next to the node and wires it. If the input is already connected, the button selects that node and leaves the wire alone.
 4. Save your Nuke script before running (runners write temp files relative to the saved script).
 5. Click **Execute**.
 

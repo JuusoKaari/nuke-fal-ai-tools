@@ -16,6 +16,10 @@ Recreate nodes from **Nodes -> fal.ai** after updating so the new Group is avail
 
 - Depth Anything Video - temporally consistent per-frame depth via `fal-ai/depth-anything-video`. Model size (Small, Base, Large; default Large), colormap (grayscale default), resolution (`auto` through 1080p), and optional side-by-side. Lives in Video Utility. $0.04 per second of video. The API processes at most 2400 frames. Execute also saves raw float32 depths as a `.npz` next to the MP4. Nuke does not load that file.
 
+**Connect inputs**
+
+- fal Groups with more than 4 inputs get a Connect inputs tab. Nuke only draws pipes for the first 4 inputs, so each later input has a button such as Create Video Input 1. The button adds a labeled Dot next to the node and connects it. If that input is already wired, the button selects the upstream node and leaves the wire alone. Recreate the node from Nodes -> fal.ai, or reopen the script, so an older Group picks this up.
+
 ### Changed
 
 - A model or helper failure opens one Nuke error dialog. Execute keeps that dialog and returns, so Nuke does not add its own Python error popup on top.

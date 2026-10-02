@@ -1,4 +1,5 @@
 # Purpose: Nuke menu entries for all fal.ai toolbox group nodes (Nodes toolbar + top menubar).
+# Creating a node also adds Connect inputs buttons when the Group has more than 4 inputs.
 
 from __future__ import print_function
 
@@ -7,6 +8,7 @@ import os
 import nuke
 
 import _install_help
+import nuke_hidden_input_connectors_v1 as hidden_inputs
 from _fal_tools import (
     _NODES_CATEGORY_LABELS,
     _TOP_CATEGORY_LABELS,
@@ -40,6 +42,7 @@ def _create_fal_node(group_file, helper_py, runner_py):
         raise Exception("fal.ai group missing path knobs: %s" % group_file)
     helper_knob.setValue(_tool_path(helper_py))
     runner_knob.setValue(_tool_path(runner_py))
+    hidden_inputs.ensure_hidden_input_connector_knobs(node, nuke_module=nuke)
     return node
 
 
@@ -119,3 +122,5 @@ _add_tool_commands(
     for_nodes=False,
 )
 _add_execute_selected(_top_fal_menu)
+
+hidden_inputs.install_script_load_hook(nuke)
