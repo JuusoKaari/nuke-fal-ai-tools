@@ -21,6 +21,7 @@ _LOOKTHROUGH_GROUPS = (
     ("fal_flux_3_keyframes_to_video_v1.nk", "keyframe_1"),
     ("fal_pika_v22_pikaframes_v1.nk", "keyframe_1"),
     ("fal_seedance_2_reference_to_video_v1.nk", "image_1"),
+    ("fal_seedance_25_reference_to_video_v1.nk", "image_1"),
 )
 
 _IMAGE_PREVIEW_MARKERS = (
@@ -93,6 +94,28 @@ class TestI2VLookthroughNk(unittest.TestCase):
         self.assertIn(_name_token("video_3"), ref)
         self.assertEqual(
             _input_indices(ref),
+            {
+                "image_1": 0,
+                "image_2": 1,
+                "video_1": 2,
+                "video_2": 3,
+                "image_3": 4,
+                "image_4": 5,
+                "image_5": 6,
+                "image_6": 7,
+                "image_7": 8,
+                "image_8": 9,
+                "image_9": 10,
+                "video_3": 11,
+            },
+        )
+        ref25 = _read_nk("fal_seedance_25_reference_to_video_v1.nk")
+        self.assertIn(_name_token("image_1"), ref25)
+        self.assertIn(_name_token("image_9"), ref25)
+        self.assertIn(_name_token("video_1"), ref25)
+        self.assertIn(_name_token("video_3"), ref25)
+        self.assertEqual(
+            _input_indices(ref25),
             {
                 "image_1": 0,
                 "image_2": 1,

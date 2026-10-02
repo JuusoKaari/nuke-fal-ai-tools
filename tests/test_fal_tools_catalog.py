@@ -209,7 +209,7 @@ class TestFalToolsCatalog(unittest.TestCase):
         )
         self.assertEqual(
             video_sub["seedance"],
-            ["Seedance 2 Image to Video", "Seedance 2 Reference to Video", "Seedance 2.5 Image to Video"],
+            ["Seedance 2 Image to Video", "Seedance 2 Reference to Video", "Seedance 2.5 Image to Video", "Seedance 2.5 Reference to Video"],
         )
         self.assertEqual(
             video_sub["utility"],
