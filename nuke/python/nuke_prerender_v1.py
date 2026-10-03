@@ -38,16 +38,27 @@ from nuke_prerender_core_v1 import (
     _is_valid_video_extension,
 )
 
-from nuke_prerender_video_v1 import render_video_from_node
+from nuke_prerender_video_v1 import (
+    render_video_from_node,
+    fit_existing_video,
+    split_byte_budget,
+    KLING_O3_V2V_MAX_BYTES,
+    SEEDANCE_20_REFERENCE_TOTAL_BYTES,
+    SEEDANCE_25_REFERENCE_MAX_BYTES,
+)
 
 from nuke_fal_progress_v1 import FalProgressCancelled, run_helper_subprocess
 
 
-def prepare_video_input_path(nuke_module, src_node, frame, default_first, default_last, run_dir, base_name):
+def prepare_video_input_path(
+    nuke_module, src_node, frame, default_first, default_last, run_dir, base_name, max_bytes=None
+):
     """
     Return a video file path for any upstream node.
-    - Read pointing at a single MP4/MOV file: resolves and returns it (no re-render).
-    - Read with other format, or non-Read: renders a temp mp4 under `run_dir` for `default_first..default_last`.
+    - Read pointing at a single MP4/MOV that fits max_bytes: return that file.
+    - Same Read over max_bytes: recompress H.264 until it fits.
+    - Other Read, or a live pipe: render a temp mp4 for default_first..default_last.
+      Encode starts at CRF 18. When max_bytes is set, step quality down until it fits.
     """
     import os
 
@@ -59,7 +70,10 @@ def prepare_video_input_path(nuke_module, src_node, frame, default_first, defaul
         if not looks_like_sequence_pattern(pat) and _is_valid_video_extension(pat):
             p = resolve_read_file_at_frame(nuke_module, src_node, frame)
             if p and os.path.isfile(p):
-                return p
+                if max_bytes is None or int(os.path.getsize(p)) <= int(max_bytes):
+                    return p
+                out_path = os.path.join(run_dir, "%s.mp4" % base_name)
+                return fit_existing_video(p, out_path, max_bytes)
             raise Exception("Resolved Read video file not found: %s" % (p or "<empty>"))
 
     first = int(default_first)
@@ -68,5 +82,7 @@ def prepare_video_input_path(nuke_module, src_node, frame, default_first, defaul
         first, last = last, first
 
     out_path = os.path.join(run_dir, "%s.mp4" % base_name)
-    return render_video_from_node(nuke_module, src_node, out_path, first, last)
+    return render_video_from_node(
+        nuke_module, src_node, out_path, first, last, max_bytes=max_bytes
+    )
 

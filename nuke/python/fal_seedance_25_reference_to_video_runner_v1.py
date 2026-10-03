@@ -2,7 +2,7 @@
 # - Runner script for the Nuke Group node `Seedance_25_Reference_To_Video_v1` (executes inside Nuke / Python 2.7).
 # - Collects named still inputs image_1..image_9, optional video_1..video_3, and optional audio file knobs.
 # - Visible pipes are image_1, image_2, video_1, video_2. Fallback indices match that Group.
-# - Stills use Read fast-path or prerender; videos use Read fast-path or prerender via prepare_video_input_path.
+# - Stills use Read fast-path or prerender. Videos use the same path, capped at 200MB each.
 # - Calls `fal_seedance_25_reference_to_video_helper.py` via subprocess, then creates a Read for the result
 #   (DWAB EXR sequence by default; MP4 if chosen in Settings).
 #
@@ -98,6 +98,7 @@ def _collect_videos(nuke_module, group_node, frame, default_first, default_last,
                     default_last=default_last,
                     run_dir=temp_dir,
                     base_name=input_name,
+                    max_bytes=prerender.SEEDANCE_25_REFERENCE_MAX_BYTES,
                 )
             )
         except Exception as e:

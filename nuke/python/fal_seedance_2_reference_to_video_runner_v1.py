@@ -2,7 +2,8 @@
 # - Runner script for the Nuke Group node `Seedance_2_Reference_To_Video_v1` (executes inside Nuke / Python 2.7).
 # - Collects named still inputs image_1..image_9, optional video_1..video_3, and optional audio file knobs.
 # - Visible pipes are image_1, image_2, video_1, video_2. Fallback indices match that Group.
-# - Stills use Read fast-path or prerender; videos use Read fast-path or prerender via prepare_video_input_path.
+# - Stills use Read fast-path or prerender. Videos use the same path, with the 50MB combined
+#   upload cap split across the connected reference videos.
 # - Calls `fal_seedance_2_reference_to_video_helper.py` via subprocess, then creates a Read for the result
 #   (DWAB EXR sequence by default; MP4 if chosen in Settings).
 #
@@ -82,7 +83,15 @@ def _collect_images(nuke_module, group_node, frame, temp_dir):
     return images
 
 
-def _collect_videos(nuke_module, group_node, frame, default_first, default_last, temp_dir):
+def _connected_video_count(group_node):
+    count = 0
+    for input_name, fallback in _VIDEO_INPUTS:
+        if _named_input_node(group_node, input_name, fallback) is not None:
+            count += 1
+    return count
+
+
+def _collect_videos(nuke_module, group_node, frame, default_first, default_last, temp_dir, max_bytes):
     videos = []
     for input_name, fallback in _VIDEO_INPUTS:
         n = _named_input_node(group_node, input_name, fallback)
@@ -98,6 +107,7 @@ def _collect_videos(nuke_module, group_node, frame, default_first, default_last,
                     default_last=default_last,
                     run_dir=temp_dir,
                     base_name=input_name,
+                    max_bytes=max_bytes,
                 )
             )
         except Exception as e:
@@ -147,8 +157,12 @@ def main():
 
     try:
         image_paths = _collect_images(nuke, g, frame, temp_dir)
+        video_byte_budget = prerender.split_byte_budget(
+            prerender.SEEDANCE_20_REFERENCE_TOTAL_BYTES,
+            _connected_video_count(g),
+        )
         video_paths = _collect_videos(
-            nuke, g, frame, default_first, default_last, temp_dir
+            nuke, g, frame, default_first, default_last, temp_dir, video_byte_budget
         )
     except Exception as e:
         nuke.message("Failed to prepare reference inputs:\n%s" % str(e))

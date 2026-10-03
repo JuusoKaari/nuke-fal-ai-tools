@@ -10,6 +10,7 @@ Recreate nodes from **Nodes -> fal.ai** after updating so the new Group is avail
 
 **Image**
 
+- Marigold Depth - still depth map via `fal-ai/imageutils/marigold-depth`. Inference steps and ensemble size default to 10 (2-50). Processing resolution defaults to 0, which keeps the input size (max 2048). Lives in Image Utility. The listed price is $0. No ROI.
 - GPT Image 2.5 - text-to-image or edit via OpenAI GPT Image 2.5 (Flare default, or Sunburst). No stills generate; connected stills edit. Optional mask. Quality, background, up to 4 outputs. The API allows 16 refs; the Group exposes four. Lives under Image -> GPT Image with GPT Image 2 Edit. No ROI.
 - Seedream 5.0 Flash Layerize - splits one still into a full-frame base plus cropped RGBA elements via `bytedance/seedream/v5/flash/layerize`. Optional prompt, image size (`auto`, `auto_1K`, `auto_1.5K`, `auto_2K`), and prompt mode (`standard` or `fast`). Each crop gets `layer_meta.json` with the box in base pixels. Execute spawns a row under the Group: Read, Reformat (resize none, to the connected plate), and Transform (places the crop). Build merge stack is off by default. Lives under Image -> Seedream with Seedream 5.0 Pro Edit. No ROI.
 
@@ -25,6 +26,7 @@ Recreate nodes from **Nodes -> fal.ai** after updating so the new Group is avail
 
 ### Changed
 
+- Video inputs this plugin encodes start at H.264 CRF 18 instead of ffmpeg's default. Kling O3 V2V (200MB) and Seedance reference clips (2.0: 50MB combined, 2.5: 200MB each) step the quality down when the file would exceed that upload cap. A single mp4/mov Read is still sent unchanged when it already fits.
 - Seedance 2 Reference to Video pipes are image_1, image_2, video_1, and video_2. image_3 through image_9 and video_3 stay on Connect inputs. Recreate the node so an older Group picks up the new pipe order.
 - A model or helper failure opens one Nuke error dialog. Execute keeps that dialog and returns, so Nuke does not add its own Python error popup on top.
 - Seedream is now an Image submenu (Seedream 5.0 Flash Layerize, Seedream 5.0 Pro Edit).

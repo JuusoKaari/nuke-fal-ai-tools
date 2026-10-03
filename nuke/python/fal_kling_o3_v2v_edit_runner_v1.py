@@ -1,7 +1,8 @@
 # Purpose:
 # - Runner script for the Nuke Group node `Kling_O3_V2V_Edit_v1` (executes inside Nuke / Python 2.7).
-# - Accepts any upstream video input; if it's a suitable Read node, uses its file directly (no re-render),
-#   otherwise pre-renders a temp video from the connected pipe.
+# - Accepts any upstream video input. A single mp4/mov Read is sent as-is when it fits the
+#   200MB upload cap, and recompressed when it does not. Any other input is pre-rendered
+#   to H.264, starting at higher quality and stepping down until the file fits.
 # - Also accepts optional reference image inputs from any pipe (Read fast-path; otherwise prerender still).
 # - Writes a timestamped output mp4 path under a writable temp folder, then calls the external Python 3 helper
 #   `fal_kling_o3_v2v_edit_helper.py` via subprocess, and finally creates a Read for the result
@@ -66,6 +67,7 @@ def main():
             default_last=default_last,
             run_dir=temp_dir,
             base_name="source_video",
+            max_bytes=prerender.KLING_O3_V2V_MAX_BYTES,
         )
     except Exception as e:
         nuke.message("Failed to prepare source video:\n%s" % str(e))
