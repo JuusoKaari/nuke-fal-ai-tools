@@ -3,8 +3,9 @@
 # - Reads generate/edit settings from the Group knobs; optionally overrides prompt from `prompt_text`
 #   when a Text node (`message` knob) is connected, including through Dot nodes. Collects optional
 #   stills from `image_1`..`image_4` and optional mask from `mask`. No stills means text-to-image.
-#   Resolution Match input / 1K / 2K / 4K is passed through. The helper turns a tier into
-#   width and height from the first still. match_input_resolution stays on the Group
+#   Resolution Match input sends the first still's pixel size, scaled into the model
+#   limits. 1K, 2K, and 4K send a tier size at that still's aspect.
+#   match_input_resolution stays on the Group
 #   and only reformats the Nuke preview after generation. It is not sent to fal.
 #   Calls the external Python 3 helper, then wires outputs into the baked in-group preview.
 #   Root Reads spawn only when spawn_reads_in_graph is on.

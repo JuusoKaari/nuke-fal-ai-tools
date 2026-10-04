@@ -201,7 +201,10 @@ class TestGptImage25HelperLogic(unittest.TestCase):
             captured["endpoint"],
             "openai/gpt-image-2.5/sunburst/edit",
         )
-        self.assertEqual(captured["arguments"]["image_size"], "auto")
+        self.assertEqual(
+            captured["arguments"]["image_size"],
+            {"width": 816, "height": 816},
+        )
         self.assertEqual(
             captured["arguments"]["image_urls"],
             [
@@ -251,28 +254,43 @@ class TestGptImage25HelperLogic(unittest.TestCase):
         self.assertIsNone(_FakeSyncClient.last)
         self.assertIn("mask", stderr.getvalue().lower())
 
-    def test_match_input_edit_sends_auto_for_a_large_plate(self):
+    def test_match_input_edit_sends_the_plate_size(self):
+        cases = (
+            (1920, 1080, {"width": 1920, "height": 1072}),
+            (4096, 2160, {"width": 3840, "height": 2032}),
+            (4992, 3940, {"width": 3232, "height": 2560}),
+        )
         with tempfile.TemporaryDirectory() as td:
-            plate = self._write_sized_png(td, "plate.png", 4096, 2160)
-            rc, captured = self._subscribe(
-                [
-                    "--prompt",
-                    "keep the frame",
-                    "--image",
-                    plate,
-                    "--resolution",
-                    "Match input",
-                    "--image-size",
-                    "square",
-                    "--out-dir",
-                    td,
-                    "--fal-key",
-                    "test-key",
-                ]
-            )
-        self.assertEqual(rc, 0)
-        self.assertEqual(captured["arguments"]["image_size"], "auto")
-        self.assertNotIn("match_input_resolution", captured["arguments"])
+            for width, height, size in cases:
+                with self.subTest(plate="%sx%s" % (width, height)):
+                    plate = self._write_sized_png(td, "plate.png", width, height)
+                    rc, captured = self._subscribe(
+                        [
+                            "--prompt",
+                            "keep the frame",
+                            "--image",
+                            plate,
+                            "--resolution",
+                            "Match input",
+                            "--image-size",
+                            "square",
+                            "--out-dir",
+                            td,
+                            "--fal-key",
+                            "test-key",
+                        ]
+                    )
+                    self.assertEqual(rc, 0)
+                    self.assertEqual(
+                        captured["endpoint"],
+                        "openai/gpt-image-2.5/flare/edit",
+                    )
+                    self.assertEqual(captured["arguments"]["image_size"], size)
+                    self.assertEqual(
+                        captured["arguments"]["image_urls"],
+                        ["https://example.invalid/plate.png"],
+                    )
+                    self.assertNotIn("match_input_resolution", captured["arguments"])
 
     def test_edit_16x9_resolution_tiers(self):
         expected = {

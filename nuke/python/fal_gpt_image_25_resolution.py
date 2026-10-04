@@ -1,6 +1,6 @@
 # Purpose:
-# - Turn a GPT Image 2.5 Resolution tier plus a source aspect into width and height.
-# - Match input is not sized here. The helper sends image_size "auto" for that.
+# - Turn a GPT Image 2.5 Resolution choice plus a source image into width and height.
+# - Match input starts from the source pixel size and scales it into the model limits.
 # - 1K, 2K, and 4K target long edges of 1024, 2048, and 3840. 3840 is this
 #   model's 4K cap, so 16:9 lands on 3840x2160 rather than a 4096-wide frame.
 # - 0.5K is omitted. A 512 long edge cannot meet the 655360 pixel minimum,
@@ -77,36 +77,38 @@ def fit_output_size(src_w, src_h, tier):
         height = long_edge
         width = long_edge * float(src_w) / float(src_h)
 
-    # Keep the long edge and raise the short side when the plate is past 3:1.
-    if width >= height:
-        if width > height * float(MAX_ASPECT):
-            height = width / float(MAX_ASPECT)
-    elif height > width * float(MAX_ASPECT):
-        width = height / float(MAX_ASPECT)
+    return _finalize_size(width, height, src_w, src_h, tier_name)
 
-    width, height = _apply_pixel_and_edge_limits(width, height)
-    snapped_w, snapped_h = _snap_legal(width, height)
-    if snapped_w is None:
-        raise ValueError(
-            "no GPT Image 2.5 size within limits for %s x %s at %s"
-            % (src_w, src_h, tier_name)
-        )
-    return int(snapped_w), int(snapped_h)
+
+def fit_source_size(src_w, src_h):
+    """
+    Return (width, height) for Match input.
+    Starts from the source pixels. Scales down past the edge or pixel cap,
+    and scales up when the plate is under the minimum pixel count.
+    """
+    src_w = int(src_w)
+    src_h = int(src_h)
+    if src_w < 1 or src_h < 1:
+        raise ValueError("source width and height must be positive.")
+    return _finalize_size(float(src_w), float(src_h), src_w, src_h, "match input")
 
 
 def resolve_image_size(resolution, is_edit, preset, src_width=None, src_height=None):
     """
     Return the fal image_size value.
-    Match input on edit is "auto". Explicit tiers are {"width", "height"}.
-    Text-to-image with no still uses the Image size preset's aspect.
+    Match input and the 1K/2K/4K tiers are {"width", "height"} when a still exists.
+    Text-to-image with no still uses the Image size preset.
     Preset "auto" with no still stays "auto", because there is no aspect to scale.
     """
     tier = normalize_resolution(resolution)
     if tier is None:
         raise ValueError("resolution must be Match input, 1K, 2K, or 4K.")
     if tier == MATCH_INPUT:
+        if src_width and src_height:
+            width, height = fit_source_size(src_width, src_height)
+            return {"width": int(width), "height": int(height)}
         if is_edit:
-            return "auto"
+            raise ValueError("Match input needs the first image width and height.")
         preset_name = (preset or "").strip() or "landscape_4_3"
         return preset_name
 
@@ -130,6 +132,28 @@ def read_image_size(path):
     if size is not None:
         return size
     return _jpeg_size(path)
+
+
+def _clamp_aspect(width, height):
+    """Raise the short side when the frame is past 3:1."""
+    if width >= height:
+        if width > height * float(MAX_ASPECT):
+            height = width / float(MAX_ASPECT)
+    elif height > width * float(MAX_ASPECT):
+        width = height / float(MAX_ASPECT)
+    return width, height
+
+
+def _finalize_size(width, height, src_w, src_h, label):
+    width, height = _clamp_aspect(width, height)
+    width, height = _apply_pixel_and_edge_limits(width, height)
+    snapped_w, snapped_h = _snap_legal(width, height)
+    if snapped_w is None:
+        raise ValueError(
+            "no GPT Image 2.5 size within limits for %s x %s (%s)"
+            % (src_w, src_h, label)
+        )
+    return int(snapped_w), int(snapped_h)
 
 
 def _apply_pixel_and_edge_limits(width, height):

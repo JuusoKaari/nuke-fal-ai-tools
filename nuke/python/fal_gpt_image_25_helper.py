@@ -2,8 +2,9 @@
 # - Python 3 helper for Nuke (Python 2.7) to run fal.ai OpenAI GPT Image 2.5 generate or edit.
 # - No `--image` calls the text-to-image endpoint. One or more `--image` calls the edit endpoint.
 # - Variant `flare` (default) or `sunburst` selects the endpoint pair. Optional `--mask` is edit-only.
-# - Resolution Match input sends image_size "auto" on edit. 1K, 2K, and 4K send
-#   {width, height} from the first image. Text-to-image still uses --image-size.
+# - Resolution Match input sends the first image's width and height, scaled into
+#   the model limits. 1K, 2K, and 4K send a tier size at that image's aspect.
+#   Text-to-image with no still still uses --image-size.
 #
 # Usage (example):
 #   py -3 fal_gpt_image_25_helper.py --prompt "A cinematic sunset" --out-dir "C:/temp/run" --verbose
@@ -128,17 +129,17 @@ def main(argv):
         default=_DEFAULT_T2I_IMAGE_SIZE,
         choices=list(_IMAGE_SIZE_CHOICES),
         help=(
-            "Text-to-image aspect preset. Ignored on edit when Resolution is "
-            "Match input (sends auto) or an explicit tier (uses the first image). "
-            'Default: "landscape_4_3".'
+            "Text-to-image aspect preset. Ignored on edit, which sizes from the "
+            'first image. Default: "landscape_4_3".'
         ),
     )
     parser.add_argument(
         "--resolution",
         default="Match input",
         help=(
-            "Match input, 1K, 2K, or 4K. Match input sends image_size auto on edit. "
-            "1K, 2K, and 4K send width and height. Default: Match input."
+            "Match input, 1K, 2K, or 4K. Match input sends the first image's "
+            "width and height, scaled into the model limits. 1K, 2K, and 4K "
+            "send a tier size at that aspect. Default: Match input."
         ),
     )
     parser.add_argument(
@@ -212,7 +213,7 @@ def main(argv):
     is_edit = bool(image_paths)
     src_w = None
     src_h = None
-    if image_paths and resolution != gpt_resolution.MATCH_INPUT:
+    if image_paths:
         size = gpt_resolution.read_image_size(image_paths[0])
         if not size:
             print(

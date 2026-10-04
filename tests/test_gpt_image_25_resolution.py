@@ -33,15 +33,24 @@ def _assert_legal(test, width, height):
 
 
 class TestGptImage25Resolution(unittest.TestCase):
-    def test_match_input_is_auto_on_edit_and_a_preset_on_generate(self):
+    def test_match_input_sends_the_plate_size(self):
+        # 1080 is not a multiple of 16, so the request snaps to 1920x1072.
+        self.assertEqual(resolution.fit_source_size(1920, 1080), (1920, 1072))
         self.assertEqual(
             resolution.resolve_image_size("Match input", True, "square", 1920, 1080),
-            "auto",
+            {"width": 1920, "height": 1072},
         )
         self.assertEqual(
-            resolution.resolve_image_size("match_input", True, "landscape_16_9", 4096, 2160),
-            "auto",
+            resolution.fit_output_size(1920, 1080, "4K"),
+            (3840, 2160),
         )
+        self.assertEqual(resolution.fit_source_size(4096, 2160), (3840, 2032))
+        self.assertEqual(resolution.fit_source_size(4992, 3940), (3232, 2560))
+        self.assertEqual(resolution.fit_source_size(1, 1), (816, 816))
+        self.assertEqual(resolution.fit_source_size(1080, 1920), (1072, 1920))
+        for src_w, src_h in ((1920, 1080), (4096, 2160), (4992, 3940), (800, 600), (4000, 200)):
+            width, height = resolution.fit_source_size(src_w, src_h)
+            _assert_legal(self, width, height)
         self.assertEqual(
             resolution.resolve_image_size("Match input", False, "landscape_4_3"),
             "landscape_4_3",
