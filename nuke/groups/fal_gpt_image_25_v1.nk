@@ -3,6 +3,7 @@
 # - Inputs: 0 image_1 (look-through), 1 image_2, 2 prompt_text, 3 mask, 4 image_3, 5 image_4.
 # - No stills: text-to-image. Any still: edit. Optional mask. The API allows 16 refs; this Group exposes four.
 # - Preview graph is baked (look-through + generated reads + viewer_mode_switch). No ROI.
+# - Connect/execute notes live on the guide_info knob, inside the Settings tab.
 # - Hidden fal_tool_id identifies the tool type; display name may be v1, v2, v3, etc.
 # - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.
 
@@ -14,8 +15,8 @@ Group {
  name GPT_Image_25_v1
  knobChanged "\nimport nuke_group_output_preview_v1 as _gop\n_gop.on_knob_changed_ui()\n"
  selected true
- addUserKnob {26 guide_info l "" T "GPT Image 2.5\nText-to-image with no stills, or edit with connected stills.\n\nPipes: image_1, image_2, prompt_text, mask. image_3 and image_4 are on Connect inputs.\nThe API allows 16 refs; this Group exposes four. Optional mask. Prompt on the node or a Text node on prompt_text.\nFlare is the default general model. Sunburst is slower and more precise.\nPress Execute, then use Viewer mode to preview outputs."}
  addUserKnob {20 Settings}
+ addUserKnob {26 guide_info l "" T "GPT Image 2.5\nText-to-image with no stills, or edit with connected stills.\n\nPipes: image_1, image_2, prompt_text, mask. image_3 and image_4 are on Connect inputs.\nThe API allows 16 refs; this Group exposes four. Optional mask. Prompt on the node or a Text node on prompt_text.\nFlare is the default general model. Sunburst is slower and more precise.\nPress Execute, then use Viewer mode to preview outputs."}
  addUserKnob {1 prompt l Prompt}
  prompt "Describe the image or edit you want (or connect a Text node with a message knob to override)"
  addUserKnob {4 variant l Variant M {flare sunburst ""}}
