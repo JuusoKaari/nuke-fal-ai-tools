@@ -26,6 +26,7 @@ Recreate nodes from **Nodes -> fal.ai** after updating so the new Group is avail
 
 ### Changed
 
+- Video result Reads start on the frame range the node was executed with. A job launched at 151-200 sets the Read to frame mode "start at" and frame 151, so the output lines up with the input. File frames stay 1-based. Image-to-video nodes, which have no input range knob, use the script range.
 - Video inputs this plugin encodes start at H.264 CRF 18 instead of ffmpeg's default. Kling O3 V2V (200MB) and Seedance reference clips (2.0: 50MB combined, 2.5: 200MB each) step the quality down when the file would exceed that upload cap. A single mp4/mov Read is still sent unchanged when it already fits.
 - Seedance 2 Reference to Video pipes are image_1, image_2, video_1, and video_2. image_3 through image_9 and video_3 stay on Connect inputs. Recreate the node so an older Group picks up the new pipe order.
 - A model or helper failure opens one Nuke error dialog. Execute keeps that dialog and returns, so Nuke does not add its own Python error popup on top.

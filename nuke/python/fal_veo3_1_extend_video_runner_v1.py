@@ -4,7 +4,8 @@
 #   otherwise pre-renders a temp video from the connected pipe.
 # - Writes a timestamped output mp4 path under a writable temp folder, then calls the external Python 3 helper
 #   `fal_veo3_1_extend_video_helper.py` via subprocess, and finally creates a Read for the result
-#   (DWAB EXR sequence by default; MP4 if chosen in Settings).
+#   (DWAB EXR sequence by default; MP4 if chosen in Settings). The Read starts at the
+#   launched frame, including when the input was capped to the last 8 seconds.
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -241,7 +242,12 @@ def main():
     )
 
     display_path = video_out.spawn_video_output_read(
-        nuke, g, out_path, "Veo 3.1 extend video", "%s_result_%s" % (g.name(), ts)
+        nuke,
+        g,
+        out_path,
+        "Veo 3.1 extend video",
+        "%s_result_%s" % (g.name(), ts),
+        start_frame=default_first,
     )
 
     if _nuke_runner_launcher.should_show_success_popup(g):

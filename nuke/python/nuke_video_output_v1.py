@@ -2,6 +2,8 @@
 # - Shared video-result helper for Nuke runners (Python 2.7).
 # - After a fal.ai MP4 download, optionally render a DWAB EXR sequence via a
 #   temp Read/Write and spawn the graph Read on that sequence.
+# - The spawned Read uses frame_mode "start at" so file frame 1 lands on the
+#   frame range the node was executed with (151-200 -> frame 151).
 # - Mode comes from fal.ai Settings (video_output). The MP4 is always kept.
 # - Importable without Nuke for path/pattern unit tests.
 
@@ -16,6 +18,7 @@ if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
 import nuke_fal_config_v1 as fal_config
+import nuke_fal_runner_util_v1 as runner_util
 import nuke_prerender_core_v1 as prerender_core
 import nuke_read_video_frames_v1 as video_frames
 import nuke_spawn_read_position_v1 as spawn_pos
@@ -161,6 +164,32 @@ def _set_read_frame_range(read_node, first, last):
         _try_set_knob(read_node, name, last)
 
 
+def launched_start_frame(nuke_module, group_node, start_frame=None):
+    """
+    Timeline frame where file frame 1 of a video result should appear.
+    Explicit start_frame wins (Veo extend caps the range before launch).
+    Otherwise use the group's Input frame range, or the root range when
+    the node has no such knob (image-to-video).
+    """
+    if start_frame is not None:
+        return int(start_frame)
+    first, _last = runner_util.frame_range_from_knobs(group_node, nuke_module)
+    return int(first)
+
+
+def _set_read_start_at(read_node, start_frame):
+    """
+    Place file frame 1 on timeline start_frame.
+    frame_mode must be set before frame, or Nuke keeps the expression knob.
+    """
+    start_frame = int(start_frame)
+    if not _set_enum_containing(read_node, "frame_mode", ["start at"]):
+        return False
+    if _try_set_knob(read_node, "frame", start_frame):
+        return True
+    return _try_set_knob(read_node, "frame", str(start_frame))
+
+
 def _delete_node(nuke_module, node):
     if node is None:
         return
@@ -280,11 +309,15 @@ def spawn_video_output_read(
     label,
     read_name,
     y_offset=140,
+    start_frame=None,
 ):
     """
     Spawn a root-graph Read for a downloaded video result.
     Default Settings mode renders a DWAB EXR sequence first; MP4 is kept.
     On EXR failure, falls back to a Read on the MP4 and shows a message.
+    The Read is set to frame_mode "start at" on the launched range start,
+    so a job run at 151-200 lines up with the input.
+    Pass start_frame when the launched range differs from the knobs.
     Returns the Nuke-slash path shown on the Read.
     """
     mp4_path = os.path.abspath(mp4_path)
@@ -334,6 +367,12 @@ def spawn_video_output_read(
                 video_frames.set_read_frame_range_from_video_file(r, mp4_path)
             except Exception:
                 pass
+        try:
+            _set_read_start_at(
+                r, launched_start_frame(nuke_module, group_node, start_frame)
+            )
+        except Exception:
+            pass
     finally:
         nuke_module.endGroup()
 
