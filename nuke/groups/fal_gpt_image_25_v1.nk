@@ -2,6 +2,8 @@
 # - Nuke Group node that runs OpenAI GPT Image 2.5 generate or edit (fal.ai) with in-group output preview.
 # - Inputs: 0 image_1 (look-through), 1 image_2, 2 prompt_text, 3 mask, 4 image_3, 5 image_4.
 # - No stills: text-to-image. Any still: edit. Optional mask. The API allows 16 refs; this Group exposes four.
+# - Resolution Match input sends image_size auto on edit. 1K, 2K, and 4K send width and height
+#   from the first still. Reformat result to input resolution is Nuke-side only.
 # - Preview graph is baked (look-through + generated reads + viewer_mode_switch). No ROI.
 # - Connect/execute notes live on the guide_info knob, inside the Settings tab.
 # - Hidden fal_tool_id identifies the tool type; display name may be v1, v2, v3, etc.
@@ -16,13 +18,15 @@ Group {
  knobChanged "\nimport nuke_group_output_preview_v1 as _gop\n_gop.on_knob_changed_ui()\n"
  selected true
  addUserKnob {20 Settings}
- addUserKnob {26 guide_info l "" T "GPT Image 2.5\nText-to-image with no stills, or edit with connected stills.\n\nPipes: image_1, image_2, prompt_text, mask. image_3 and image_4 are on Connect inputs.\nThe API allows 16 refs; this Group exposes four. Optional mask. Prompt on the node or a Text node on prompt_text.\nFlare is the default general model. Sunburst is slower and more precise.\nPress Execute, then use Viewer mode to preview outputs."}
+ addUserKnob {26 guide_info l "" T "GPT Image 2.5\nText-to-image with no stills, or edit with connected stills.\n\nPipes: image_1, image_2, prompt_text, mask. image_3 and image_4 are on Connect inputs.\nThe API allows 16 refs; this Group exposes four. Optional mask. Prompt on the node or a Text node on prompt_text.\nResolution Match input sends auto on edit. 1K, 2K, and 4K send width and height from the first still. 4K uses a 3840 long edge, so 16:9 is 3840x2160. With no still, Image size picks the aspect (auto stays auto).\nReformat result to input resolution scales the Nuke result after generation and does not change the fal size.\nFlare is the default general model. Sunburst is slower and more precise.\nPress Execute, then use Viewer mode to preview outputs."}
  addUserKnob {1 prompt l Prompt}
  prompt "Describe the image or edit you want (or connect a Text node with a message knob to override)"
  addUserKnob {4 variant l Variant M {flare sunburst ""}}
  variant flare
  addUserKnob {4 quality l Quality M {auto low medium high xhigh max ""}}
  quality high
+ addUserKnob {4 resolution l Resolution M {"Match input" 1K 2K 4K ""}}
+ resolution "Match input"
  addUserKnob {4 background l Background M {auto transparent opaque ""}}
  background auto
  addUserKnob {4 image_size l "Image size" M {landscape_4_3 auto square landscape_16_9 portrait_16_9 ""}}
@@ -40,7 +44,7 @@ Group {
  preview_index 1
  addUserKnob {6 spawn_reads_in_graph l "Spawn reads in graph" +STARTLINE}
  spawn_reads_in_graph false
- addUserKnob {6 match_input_resolution l "Match input resolution" +STARTLINE}
+ addUserKnob {6 match_input_resolution l "Reformat result to input resolution" +STARTLINE}
  match_input_resolution true
  addUserKnob {6 has_generated_output -STARTLINE +DISABLED +INVISIBLE}
  has_generated_output false

@@ -2,6 +2,8 @@
 # - Python 3 helper for Nuke (Python 2.7) to run fal.ai OpenAI GPT Image 2.5 generate or edit.
 # - No `--image` calls the text-to-image endpoint. One or more `--image` calls the edit endpoint.
 # - Variant `flare` (default) or `sunburst` selects the endpoint pair. Optional `--mask` is edit-only.
+# - Resolution Match input sends image_size "auto" on edit. 1K, 2K, and 4K send
+#   {width, height} from the first image. Text-to-image still uses --image-size.
 #
 # Usage (example):
 #   py -3 fal_gpt_image_25_helper.py --prompt "A cinematic sunset" --out-dir "C:/temp/run" --verbose
@@ -27,6 +29,7 @@ from fal_common import (
     format_fal_error_summary,
     subscribe_with_retry,
 )
+import fal_gpt_image_25_resolution as gpt_resolution
 
 _MAX_IMAGES = 16
 _VARIANT_FLARE = "flare"
@@ -42,7 +45,6 @@ _IMAGE_SIZE_CHOICES = (
     "portrait_16_9",
 )
 _OUTPUT_FORMAT_CHOICES = ("png", "jpeg", "jpg", "webp")
-_EDIT_IMAGE_SIZE = "auto"
 _DEFAULT_T2I_IMAGE_SIZE = "landscape_4_3"
 
 
@@ -125,7 +127,19 @@ def main(argv):
         "--image-size",
         default=_DEFAULT_T2I_IMAGE_SIZE,
         choices=list(_IMAGE_SIZE_CHOICES),
-        help="Text-to-image size preset. Ignored on edit (always auto). Default: landscape_4_3.",
+        help=(
+            "Text-to-image aspect preset. Ignored on edit when Resolution is "
+            "Match input (sends auto) or an explicit tier (uses the first image). "
+            'Default: "landscape_4_3".'
+        ),
+    )
+    parser.add_argument(
+        "--resolution",
+        default="Match input",
+        help=(
+            "Match input, 1K, 2K, or 4K. Match input sends image_size auto on edit. "
+            "1K, 2K, and 4K send width and height. Default: Match input."
+        ),
     )
     parser.add_argument(
         "--max-retries",
@@ -187,6 +201,40 @@ def main(argv):
     out_dir = os.path.abspath(args.out_dir)
     ensure_dir(out_dir)
 
+    resolution = gpt_resolution.normalize_resolution(args.resolution)
+    if resolution is None:
+        print(
+            "ERROR: --resolution must be Match input, 1K, 2K, or 4K.",
+            file=sys.stderr,
+        )
+        return 2
+
+    is_edit = bool(image_paths)
+    src_w = None
+    src_h = None
+    if image_paths and resolution != gpt_resolution.MATCH_INPUT:
+        size = gpt_resolution.read_image_size(image_paths[0])
+        if not size:
+            print(
+                "ERROR: could not read width and height from the first image: %s"
+                % image_paths[0],
+                file=sys.stderr,
+            )
+            return 2
+        src_w, src_h = size
+
+    try:
+        image_size = gpt_resolution.resolve_image_size(
+            resolution,
+            is_edit,
+            str(args.image_size),
+            src_w,
+            src_h,
+        )
+    except ValueError as exc:
+        print("ERROR: %s" % exc, file=sys.stderr)
+        return 2
+
     try:
         import fal_client
     except Exception as e:
@@ -195,7 +243,6 @@ def main(argv):
 
     client = fal_client.SyncClient(key=fal_key)
     user_agent = "nuke-fal-gpt-image-25-helper"
-    is_edit = bool(image_paths)
     variant = str(args.variant)
     endpoint_id = _endpoint_id(variant, is_edit)
 
@@ -213,9 +260,9 @@ def main(argv):
 
     if args.verbose:
         print("Submitting request: %s" % endpoint_id)
+        print("image_size: %s" % (image_size,))
 
     output_format = _normalize_output_format(args.output_format)
-    image_size = _EDIT_IMAGE_SIZE if is_edit else str(args.image_size)
     arguments = {
         "prompt": prompt,
         "num_images": int(num_images),

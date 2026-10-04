@@ -1,14 +1,16 @@
-# Purpose: No-network tests for the GPT Image 2.5 helper (t2i vs edit, mask, 16-image cap).
+# Purpose: No-network tests for the GPT Image 2.5 helper (t2i vs edit, mask, resolution).
 # Run: py -3 -m unittest tests.test_gpt_image_25_helper_logic
 
 from __future__ import print_function
 
 import io
 import os
+import struct
 import sys
 import tempfile
 import types
 import unittest
+import zlib
 from unittest import mock
 
 _ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
@@ -87,6 +89,34 @@ class TestGptImage25HelperLogic(unittest.TestCase):
         with open(path, "wb") as handle:
             handle.write(_PNG_BYTES)
         return path
+
+    def _write_sized_png(self, folder, name, width, height):
+        ihdr = struct.pack(">IIBBBBB", int(width), int(height), 8, 2, 0, 0, 0)
+        crc = zlib.crc32(b"IHDR" + ihdr) & 0xFFFFFFFF
+        path = os.path.join(folder, name)
+        with open(path, "wb") as handle:
+            handle.write(b"\x89PNG\r\n\x1a\n")
+            handle.write(struct.pack(">I", len(ihdr)))
+            handle.write(b"IHDR" + ihdr)
+            handle.write(struct.pack(">I", crc))
+        return path
+
+    def _subscribe(self, args):
+        captured = {}
+
+        def _fake_subscribe(client, endpoint, arguments, **kwargs):
+            del client, kwargs
+            captured["endpoint"] = endpoint
+            captured["arguments"] = arguments
+            return _FAKE_RESULT
+
+        with mock.patch(
+            "fal_gpt_image_25_helper.subscribe_with_retry",
+            side_effect=_fake_subscribe,
+        ):
+            with mock.patch("sys.stdout", io.StringIO()):
+                rc = helper.main(args)
+        return rc, captured
 
     def test_flare_text_to_image_default_size(self):
         with tempfile.TemporaryDirectory() as td:
@@ -220,6 +250,227 @@ class TestGptImage25HelperLogic(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertIsNone(_FakeSyncClient.last)
         self.assertIn("mask", stderr.getvalue().lower())
+
+    def test_match_input_edit_sends_auto_for_a_large_plate(self):
+        with tempfile.TemporaryDirectory() as td:
+            plate = self._write_sized_png(td, "plate.png", 4096, 2160)
+            rc, captured = self._subscribe(
+                [
+                    "--prompt",
+                    "keep the frame",
+                    "--image",
+                    plate,
+                    "--resolution",
+                    "Match input",
+                    "--image-size",
+                    "square",
+                    "--out-dir",
+                    td,
+                    "--fal-key",
+                    "test-key",
+                ]
+            )
+        self.assertEqual(rc, 0)
+        self.assertEqual(captured["arguments"]["image_size"], "auto")
+        self.assertNotIn("match_input_resolution", captured["arguments"])
+
+    def test_edit_16x9_resolution_tiers(self):
+        expected = {
+            "1K": {"width": 1088, "height": 608},
+            "2K": {"width": 2048, "height": 1152},
+            "4K": {"width": 3840, "height": 2160},
+        }
+        with tempfile.TemporaryDirectory() as td:
+            plate = self._write_sized_png(td, "plate.png", 1920, 1080)
+            for tier, size in expected.items():
+                with self.subTest(tier=tier):
+                    rc, captured = self._subscribe(
+                        [
+                            "--prompt",
+                            "relight",
+                            "--image",
+                            plate,
+                            "--resolution",
+                            tier,
+                            "--out-dir",
+                            td,
+                            "--fal-key",
+                            "test-key",
+                        ]
+                    )
+                    self.assertEqual(rc, 0)
+                    self.assertEqual(captured["arguments"]["image_size"], size)
+                    self.assertEqual(
+                        captured["endpoint"],
+                        "openai/gpt-image-2.5/flare/edit",
+                    )
+
+    def test_edit_portrait_4k(self):
+        with tempfile.TemporaryDirectory() as td:
+            plate = self._write_sized_png(td, "plate.png", 1080, 1920)
+            rc, captured = self._subscribe(
+                [
+                    "--prompt",
+                    "relight",
+                    "--image",
+                    plate,
+                    "--resolution",
+                    "4K",
+                    "--out-dir",
+                    td,
+                    "--fal-key",
+                    "test-key",
+                ]
+            )
+        self.assertEqual(rc, 0)
+        self.assertEqual(
+            captured["arguments"]["image_size"],
+            {"width": 2160, "height": 3840},
+        )
+
+    def test_explicit_tier_uses_first_image_and_keeps_mask(self):
+        with tempfile.TemporaryDirectory() as td:
+            first = self._write_sized_png(td, "first.png", 1920, 1080)
+            second = self._write_sized_png(td, "second.png", 100, 200)
+            mask = self._write_sized_png(td, "mask.png", 1920, 1080)
+            rc, captured = self._subscribe(
+                [
+                    "--prompt",
+                    "add haze",
+                    "--image",
+                    first,
+                    "--image",
+                    second,
+                    "--mask",
+                    mask,
+                    "--resolution",
+                    "2K",
+                    "--image-size",
+                    "square",
+                    "--variant",
+                    "sunburst",
+                    "--out-dir",
+                    td,
+                    "--fal-key",
+                    "test-key",
+                ]
+            )
+        self.assertEqual(rc, 0)
+        self.assertEqual(
+            captured["endpoint"],
+            "openai/gpt-image-2.5/sunburst/edit",
+        )
+        self.assertEqual(
+            captured["arguments"]["image_size"],
+            {"width": 2048, "height": 1152},
+        )
+        self.assertEqual(
+            captured["arguments"]["image_urls"],
+            [
+                "https://example.invalid/first.png",
+                "https://example.invalid/second.png",
+            ],
+        )
+        self.assertEqual(
+            captured["arguments"]["mask_url"],
+            "https://example.invalid/mask.png",
+        )
+        self.assertNotIn("match_input_resolution", captured["arguments"])
+
+    def test_text_to_image_4k_uses_preset_aspect(self):
+        with tempfile.TemporaryDirectory() as td:
+            rc, captured = self._subscribe(
+                [
+                    "--prompt",
+                    "a wide landscape",
+                    "--resolution",
+                    "4K",
+                    "--image-size",
+                    "landscape_16_9",
+                    "--out-dir",
+                    td,
+                    "--fal-key",
+                    "test-key",
+                ]
+            )
+        self.assertEqual(rc, 0)
+        self.assertEqual(
+            captured["endpoint"],
+            "openai/gpt-image-2.5/flare/text-to-image",
+        )
+        self.assertEqual(
+            captured["arguments"]["image_size"],
+            {"width": 3840, "height": 2160},
+        )
+        self.assertNotIn("image_urls", captured["arguments"])
+
+    def test_text_to_image_auto_preset_stays_auto_at_4k(self):
+        with tempfile.TemporaryDirectory() as td:
+            rc, captured = self._subscribe(
+                [
+                    "--prompt",
+                    "a landscape",
+                    "--resolution",
+                    "4K",
+                    "--image-size",
+                    "auto",
+                    "--out-dir",
+                    td,
+                    "--fal-key",
+                    "test-key",
+                ]
+            )
+        self.assertEqual(rc, 0)
+        self.assertEqual(captured["arguments"]["image_size"], "auto")
+
+    def test_unreadable_plate_fails_before_upload(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, "notes.png")
+            with open(path, "wb") as handle:
+                handle.write(b"not an image")
+            stderr = io.StringIO()
+            with mock.patch("sys.stderr", stderr):
+                with mock.patch(
+                    "fal_gpt_image_25_helper.subscribe_with_retry",
+                    side_effect=AssertionError("should not subscribe"),
+                ):
+                    rc = helper.main(
+                        [
+                            "--prompt",
+                            "edit",
+                            "--image",
+                            path,
+                            "--resolution",
+                            "2K",
+                            "--out-dir",
+                            td,
+                            "--fal-key",
+                            "test-key",
+                        ]
+                    )
+        self.assertEqual(rc, 2)
+        self.assertIsNone(_FakeSyncClient.last)
+        self.assertIn("width and height", stderr.getvalue())
+
+    def test_unknown_resolution_is_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            stderr = io.StringIO()
+            with mock.patch("sys.stderr", stderr):
+                rc = helper.main(
+                    [
+                        "--prompt",
+                        "generate",
+                        "--resolution",
+                        "0.5K",
+                        "--out-dir",
+                        td,
+                        "--fal-key",
+                        "test-key",
+                    ]
+                )
+        self.assertEqual(rc, 2)
+        self.assertIsNone(_FakeSyncClient.last)
+        self.assertIn("resolution", stderr.getvalue().lower())
 
 
 if __name__ == "__main__":

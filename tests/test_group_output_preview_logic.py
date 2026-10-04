@@ -360,6 +360,40 @@ class TestGptImage25Preview(unittest.TestCase):
         self.assertNotIn("roi_area", text)
         self.assertNotIn("name Text1", text)
 
+    def test_gpt25_resolution_and_reformat_knobs_stay_independent(self):
+        text = self._gpt25_nk_text()
+        self.assertIn(
+            'addUserKnob {4 resolution l Resolution M {"Match input" 1K 2K 4K ""}}',
+            text,
+        )
+        self.assertIn('resolution "Match input"', text)
+        self.assertNotIn("0.5K", text)
+        self.assertIn(
+            'addUserKnob {6 match_input_resolution l "Reformat result to input resolution" +STARTLINE}',
+            text,
+        )
+        self.assertNotIn('l "Match input resolution"', text)
+        self.assertIn("match_input_resolution true", text)
+        self.assertIn("box_width {{preview_source_01.width}}", text)
+        self.assertIn("box_height {{preview_source_01.height}}", text)
+        self.assertIn("resize fit", text)
+        self.assertIn("disable {{1-parent.match_input_resolution}}", text)
+        self.assertIn("name generated_output_reformat", text)
+        self.assertNotIn("parent.resolution", text)
+        self.assertIn('addUserKnob {4 image_size l "Image size"', text)
+
+        runner_path = os.path.join(
+            _ROOT, "nuke", "python", "fal_gpt_image_25_runner_v1.py"
+        )
+        with open(runner_path, "r") as handle:
+            runner = handle.read()
+        start = runner.index("extra_args = [")
+        end = runner.index("for img in ref_images")
+        extra_args = runner[start:end]
+        self.assertIn('"--resolution"', extra_args)
+        self.assertIn('"--image-size"', extra_args)
+        self.assertNotIn("match_input_resolution", extra_args)
+
     def test_resolve_gpt25_runner_basename(self):
         tool_id = preview.resolve_tool_id_from_runner_path(
             "__INSTALL_ROOT__/nuke/python/fal_gpt_image_25_runner_v1.py"

@@ -3,6 +3,9 @@
 # - Reads generate/edit settings from the Group knobs; optionally overrides prompt from `prompt_text`
 #   when a Text node (`message` knob) is connected, including through Dot nodes. Collects optional
 #   stills from `image_1`..`image_4` and optional mask from `mask`. No stills means text-to-image.
+#   Resolution Match input / 1K / 2K / 4K is passed through. The helper turns a tier into
+#   width and height from the first still. match_input_resolution stays on the Group
+#   and only reformats the Nuke preview after generation. It is not sent to fal.
 #   Calls the external Python 3 helper, then wires outputs into the baked in-group preview.
 #   Root Reads spawn only when spawn_reads_in_graph is on.
 #
@@ -45,6 +48,12 @@ _IMAGE_SIZE_CHOICES = (
     "square",
     "landscape_16_9",
     "portrait_16_9",
+)
+_RESOLUTION_CHOICES = (
+    "Match input",
+    "1K",
+    "2K",
+    "4K",
 )
 _OUTPUT_FORMAT_CHOICES = ("png", "jpeg", "webp")
 
@@ -152,6 +161,7 @@ def main():
     quality = _enum_knob_str(g, "quality", _QUALITY_CHOICES, "high")
     background = _enum_knob_str(g, "background", _BACKGROUND_CHOICES, "auto")
     image_size = _enum_knob_str(g, "image_size", _IMAGE_SIZE_CHOICES, "landscape_4_3")
+    resolution = _enum_knob_str(g, "resolution", _RESOLUTION_CHOICES, "Match input")
     output_format = _enum_knob_str(g, "output_format", _OUTPUT_FORMAT_CHOICES, "png")
     try:
         num_images = int(num_images_s)
@@ -185,6 +195,8 @@ def main():
         background,
         "--image-size",
         image_size,
+        "--resolution",
+        resolution,
         "--verbose",
     ]
 
