@@ -380,7 +380,7 @@ class TestGptImage25Preview(unittest.TestCase):
         self.assertIn("disable {{1-parent.match_input_resolution}}", text)
         self.assertIn("name generated_output_reformat", text)
         self.assertNotIn("parent.resolution", text)
-        self.assertIn('addUserKnob {4 image_size l "Image size"', text)
+        self.assertIn("addUserKnob {4 image_size l Aspect", text)
 
         runner_path = os.path.join(
             _ROOT, "nuke", "python", "fal_gpt_image_25_runner_v1.py"

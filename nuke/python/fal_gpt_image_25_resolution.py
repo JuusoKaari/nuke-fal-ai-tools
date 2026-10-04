@@ -97,7 +97,7 @@ def resolve_image_size(resolution, is_edit, preset, src_width=None, src_height=N
     """
     Return the fal image_size value.
     Match input and the 1K/2K/4K tiers are {"width", "height"} when a still exists.
-    Text-to-image with no still uses the Image size preset.
+    Text-to-image with no still uses the Aspect preset.
     Preset "auto" with no still stays "auto", because there is no aspect to scale.
     """
     tier = normalize_resolution(resolution)

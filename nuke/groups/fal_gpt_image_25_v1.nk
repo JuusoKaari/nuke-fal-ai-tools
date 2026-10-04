@@ -19,7 +19,7 @@ Group {
  knobChanged "\nimport nuke_group_output_preview_v1 as _gop\n_gop.on_knob_changed_ui()\n"
  selected true
  addUserKnob {20 Settings}
- addUserKnob {26 guide_info l "" T "GPT Image 2.5\nText-to-image with no stills, or edit with connected stills.\n\nPipes: image_1, image_2, prompt_text, mask. image_3 and image_4 are on Connect inputs.\nThe API allows 16 refs; this Group exposes four. Optional mask. Prompt on the node or a Text node on prompt_text.\nResolution Match input sends the first still's width and height, scaled down when the plate exceeds the model limits. 1K, 2K, and 4K use that still's aspect at a fixed long edge. 4K is 3840, so 16:9 is 3840x2160. With no still, Image size picks the aspect (auto stays auto).\nReformat result to input resolution scales the Nuke result after generation and does not change the fal size.\nFlare is the default general model. Sunburst is slower and more precise.\nPress Execute, then use Viewer mode to preview outputs."}
+ addUserKnob {26 guide_info l "" T "GPT Image 2.5\nText-to-image with no stills, or edit with connected stills.\n\nPipes: image_1, image_2, prompt_text, mask. image_3 and image_4 are on Connect inputs.\nThe API allows 16 refs; this Group exposes four. Optional mask. Prompt on the node or a Text node on prompt_text.\nResolution Match input sends the first still's width and height, scaled down when the plate exceeds the model limits. 1K, 2K, and 4K use that still's aspect at a fixed long edge. 4K is 3840, so 16:9 is 3840x2160. With no still, Aspect picks the frame (auto stays auto). A connected still ignores Aspect.\nReformat result to input resolution scales the Nuke result after generation and does not change the fal size.\nFlare is the default general model. Sunburst is slower and more precise.\nPress Execute, then use Viewer mode to preview outputs."}
  addUserKnob {1 prompt l Prompt}
  prompt "Describe the image or edit you want (or connect a Text node with a message knob to override)"
  addUserKnob {4 variant l Variant M {flare sunburst ""}}
@@ -30,7 +30,7 @@ Group {
  resolution "Match input"
  addUserKnob {4 background l Background M {auto transparent opaque ""}}
  background auto
- addUserKnob {4 image_size l "Image size" M {landscape_4_3 auto square landscape_16_9 portrait_16_9 ""}}
+ addUserKnob {4 image_size l Aspect M {landscape_4_3 auto square landscape_16_9 portrait_16_9 ""}}
  image_size landscape_4_3
  addUserKnob {1 num_images l "Num images (1-4)"}
  num_images "1"
