@@ -33,7 +33,7 @@ Save a scratch `.nk` before Execute so temp and output folders have a home.
 ## Preview, ROI, errors
 
 11. In-group preview. On Nano Banana 2 Generate or GPT Image 2 Edit, switch Viewer mode Input vs Generated around Execute. Before Execute, Output1 should look through the connected plate.
-12. ROI. On Nano Banana 2 Generate or GPT Image 2 Edit, enable `use_roi`, set `roi_area` on the plate, Execute. The model should run on that crop and the result should paste back into the box.
+12. ROI. On Nano Banana 2 Generate, GPT Image 2 Edit, or GPT Image 2.5, enable `use_roi`, set `roi_area` on the plate, Execute. The model should run on that crop and the result should paste back into the box. On GPT Image 2.5 the crop is `image_1`. A connected mask should be cropped to the same box.
 13. Errors. Force one failure: empty required input, a bad key in the node's **FAL** knob, or a SAM prompt that matches nothing. The Nuke popup should show a readable helper or fal.ai message, not only a Script Editor traceback.
 
 ## After

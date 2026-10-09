@@ -3,6 +3,9 @@
 # - Reads generate/edit settings from the Group knobs; optionally overrides prompt from `prompt_text`
 #   when a Text node (`message` knob) is connected, including through Dot nodes. Collects optional
 #   stills from `image_1`..`image_4` and optional mask from `mask`. No stills means text-to-image.
+#   Baked preview Groups export image_1 and image_2 via prepare_ai_inputs, so Use ROI crops
+#   image_1 to roi_area. image_3 and image_4 stay full-frame. A connected mask is cropped to the
+#   same box when Use ROI is on.
 #   Resolution Match input sends the first still's pixel size, scaled into the model
 #   limits. 1K, 2K, and 4K send a tier size at that still's aspect.
 #   match_input_resolution stays on the Group
@@ -35,6 +38,10 @@ import nuke_spawn_read_position_v1 as spawn_pos
 _IMAGE_INPUTS = (
     ("image_1", 0),
     ("image_2", 1),
+    ("image_3", 4),
+    ("image_4", 5),
+)
+_EXTRA_IMAGE_INPUTS = (
     ("image_3", 4),
     ("image_4", 5),
 )
@@ -88,13 +95,16 @@ def _enum_knob_str(group_node, knob_name, choices, default):
         return default
 
 
-def _collect_reference_images(nuke_module, group_node, frame, temp_dir):
+def _collect_reference_images(nuke_module, group_node, frame, temp_dir, image_inputs=None):
     """
-    Collect 0..4 reference image paths from image_1..image_4.
+    Collect reference image paths from the given inputs (default image_1..image_4).
     If the input is a suitable Read, use its resolved file directly; otherwise pre-render a still.
+    Used for image_3/image_4, and for older Groups that lack the baked preview graph.
     """
+    if image_inputs is None:
+        image_inputs = _IMAGE_INPUTS
     images = []
-    for input_name, fallback in _IMAGE_INPUTS:
+    for input_name, fallback in image_inputs:
         n = _named_input_node(group_node, input_name, fallback)
         if n is None:
             continue
@@ -115,10 +125,31 @@ def _collect_reference_images(nuke_module, group_node, frame, temp_dir):
 
 
 def _prepare_mask_path(nuke_module, group_node, frame, temp_dir):
-    """Export optional mask. No ROI on this Group."""
+    """Export optional mask. Crop to roi_area when Use ROI is on so it matches the cropped plate."""
     mask_node = _named_input_node(group_node, _MASK_INPUT[0], _MASK_INPUT[1])
     if mask_node is None:
         return None
+
+    use_roi = preview._read_bool_knob(group_node, preview.USE_ROI_KNOB)
+    if use_roi and preview._has_baked_preview_graph(group_node):
+        box = preview._read_roi_bbox(group_node)
+        ok, err = preview.validate_roi_bbox(box)
+        if not ok:
+            nuke_module.message("Failed to prepare mask image:\n%s" % err)
+            raise Exception("invalid roi")
+        out_path = os.path.join(temp_dir, "mask.png")
+        try:
+            with prerender.group_scope(nuke_module, group_node):
+                inside = nuke_module.toNode("mask")
+                if inside is None:
+                    raise Exception("in-group mask Input is missing")
+                prerender.render_still_inside_group_with_crop(
+                    nuke_module, inside, out_path, frame, box
+                )
+        except Exception as e:
+            nuke_module.message("Failed to prepare mask image:\n%s" % str(e))
+            raise
+        return prerender.norm_slashes(out_path)
 
     match_node = None
     for input_name, fallback in _IMAGE_INPUTS:
@@ -170,13 +201,38 @@ def main():
         num_images = 1
     num_images = max(1, min(4, int(num_images)))
 
+    preview_config = preview.get_config_for_group(g)
+
     temp_dir, out_dir, ts = prerender.make_run_dirs(
         nuke_module=nuke,
         prefix="gpt_image_25",
         group_node=g,
     )
 
-    ref_images = _collect_reference_images(nuke, g, frame=frame, temp_dir=temp_dir)
+    if preview_config is not None and preview._has_baked_preview_graph(g):
+        try:
+            ref_images = [
+                path for _, path in preview.prepare_ai_inputs(
+                    g, preview_config, frame, temp_dir
+                )
+            ]
+        except preview.AiInputExportError:
+            raise
+        except Exception as exc:
+            nuke.message("Failed to prepare AI input images:\n%s" % str(exc))
+            raise
+        ref_images.extend(
+            _collect_reference_images(
+                nuke,
+                g,
+                frame=frame,
+                temp_dir=temp_dir,
+                image_inputs=_EXTRA_IMAGE_INPUTS,
+            )
+        )
+    else:
+        ref_images = _collect_reference_images(nuke, g, frame=frame, temp_dir=temp_dir)
+
     mask_path = _prepare_mask_path(nuke, g, frame, temp_dir)
 
     extra_args = [

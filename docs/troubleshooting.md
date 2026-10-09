@@ -151,11 +151,11 @@ Image Groups look through the connected plate on `Output1`. Still image-to-video
 
 **Still to video.** Seedance 2 and 2.5 I2V, LTX 2.3 and 2.5 Pro I2V, MiniMax H3 and H3 Max I2V, FLUX 3 first/last and keyframes, Pika 2.2 Pikaframes, Seedance 2 reference-to-video. `Output1` is the first still (`start_image`, `keyframe_1`, or `image_1`). Extra inputs stay (end frame, other keyframes, refs, optional clips). Connect and Execute notes sit on the `guide_info` knob, not a Text overlay. There is no Viewer mode, generated-in-group, or ROI. Execute still spawns a video Read (mp4 or EXR sequence). Video upscale and Veo extend stay clip-in placeholders. 3D and Text still spawn Geo/Text after Execute.
 
-**ROI** (`use_roi`, `roi_area`) is on Nano Banana 2 Generate and GPT Image 2 Edit. It crops the primary plate to a rectangle, sends that crop, and pastes the result back. Qwen Image Inpaint's mask input is not ROI. GPT's optional `mask` input still works; with Use ROI on, the mask is cropped to the same box.
+**ROI** (`use_roi`, `roi_area`) is on Nano Banana 2 Generate, GPT Image 2 Edit, and GPT Image 2.5. It crops the primary plate to a rectangle, sends that crop, and pastes the result back. GPT Image 2 Edit crops `ref_image_a`. GPT Image 2.5 crops `image_1`. Extra GPT Image 2.5 stills stay full-frame. Qwen Image Inpaint's mask input is not ROI. GPT's optional `mask` input still works; with Use ROI on, the mask is cropped to the same box.
 
-**Editor.** GPT Image 2 Edit, Qwen Image Max Edit, Seedream 5.0 Pro Edit, Qwen Image Inpaint, Hunyuan World, and Nano Banana 2 Generate.
+**Editor.** GPT Image 2 Edit, GPT Image 2.5, Qwen Image Max Edit, Seedream 5.0 Pro Edit, Qwen Image Inpaint, Hunyuan World, and Nano Banana 2 Generate.
 
-- Before Execute, **Viewer mode = Input** shows the look-through plate: GPT `ref_image_a`, Seedream `image_1`, Nano Banana `image_a`, others `source_image`. Inpaint does not look through `mask`.
+- Before Execute, **Viewer mode = Input** shows the look-through plate: GPT Image 2 Edit `ref_image_a`, GPT Image 2.5 `image_1`, Seedream `image_1`, Nano Banana `image_a`, others `source_image`. Inpaint does not look through `mask`.
 - After Execute, **Viewer mode = Generated** shows the latest result on the Group. **Generated grid** is a contact sheet when the node allows more than one output. Hunyuan World is Input + Generated only.
 - **Preview index**, **Extract selected as Read**, and **Clear generation history** browse, extract, or forget stored outputs. Files on disk stay.
 - **Spawn reads in graph** is off by default.
@@ -171,7 +171,7 @@ Qwen layers are full-frame. Seedream returns a full-frame base plus cropped RGBA
 - Re-create the node from **Nodes -> fal.ai** after updating the plugin (older nodes may lack preview knobs or use the wrong callback style).
 - Preview switching uses Nuke expressions on internal Switch nodes (`parent.viewer_mode`, etc.). The preview graph is baked into each Image Group `.nk`. There is no Python graph build on create.
 - Older nodes created before the baked graph may still rely on `ensure_group_preview_graph()`. Re-create from the menu for the full graph.
-- Inside a new Image Group you should see `viewer_mode_switch` and `generated_read_01` immediately after create. Nano Banana 2 and GPT Image 2 also have ROI nodes (`ROI_rectangle`, `ROI_switch`). Still-to-video Groups should not have those nodes.
+- Inside a new Image Group you should see `viewer_mode_switch` and `generated_read_01` immediately after create. Nano Banana 2, GPT Image 2, and GPT Image 2.5 also have ROI nodes (`ROI_rectangle`, `ROI_switch`). Still-to-video Groups should not have those nodes.
 - If internal Read paths break after moving a script to another machine, re-execute or relink like any other Read node.
 
 ## SAM 3.1 Image returned no mask
@@ -190,7 +190,9 @@ Qwen layers are full-frame. Seedream returns a full-frame base plus cropped RGBA
 
 **Symptom:** A node button such as **Clear generation history** or **Extract selected as Read** does nothing visible, or a dialog says it could not complete the action. Script Editor shows something like `AttributeError: module 'nuke_prerender_v1' has no attribute 'group_scope'`.
 
-**Fix:** Fully quit and restart Nuke. A long session (including after a plugin update, or after cloning a node) can keep an old copy of the plugin's Python modules in memory. Recreate the node from **Nodes -> fal.ai** if restart is not enough.
+**Execute:** A dialog that starts with `Execute failed:` and a Python line such as `pick_writable_temp_dir() got an unexpected keyword argument 'show_messages'` is the same session problem. The node can be current, and it may already have generated earlier in that session. Fully quit and restart Nuke, then run Execute again. Recreating the node is not required.
+
+**Fix:** Fully quit and restart Nuke. A long session can leave Python modules in memory that no longer match. Recreate the node from **Nodes -> fal.ai** only if a button still fails after the restart.
 
 ## Still stuck?
 

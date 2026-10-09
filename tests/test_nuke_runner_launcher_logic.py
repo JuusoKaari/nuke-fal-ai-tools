@@ -133,6 +133,36 @@ class TestExecuteFailureDialogs(unittest.TestCase):
 
         launcher._execute_guarded(nuke, run)
         self.assertEqual(nuke.messages, ["Execute failed:\ndisk full"])
+        self.assertNotIn("restart Nuke", nuke.messages[0])
+
+    def test_stale_keyword_error_tells_the_user_to_restart(self):
+        nuke = _FakeMessageNuke()
+
+        def run():
+            raise TypeError(
+                "pick_writable_temp_dir() got an unexpected keyword argument 'show_messages'"
+            )
+
+        launcher._execute_guarded(nuke, run)
+        self.assertEqual(len(nuke.messages), 1)
+        text = nuke.messages[0]
+        self.assertIn("Execute failed:", text)
+        self.assertIn("unexpected keyword argument 'show_messages'", text)
+        self.assertIn("Fully quit and restart Nuke", text)
+        self.assertIn("The node itself is fine.", text)
+        self.assertNotIn("older copy", text)
+        self.assertNotIn("\u2014", text)
+        self.assertNotIn("\u2013", text)
+
+    def test_missing_attribute_error_tells_the_user_to_restart(self):
+        text = launcher.single_execute_followup_message(
+            AttributeError(
+                "module 'nuke_prerender_v1' has no attribute 'group_scope'"
+            ),
+            False,
+        )
+        self.assertIn("group_scope", text)
+        self.assertIn("restart Nuke", text)
 
     def test_unsaved_script_gets_one_dialog(self):
         nuke = _FakeMessageNuke()
@@ -185,6 +215,24 @@ class TestExecuteFailureDialogs(unittest.TestCase):
             nuke.messages,
             ["Execute failed on Nano_Banana1:\ndisk full"],
         )
+
+    def test_batch_stale_keyword_error_names_the_node_and_restart(self):
+        nuke = _FakeMessageNuke()
+        launcher.set_batch_execute_active(True)
+
+        def run():
+            raise TypeError(
+                "pick_writable_temp_dir() got an unexpected keyword argument 'show_messages'"
+            )
+
+        launcher._execute_guarded(nuke, run)
+        stopped = launcher._report_batch_node_failure(nuke, "Nano_Banana1")
+        self.assertTrue(stopped)
+        self.assertEqual(len(nuke.messages), 1)
+        text = nuke.messages[0]
+        self.assertIn("Execute failed on Nano_Banana1:", text)
+        self.assertIn("show_messages", text)
+        self.assertIn("Fully quit and restart Nuke", text)
 
     def test_batch_success_does_not_stop(self):
         nuke = _FakeMessageNuke()

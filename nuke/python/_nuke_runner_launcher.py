@@ -2,6 +2,7 @@
 # Requires a saved Nuke script, resolves runner_path, and runs the runner with Py2/Py3-compatible exec.
 # One Execute failure shows one dialog. A runner that already called nuke.message keeps that dialog.
 # The exception stays inside the knob script so Nuke does not add its own Python error dialog.
+# A signature or import mismatch (stale modules in a long session) adds a restart-Nuke hint.
 
 from __future__ import print_function
 
@@ -99,6 +100,38 @@ def _show_message(nuke_module, text):
         pass
 
 
+_STALE_SESSION_HINT = (
+    "Fully quit and restart Nuke, then try Execute again. "
+    "A long-open Nuke session can get into this state. The node itself is fine."
+)
+
+
+def _looks_like_stale_plugin_session(exc):
+    """
+    True when a long-open Nuke session has Python modules that no longer match.
+    The Group can be current and may already have generated in this session.
+    Example: pick_writable_temp_dir() got an unexpected keyword argument 'show_messages'.
+    """
+    if isinstance(exc, (AttributeError, ImportError)):
+        return True
+    if not isinstance(exc, TypeError):
+        return False
+    text = str(exc).lower()
+    if "unexpected keyword argument" in text:
+        return True
+    if "argument" in text and (
+        "takes" in text or "required" in text or "positional" in text
+    ):
+        return True
+    return False
+
+
+def _with_stale_session_hint(text, exc):
+    if not text or not _looks_like_stale_plugin_session(exc):
+        return text
+    return "%s\n\n%s" % (text, _STALE_SESSION_HINT)
+
+
 def single_execute_followup_message(exc, dialog_already_shown):
     """
     Dialog text for a lone Execute click.
@@ -110,7 +143,7 @@ def single_execute_followup_message(exc, dialog_already_shown):
         return _unsaved_script_text(exc)
     if _is_exception_type(exc, ScriptOutputDirError):
         return str(exc)
-    return "Execute failed:\n%s" % (exc,)
+    return _with_stale_session_hint("Execute failed:\n%s" % (exc,), exc)
 
 
 def batch_execute_failure_message(node_name, exc, recorded):
@@ -120,7 +153,10 @@ def batch_execute_failure_message(node_name, exc, recorded):
         return "%s\n\n%s" % (name, recorded[-1])
     if _is_exception_type(exc, UnsavedNukeScriptError):
         return _unsaved_script_text(exc)
-    return "Execute failed on %s:\n%s" % (name, exc)
+    return _with_stale_session_hint(
+        "Execute failed on %s:\n%s" % (name, exc),
+        exc,
+    )
 
 
 def _execute_guarded(nuke_module, run):
