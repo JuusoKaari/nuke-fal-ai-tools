@@ -178,6 +178,10 @@ class TestFalToolsCatalog(unittest.TestCase):
             ["GPT Image 2 Edit", "GPT Image 2.5"],
         )
         self.assertEqual(
+            image_sub["nano-banana"],
+            ["Nano Banana 2 Generate", "Nano Banana 2.1"],
+        )
+        self.assertEqual(
             image_sub["qwen"],
             ["Qwen Image Inpaint", "Qwen Image Layered", "Qwen Image Max Edit"],
         )
@@ -230,7 +234,8 @@ class TestFalToolsCatalog(unittest.TestCase):
         image_items = [row[1] for row in menu["image"] if row[0] == "item"]
         video_items = [row[1] for row in menu["video"] if row[0] == "item"]
         self.assertIn("Bria Extract Object", image_items)
-        self.assertIn("Nano Banana 2 Generate", image_items)
+        self.assertNotIn("Nano Banana 2 Generate", image_items)
+        self.assertNotIn("Nano Banana 2.1", image_items)
         self.assertNotIn("GPT Image 2 Edit", image_items)
         self.assertNotIn("GPT Image 2.5", image_items)
         self.assertIn("Hunyuan World", image_items)

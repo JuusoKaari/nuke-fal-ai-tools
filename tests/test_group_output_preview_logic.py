@@ -187,6 +187,7 @@ class TestPreviewConfigKinds(unittest.TestCase):
             list(preview.TOOL_PREVIEW_CONFIG.keys()),
             [
                 "Nano_Banana_2_Generate_v1",
+                "Nano_Banana_21_v1",
                 "GPT_Image_2_Edit_v1",
                 "GPT_Image_25_v1",
                 "Qwen_Image_Max_Edit_v1",
@@ -1308,6 +1309,74 @@ class TestSAM31ImagePreview(unittest.TestCase):
         self.assertIn("get_prompt_from_input_or_group", runner)
         self.assertIn("--apply-mask", runner)
         self.assertIn("--no-apply-mask", runner)
+
+
+class TestNanoBanana21Preview(unittest.TestCase):
+    def _nk_text(self):
+        path = os.path.join(_ROOT, "nuke", "groups", "fal_nano_banana_21_v1.nk")
+        with open(path, "r") as f:
+            return f.read()
+
+    def _runner_text(self):
+        path = os.path.join(
+            _ROOT, "nuke", "python", "fal_nano_banana_21_runner_v1.py"
+        )
+        with open(path, "r") as f:
+            return f.read()
+
+    def test_config_is_editor_with_two_stills_and_roi(self):
+        cfg = preview.TOOL_PREVIEW_CONFIG.get("Nano_Banana_21_v1")
+        self.assertIsNotNone(cfg)
+        self.assertEqual(preview.preview_kind_for_config(cfg), "editor")
+        self.assertEqual(cfg["preview_inputs"], ["image_a", "image_b"])
+        self.assertEqual(cfg["max_outputs"], 4)
+        self.assertTrue(cfg.get("supports_generated_grid"))
+        self.assertTrue(cfg.get("supports_roi"))
+        self.assertTrue(preview.wants_roi_knobs(cfg))
+        self.assertTrue(preview.wants_history_knobs(cfg))
+        self.assertTrue(preview.wants_match_input_resolution(cfg))
+        self.assertTrue(cfg.get("accumulate_outputs"))
+        self.assertFalse(preview.spawn_reads_in_graph_default(cfg))
+        self.assertEqual(
+            preview.viewer_modes_for_config(cfg),
+            ["Input", "Generated", "Generated grid"],
+        )
+        knobs = preview.requested_preview_knob_names(cfg)
+        self.assertIn("preview_index", knobs)
+        self.assertIn(preview.USE_ROI_KNOB, knobs)
+        self.assertIn(preview.MATCH_INPUT_RESOLUTION_KNOB, knobs)
+
+    def test_nk_is_generate_or_edit_preview(self):
+        text = self._nk_text()
+        self.assertIn("viewer_mode_switch", text)
+        self.assertIn("generated_read_01", text)
+        self.assertIn("generated_read_04", text)
+        self.assertIn("generated_contactsheet", text)
+        self.assertIn("name image_a", text)
+        self.assertIn("name image_b", text)
+        self.assertIn("name prompt_text", text)
+        self.assertIn("ROI_rectangle", text)
+        self.assertIn("fal_tool_id Nano_Banana_21_v1", text)
+        self.assertIn("spawn_reads_in_graph false", text)
+        self.assertIn("thinking_level medium", text)
+        self.assertIn("8:1", text)
+        self.assertIn("1:8", text)
+        self.assertIn("use_roi", text)
+        self.assertNotIn("0.5K", text)
+        self.assertNotIn("preview_constant", text)
+        runner = self._runner_text()
+        self.assertIn("wire_group_outputs", runner)
+        self.assertIn("prepare_ai_inputs", runner)
+        self.assertIn("--thinking-level", runner)
+        self.assertIn("--system-prompt", runner)
+        self.assertIn("--aspect-ratio", runner)
+        self.assertIn("--image", runner)
+
+    def test_resolve_runner_basename(self):
+        tool_id = preview.resolve_tool_id_from_runner_path(
+            "__INSTALL_ROOT__/nuke/python/fal_nano_banana_21_runner_v1.py"
+        )
+        self.assertEqual(tool_id, "Nano_Banana_21_v1")
 
 
 class TestOutputRegistry(unittest.TestCase):

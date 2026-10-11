@@ -11,6 +11,7 @@ Recreate nodes from **Nodes -> fal.ai** after updating so the new Group is avail
 **Image**
 
 - Marigold Depth - still depth map via `fal-ai/imageutils/marigold-depth`. Inference steps and ensemble size default to 10 (2-50). Processing resolution defaults to 0, which keeps the input size (max 2048). Lives in Image Utility. The listed price is $0. No ROI.
+- Nano Banana 2.1 - text-to-image or edit via `google/nano-banana-2.1`. No stills generate. Connected stills edit (`google/nano-banana-2.1/edit`) from `image_a` plus an optional `image_b`. Up to 4 images. Resolution is 1K, 2K, or 4K, and changing it changes the cost. Aspect includes 4:1, 1:4, 8:1, and 1:8. Thinking level is minimal, medium, or high. Optional web search and system prompt. Use ROI crops `image_a`. Lives under Image -> Nano Banana with Nano Banana 2 Generate.
 - GPT Image 2.5 - text-to-image or edit via OpenAI GPT Image 2.5 (Flare default, or Sunburst). No stills generate; connected stills edit. Optional mask. Quality, background, up to 4 outputs. The API allows 16 refs; the Group exposes four. Use ROI crops `image_1` and pastes the result back. A connected mask is cropped to the same box. Lives under Image -> GPT Image with GPT Image 2 Edit.
 - Seedream 5.0 Flash Layerize - splits one still into a full-frame base plus cropped RGBA elements via `bytedance/seedream/v5/flash/layerize`. Optional prompt, image size (`auto`, `auto_1K`, `auto_1.5K`, `auto_2K`), and prompt mode (`standard` or `fast`). Each crop gets `layer_meta.json` with the box in base pixels. Execute spawns a row under the Group: Read, Reformat (resize none, to the connected plate), and Transform (places the crop). Build merge stack is off by default. Lives under Image -> Seedream with Seedream 5.0 Pro Edit. No ROI.
 
@@ -34,6 +35,7 @@ Recreate nodes from **Nodes -> fal.ai** after updating so the new Group is avail
 - Seedance 2 Reference to Video pipes are image_1, image_2, video_1, and video_2. image_3 through image_9 and video_3 stay on Connect inputs. Recreate the node so an older Group picks up the new pipe order.
 - A model or helper failure opens one Nuke error dialog. Execute keeps that dialog and returns, so Nuke does not add its own Python error popup on top.
 - Seedream is now an Image submenu (Seedream 5.0 Flash Layerize, Seedream 5.0 Pro Edit).
+- Nano Banana is now an Image submenu (Nano Banana 2 Generate, Nano Banana 2.1).
 - GPT Image 2 Edit no longer has an Image size knob. Output size always follows the input image (`auto`). Recreate the node so an older Group drops the knob. Execute already ignores a leftover value.
 - Image upscale (Topaz Precision) no longer has Match input resolution. The upscaled still keeps its new size. Recreate the node so an older Group drops the knob and the reformat. Execute on an older Group also drops the knob and stops resizing the result.
 
