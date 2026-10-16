@@ -52,6 +52,7 @@ _TOOLS = sorted(
         ("image", "utility", "Finegrain Eraser", "fal_finegrain_eraser_v1.nk", "fal_finegrain_eraser_helper.py", "fal_finegrain_eraser_runner_v1.py"),
         ("image", "utility", "Image upscale (Topaz Precision)", "fal_topaz_upscale_image_precision_v1.nk", "fal_topaz_upscale_image_precision_helper.py", "fal_topaz_upscale_image_precision_runner_v1.py"),
         ("image", "utility", "Marigold Depth", "fal_marigold_depth_v1.nk", "fal_marigold_depth_helper.py", "fal_marigold_depth_runner_v1.py"),
+        ("image", "utility", "Marigold Normal", "fal_marigold_normal_v1.nk", "fal_marigold_normal_helper.py", "fal_marigold_normal_runner_v1.py"),
         ("image", "utility", "SAM 3.1 Image", "fal_sam_3_1_image_v1.nk", "fal_sam_3_1_image_helper.py", "fal_sam_3_1_image_runner_v1.py"),
         ("image", "bria", "Bria Extract Object", "fal_bria_extract_object_v1.nk", "fal_bria_extract_object_helper.py", "fal_bria_extract_object_runner_v1.py"),
         ("image", "gpt-image", "GPT Image 2 Edit", "fal_gpt_image_2_edit_v1.nk", "fal_gpt_image_2_edit_helper.py", "fal_gpt_image_2_edit_runner_v1.py"),

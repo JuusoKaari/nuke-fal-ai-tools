@@ -197,6 +197,7 @@ class TestFalToolsCatalog(unittest.TestCase):
                 "Finegrain Eraser",
                 "Image upscale (Topaz Precision)",
                 "Marigold Depth",
+                "Marigold Normal",
                 "SAM 3.1 Image",
             ],
         )
