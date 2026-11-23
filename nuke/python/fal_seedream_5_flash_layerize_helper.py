@@ -3,6 +3,8 @@
 # - Uploads one still, calls `bytedance/seedream/v5/flash/layerize`, and downloads the
 #   base image plus separated layers into layer_0/, layer_1/, ...
 # - Each layer folder gets layer.<ext> and layer_meta.json (z_index, name, description, bbox).
+# - Does not send enhance_prompt_mode (gone from the Flash schema). output_format
+#   is png or jpeg for the base image. Layers stay PNG. watermark is always false.
 #
 # Usage (example):
 #   py -3 fal_seedream_5_flash_layerize_helper.py --image "C:/in.png" --out-dir "C:/temp/run" --verbose
@@ -38,7 +40,7 @@ _ENDPOINT_ID = "bytedance/seedream/v5/flash/layerize"
 # Base image (z_index 0) plus up to 16 separated layers.
 _MAX_LAYERS = 17
 _IMAGE_SIZE_CHOICES = ("auto", "auto_1K", "auto_1.5K", "auto_2K")
-_ENHANCE_PROMPT_MODE_CHOICES = ("standard", "fast")
+_OUTPUT_FORMAT_CHOICES = ("png", "jpeg")
 _CONTENT_TYPE_EXT = {
     "image/png": "png",
     "image/jpeg": "jpg",
@@ -209,10 +211,10 @@ def main(argv: list[str]) -> int:
         help="Output resolution tier. Default: auto.",
     )
     parser.add_argument(
-        "--enhance-prompt-mode",
-        default="standard",
-        choices=_ENHANCE_PROMPT_MODE_CHOICES,
-        help="Prompt optimization. standard favors quality, fast is quicker. Default: standard.",
+        "--output-format",
+        default="png",
+        choices=_OUTPUT_FORMAT_CHOICES,
+        help="Base image format. Layers are always PNG. Default: png.",
     )
     parser.add_argument(
         "--enable-safety-checker",
@@ -270,7 +272,8 @@ def main(argv: list[str]) -> int:
     api_args = {
         "image_url": image_url,
         "image_size": str(args.image_size),
-        "enhance_prompt_mode": str(args.enhance_prompt_mode),
+        "output_format": str(args.output_format),
+        "watermark": False,
         "enable_safety_checker": bool(args.enable_safety_checker),
         "sync_mode": False,
     }
@@ -338,7 +341,7 @@ def main(argv: list[str]) -> int:
         "downloaded": downloaded[0],
         "num_layers": len(downloaded),
         "image_size": str(args.image_size),
-        "enhance_prompt_mode": str(args.enhance_prompt_mode),
+        "output_format": str(args.output_format),
         "layers": [
             {
                 "index": index,

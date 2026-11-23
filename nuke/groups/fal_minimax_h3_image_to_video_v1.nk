@@ -19,8 +19,8 @@ Group {
  duration 5
  addUserKnob {4 resolution l Resolution M {480P 768P 2K 4K ""}}
  resolution 2K
- addUserKnob {6 enable_prompt_expansion l "Enable prompt expansion" +STARTLINE}
- enable_prompt_expansion true
+ addUserKnob {4 prompt_expansion_mode l "Prompt expansion" M {disabled fast balanced quality ""}}
+ prompt_expansion_mode balanced
  addUserKnob {6 enable_safety_checker l "Enable safety checker" +STARTLINE}
  enable_safety_checker true
  addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}

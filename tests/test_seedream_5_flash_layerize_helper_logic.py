@@ -197,8 +197,8 @@ class TestSeedreamFlashLayerizeMain(unittest.TestCase):
                             "separate the tree",
                             "--image-size",
                             "auto_1.5K",
-                            "--enhance-prompt-mode",
-                            "fast",
+                            "--output-format",
+                            "jpeg",
                             "--no-enable-safety-checker",
                             "--fal-key",
                             "test-key",
@@ -213,7 +213,9 @@ class TestSeedreamFlashLayerizeMain(unittest.TestCase):
             )
             self.assertEqual(captured["arguments"]["prompt"], "separate the tree")
             self.assertEqual(captured["arguments"]["image_size"], "auto_1.5K")
-            self.assertEqual(captured["arguments"]["enhance_prompt_mode"], "fast")
+            self.assertEqual(captured["arguments"]["output_format"], "jpeg")
+            self.assertFalse(captured["arguments"]["watermark"])
+            self.assertNotIn("enhance_prompt_mode", captured["arguments"])
             self.assertFalse(captured["arguments"]["enable_safety_checker"])
             self.assertFalse(captured["arguments"]["sync_mode"])
             self.assertEqual(len(_FakeSyncClient.last.uploaded), 1)

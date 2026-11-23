@@ -3,6 +3,7 @@
 # - Uploads a local video, calls `fal-ai/sam-3-1/video` with a required text prompt,
 #   downloads the result movie only (ignores boundingbox_frames_zip).
 # - Text prompt only. Commas can name several objects. No box or point prompts.
+# - The Output type choice is sent as video_output_type (X264 .mp4 or VP9 .webm).
 #
 # API: https://fal.ai/models/fal-ai/sam-3-1/video
 #
@@ -100,7 +101,7 @@ def build_arguments(
     max_objects,
     output_type,
 ):
-    """Payload for fal-ai/sam-3-1/video. Text prompt only; no boxes or points."""
+    """Payload for fal-ai/sam-3-1/video. Sends video_output_type. No boxes or points."""
     prompt = (prompt or "").strip()
     if not prompt:
         raise ValueError("prompt is empty")
@@ -110,7 +111,7 @@ def build_arguments(
         "apply_mask": bool(apply_mask),
         "detection_threshold": _clamp_detection_threshold(detection_threshold),
         "max_num_objects": _normalize_max_objects(max_objects),
-        "output_type": _normalize_output_type(output_type),
+        "video_output_type": _normalize_output_type(output_type),
     }
 
 

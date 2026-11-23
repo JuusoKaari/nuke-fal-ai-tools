@@ -726,7 +726,8 @@ class TestSeedreamFlashLayerizePreview(unittest.TestCase):
         self.assertIn("name preview_source_01", text)
         self.assertIn("spawn_reads_in_graph true", text)
         self.assertIn("image_size auto", text)
-        self.assertIn("enhance_prompt_mode standard", text)
+        self.assertIn("output_format png", text)
+        self.assertNotIn("enhance_prompt_mode", text)
         self.assertIn("auto_1.5K", text)
         for i in range(1, 18):
             self.assertIn("generated_read_%02d" % i, text)

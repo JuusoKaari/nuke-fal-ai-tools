@@ -8,6 +8,8 @@
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
 # - Network/API calls run in the external helper (Python 3), not inside Nuke.
+# - Prompt expansion is an enum. Older Groups that still have the checkbox map
+#   on -> balanced and off -> disabled.
 
 from __future__ import print_function
 
@@ -23,6 +25,30 @@ import _nuke_runner_launcher
 import nuke_prerender_v1 as prerender
 import nuke_fal_runner_util_v1 as runner_util
 import nuke_video_output_v1 as video_out
+
+
+_PROMPT_EXPANSION_MODES = ("disabled", "fast", "balanced", "quality")
+
+
+def prompt_expansion_mode_from_knobs(mode_value, legacy_enabled):
+    """Map Group knobs to the API prompt_expansion_mode.
+
+    mode_value is the enum knob, or None when that knob is absent.
+    legacy_enabled is the old checkbox, or None when that knob is absent.
+    True -> balanced, False -> disabled. Missing both -> balanced.
+    """
+    if mode_value is not None:
+        if isinstance(mode_value, int) and not isinstance(mode_value, bool):
+            if 0 <= mode_value < len(_PROMPT_EXPANSION_MODES):
+                return _PROMPT_EXPANSION_MODES[mode_value]
+            return "balanced"
+        s = str(mode_value).strip()
+        if s in _PROMPT_EXPANSION_MODES:
+            return s
+        return "balanced"
+    if legacy_enabled is False:
+        return "disabled"
+    return "balanced"
 
 
 def main():
@@ -45,7 +71,11 @@ def main():
 
     duration_s = (g.knob("duration").value() or "5").strip()
     resolution = (g.knob("resolution").value() or "2K").strip()
-    enable_prompt_expansion = bool(g.knob("enable_prompt_expansion").value())
+    mode_knob = g.knob("prompt_expansion_mode")
+    legacy_knob = g.knob("enable_prompt_expansion")
+    mode_value = None if mode_knob is None else mode_knob.value()
+    legacy_enabled = None if legacy_knob is None else bool(legacy_knob.value())
+    prompt_expansion_mode = prompt_expansion_mode_from_knobs(mode_value, legacy_enabled)
     enable_safety_checker = bool(g.knob("enable_safety_checker").value())
     seed_s = (g.knob("seed").value() or "").strip()
 
@@ -87,6 +117,8 @@ def main():
         duration_s,
         "--resolution",
         resolution,
+        "--prompt-expansion-mode",
+        prompt_expansion_mode,
         "--verbose",
     ]
 
@@ -99,11 +131,6 @@ def main():
         except Exception:
             nuke.message("Invalid seed value.")
             raise Exception("invalid seed")
-
-    if enable_prompt_expansion:
-        extra_args += ["--enable-prompt-expansion"]
-    else:
-        extra_args += ["--no-enable-prompt-expansion"]
 
     if enable_safety_checker:
         extra_args += ["--enable-safety-checker"]

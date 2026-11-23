@@ -9,6 +9,8 @@
 #   and moves the crop. build_merge_stack defaults off. When on, a Merge2 chain
 #   composites each layer over the base. spawn_reads_in_graph defaults on.
 #   Each Execute replaces the layer set.
+# - Does not send enhance_prompt_mode. output_format (png or jpeg) is the base
+#   image. Layers stay PNG. watermark is always false.
 #
 # Notes:
 # - Must be Python 2.7 compatible (runs inside Nuke).
@@ -34,7 +36,7 @@ import nuke_spawn_read_position_v1 as spawn_pos
 
 
 _IMAGE_SIZES = ("auto", "auto_1K", "auto_1.5K", "auto_2K")
-_PROMPT_MODES = ("standard", "fast")
+_OUTPUT_FORMATS = ("png", "jpeg")
 _IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".exr")
 
 
@@ -482,9 +484,7 @@ def main():
 
     prompt = (g.knob("prompt").value() or "").strip()
     image_size = _enum_knob_str(g, "image_size", _IMAGE_SIZES, "auto")
-    enhance_prompt_mode = _enum_knob_str(
-        g, "enhance_prompt_mode", _PROMPT_MODES, "standard"
-    )
+    output_format = _enum_knob_str(g, "output_format", _OUTPUT_FORMATS, "png")
     enable_safety_checker = bool(g.knob("enable_safety_checker").value())
 
     extra_args = [
@@ -494,8 +494,8 @@ def main():
         out_dir,
         "--image-size",
         image_size,
-        "--enhance-prompt-mode",
-        enhance_prompt_mode,
+        "--output-format",
+        output_format,
         "--verbose",
     ]
     if prompt:

@@ -1,6 +1,8 @@
 # Purpose:
 # - Python 3 helper for Nuke (Python 2.7) to run fal.ai MiniMax H3 *image-to-video*.
 # - Uploads local start (and optional end) images, calls `minimax/h3/image-to-video`, downloads the mp4.
+# - Sends prompt_expansion_mode (disabled, fast, balanced, quality).
+#   A legacy enable-prompt-expansion flag maps on to balanced and off to disabled.
 #
 # Usage (example):
 #   py -3 fal_minimax_h3_image_to_video_helper.py --image "C:/start.png" --prompt "..." --out "C:/temp/out.mp4" --verbose
@@ -32,6 +34,26 @@ from fal_common import (
 _ENDPOINT_ID = "minimax/h3/image-to-video"
 _DURATION_CHOICES = list(range(5, 16))
 _RESOLUTION_CHOICES = ["480P", "768P", "2K", "4K"]
+_PROMPT_EXPANSION_MODE_CHOICES = ("disabled", "fast", "balanced", "quality")
+
+
+def resolve_prompt_expansion_mode(mode, legacy_enabled):
+    """API prompt_expansion_mode.
+
+    An explicit mode wins. The legacy checkbox maps true to balanced and
+    false to disabled. Missing both stays on the API default, balanced.
+    """
+    if mode is not None and str(mode).strip():
+        chosen = str(mode).strip().lower()
+        if chosen not in _PROMPT_EXPANSION_MODE_CHOICES:
+            raise ValueError(
+                "prompt expansion mode must be one of: %s"
+                % ", ".join(_PROMPT_EXPANSION_MODE_CHOICES)
+            )
+        return chosen
+    if legacy_enabled is False:
+        return "disabled"
+    return "balanced"
 
 
 def main(argv: list[str]) -> int:
@@ -58,10 +80,16 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument("--seed", type=int, default=None, help="Optional RNG seed.")
     parser.add_argument(
+        "--prompt-expansion-mode",
+        default=None,
+        choices=_PROMPT_EXPANSION_MODE_CHOICES,
+        help="Prompt rewrite effort: disabled, fast, balanced, or quality. Default: balanced.",
+    )
+    parser.add_argument(
         "--enable-prompt-expansion",
         action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Expand the prompt with a vision language model before generation. Default: true.",
+        default=None,
+        help="Legacy flag. On maps to balanced, off to disabled. Ignored when --prompt-expansion-mode is set.",
     )
     parser.add_argument(
         "--enable-safety-checker",
@@ -123,6 +151,14 @@ def main(argv: list[str]) -> int:
             print("Uploading end image: %s" % end_image_path)
         end_image_url = client.upload_file(end_image_path)
 
+    try:
+        prompt_expansion_mode = resolve_prompt_expansion_mode(
+            args.prompt_expansion_mode, args.enable_prompt_expansion
+        )
+    except ValueError as e:
+        print("ERROR: %s" % (e,), file=sys.stderr)
+        return 2
+
     if args.verbose:
         print("Submitting request: %s" % _ENDPOINT_ID)
 
@@ -131,7 +167,7 @@ def main(argv: list[str]) -> int:
         "prompt": args.prompt,
         "duration": int(args.duration),
         "resolution": args.resolution,
-        "enable_prompt_expansion": bool(args.enable_prompt_expansion),
+        "prompt_expansion_mode": prompt_expansion_mode,
         "enable_safety_checker": bool(args.enable_safety_checker),
     }
     if end_image_url:

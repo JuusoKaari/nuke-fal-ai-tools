@@ -20,8 +20,8 @@ Group {
  prompt ""
  addUserKnob {4 image_size l "Image size" M {auto auto_1K auto_1.5K auto_2K ""}}
  image_size auto
- addUserKnob {4 enhance_prompt_mode l "Enhance prompt mode" M {standard fast ""}}
- enhance_prompt_mode standard
+ addUserKnob {4 output_format l "Output format" M {png jpeg ""}}
+ output_format png
  addUserKnob {6 enable_safety_checker l "Enable safety checker" +STARTLINE}
  enable_safety_checker true
  addUserKnob {6 show_success_popup l "Show success popup" +STARTLINE}
