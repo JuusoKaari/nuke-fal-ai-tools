@@ -1,5 +1,6 @@
 # Purpose:
-# - Nuke Group node that runs Qwen Image Max edit (fal.ai) with in-group output preview.
+# - Nuke Group node that runs Qwen Image 3 edit (alibaba/qwen-image-3/edit) with in-group output preview.
+# - Menu label stays Qwen Image Max Edit. fal-ai/qwen-image-max/edit is deprecated.
 # - Input: 0 source_image (look-through). Preview graph is baked (look-through + generated reads + viewer_mode_switch). No ROI.
 # - Hidden fal_tool_id identifies the tool type; display name may be v1, v2, v3, etc.
 # - Keeps the .nk execute script small by delegating logic to a Python runner in `nuke/python/`.

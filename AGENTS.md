@@ -32,7 +32,23 @@ Other lists in that folder are separate runs (example: `image_preview_todo.md`, 
 
 Unattended item chats **must commit** in this public repo (override a "maintainer handles git" rule for those runs only). Do not push.
 
-Planning notes, the implementer TODO, and the agent tool wishlist live in that same sibling repo (`planning/`, `TODO.md`, `proposed-tools.md`).
+Planning notes, the implementer TODO, and the older tool wishlist live in that same sibling repo (`planning/`, `TODO.md`, `proposed-tools.md`).
+
+## Node dashboard
+
+fal node findings and the node inventory live in a Google Sheet, not in this repo. Spreadsheet id: `1akHa3cZGJ_BJT8goaAcNO-vCK7tG1Bmnuu5Zkjgyh-w`.
+
+https://docs.google.com/spreadsheets/d/1akHa3cZGJ_BJT8goaAcNO-vCK7tG1Bmnuu5Zkjgyh-w/edit
+
+Open it with the Google Sheets connection (`plugin-google-sheets-google-sheets`). If that connection needs auth, authenticate it, then call `get_spreadsheet`, then `read_range`. Tabs are `Findings`, `Node inventory`, and `About`. Name the tab on every read. Read a tab before you write it. The last write wins.
+
+Grokbot discovers rows. Juuso decides. Cursor implements. Do not implement a Findings row unless `Human decision` is `Add`, `Fix`, `Replace`, or `Remove`. `Status` `Approved` alone is not enough. Leave `Skip`, `Later`, and a blank decision alone unless Juuso overrides that row in this chat. Follow the decision and `Juuso's notes`. Do not change `Human decision` or `Juuso's notes`. `proposed-tools.md` is an older wishlist. Do not treat its unchecked rows as the queue.
+
+`Add` is a new node. `Fix` repairs an existing node. `Replace` swaps an outdated node or model. `Remove` retires a node.
+
+Find columns by the header row each time, not by a remembered letter. After the code for an actionable row is in this repo, set that row's `Status` to `Done` and `Status changed` to today (`YYYY-MM-DD`). Update the matching Node inventory row (implementation status, dates, branch, file paths, endpoint, linked finding id). Do not add finding rows, reformat the sheet, or paste sheet contents into this repo.
+
+Column map, status values, and the write shape: `../nuke-fal-ai-tools_devtools/planning/node-dashboard.md`. Read that file before the first write.
 
 ## This slice
 

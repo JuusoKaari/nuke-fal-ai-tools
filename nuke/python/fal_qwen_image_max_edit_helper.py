@@ -1,6 +1,8 @@
 # Purpose:
-# - Python 3 helper for Nuke (Python 2.7) to run fal.ai Qwen Image Max *image editing* on a single still image.
-# - Uploads a local image to fal storage, calls `fal-ai/qwen-image-max/edit`, downloads the edited image(s)
+# - Python 3 helper for Nuke (Python 2.7) to run fal.ai Qwen image editing on a single still image.
+# - Menu label stays "Qwen Image Max Edit". The call is `alibaba/qwen-image-3/edit`.
+#   `fal-ai/qwen-image-max/edit` is deprecated and its model page is gone.
+# - Uploads a local image to fal storage, downloads the edited image(s)
 #   into a specified output directory, and prints progress/logs to stdout (so Nuke's Script Editor shows it).
 #
 # Usage (example):
@@ -28,7 +30,7 @@ from fal_common import (
 )
 
 
-_ENDPOINT_ID = "fal-ai/qwen-image-max/edit"
+_ENDPOINT_ID = "alibaba/qwen-image-3/edit"
 
 
 def _normalize_output_format(fmt: str) -> str:
