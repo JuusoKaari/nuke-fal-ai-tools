@@ -31,6 +31,8 @@ KLING_O3_V2V_MAX_BYTES = 200 * 1024 * 1024
 SEEDANCE_20_REFERENCE_TOTAL_BYTES = 50 * 1024 * 1024
 # Seedance 2.5 reference: each video no larger than 200 MB.
 SEEDANCE_25_REFERENCE_MAX_BYTES = 200 * 1024 * 1024
+# LTX 2.5 Alpha Gen: video_url at most 200 MB.
+LTX_25_ALPHA_GEN_MAX_BYTES = 200 * 1024 * 1024
 
 
 def format_mib(num_bytes):

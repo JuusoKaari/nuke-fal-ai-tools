@@ -20,6 +20,7 @@ Recreate nodes from **Nodes -> fal.ai** after updating so the new Group is avail
 
 - Seedance 2.5 Reference to Video - character/set lock from stills, videos, and audio via `bytedance/seedance-2.5/reference-to-video`. Duration auto or 4-30s, 480p/720p/1080p (no 4k). Task reference, editing, or extension. The Group exposes 9 stills, 3 videos, and 3 audio paths. Lives under Video -> Seedance with Seedance 2 Reference to Video.
 - SAM 3.1 Video - text-prompted video segmentation via `fal-ai/sam-3-1/video`. Comma-separated objects. Apply mask default on. No boxes or points. Lives in Video Utility.
+- LTX 2.5 Alpha Gen - frame-matched foreground matte from a video via `lightricks/ltx-2.5/alpha-gen`. Output mode defaults to Alpha only (grayscale matte). RGBA writes the ProRes 4444 cutout with straight alpha. Execute spawns one Read for the chosen mode. Safety checker is on by default. Lives in Video Utility. Source video at most 200 MB and 3072 frames; long side at most 3840, short side at most 2160, aspect at most 32:9. $0.10 / $0.25 / $1.00 per second at 1080p / 1440p / 2160p, by the shorter side.
 - Depth Anything Video - temporally consistent per-frame depth via `fal-ai/depth-anything-video`. Model size (Small, Base, Large; default Large), colormap (grayscale default), resolution (`auto` through 1080p), and optional side-by-side. Lives in Video Utility. $0.04 per second of video. The API processes at most 2400 frames. Execute also saves raw float32 depths as a `.npz` next to the MP4. Nuke does not load that file.
 
 **Connect inputs**

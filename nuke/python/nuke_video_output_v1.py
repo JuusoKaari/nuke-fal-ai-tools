@@ -1,7 +1,9 @@
 # Purpose:
 # - Shared video-result helper for Nuke runners (Python 2.7).
-# - After a fal.ai MP4 download, optionally render a DWAB EXR sequence via a
+# - After a fal.ai video download, optionally render a DWAB EXR sequence via a
 #   temp Read/Write and spawn the graph Read on that sequence.
+# - channels defaults to rgb. Pass rgba for a straight-alpha movie (ProRes 4444)
+#   so the EXR Write and the spawned Read keep the alpha.
 # - The spawned Read uses frame_mode "start at" so file frame 1 lands on the
 #   frame range the node was executed with (151-200 -> frame 151).
 # - Mode comes from fal.ai Settings (video_output). The MP4 is always kept.
@@ -135,10 +137,11 @@ def _set_enum_containing(node, knob_name, needles):
     return False
 
 
-def _configure_exr_write(write_node, compression_level):
+def _configure_exr_write(write_node, compression_level, channels="rgb"):
     """
     Set Write knobs for half-float DWAB EXR. Falls back to Zip (16 scanlines)
     when DWAB is missing (older Nuke). Raises if EXR compression cannot be set.
+    channels is rgb for a normal plate, rgba when the source has straight alpha.
     """
     _try_set_knob(write_node, "file_type", "exr")
     _set_enum_containing(write_node, "datatype", ["half", "16 bit"])
@@ -152,7 +155,7 @@ def _configure_exr_write(write_node, compression_level):
     for name in ("dw_compression_level", "dwaCompressionLevel", "compression_level"):
         if _try_set_knob(write_node, name, float(compression_level)):
             break
-    _try_set_knob(write_node, "channels", "rgb")
+    _try_set_knob(write_node, "channels", channels or "rgb")
 
 
 def _set_read_frame_range(read_node, first, last):
@@ -215,11 +218,12 @@ def _undo_enable(nuke_module):
 
 
 def render_mp4_to_dwab_exr(
-    nuke_module, mp4_path, compression_level=None, log_print=None
+    nuke_module, mp4_path, compression_level=None, log_print=None, channels="rgb"
 ):
     """
-    Read an MP4 in Nuke and Write a DWAB EXR sequence next to it.
+    Read a video file in Nuke and Write a DWAB EXR sequence next to it.
     Returns (pattern, first, last). Raises on failure. Temp nodes are deleted.
+    channels rgba keeps straight alpha (premultiplied off on the temp Read).
     """
     mp4_path = os.path.abspath(mp4_path)
     if not os.path.isfile(mp4_path):
@@ -259,6 +263,8 @@ def render_mp4_to_dwab_exr(
         began_root = True
         read_node = nuke_module.nodes.Read(file=mp4_nk)
         _set_read_frame_range(read_node, first, last)
+        if channels == "rgba":
+            _try_set_knob(read_node, "premultiplied", False)
         try:
             read_node.setXpos(100000)
             read_node.setYpos(100000)
@@ -272,7 +278,7 @@ def render_mp4_to_dwab_exr(
                 write_node["file"].setValue(pattern_nk)
             except Exception:
                 raise Exception("Could not set Write file path.")
-        _configure_exr_write(write_node, compression_level)
+        _configure_exr_write(write_node, compression_level, channels=channels)
         try:
             write_node.setXpos(100040)
             write_node.setYpos(100000)
@@ -310,21 +316,23 @@ def spawn_video_output_read(
     read_name,
     y_offset=140,
     start_frame=None,
+    channels="rgb",
 ):
     """
     Spawn a root-graph Read for a downloaded video result.
-    Default Settings mode renders a DWAB EXR sequence first; MP4 is kept.
-    On EXR failure, falls back to a Read on the MP4 and shows a message.
+    Default Settings mode renders a DWAB EXR sequence first; the source file is kept.
+    On EXR failure, falls back to a Read on that file and shows a message.
     The Read is set to frame_mode "start at" on the launched range start,
     so a job run at 151-200 lines up with the input.
     Pass start_frame when the launched range differs from the knobs.
+    channels rgba writes and reads straight alpha (premultiplied off).
     Returns the Nuke-slash path shown on the Read.
     """
     mp4_path = os.path.abspath(mp4_path)
     mp4_nk = prerender_core.norm_slashes(mp4_path)
     if not os.path.isfile(mp4_path):
         nuke_module.message("Helper finished, but output file was not found:\n%s" % mp4_nk)
-        raise Exception("missing output mp4")
+        raise Exception("missing output video")
 
     mode = fal_config.get_video_output()
     file_path = mp4_path
@@ -335,7 +343,9 @@ def spawn_video_output_read(
 
     if mode == fal_config.VIDEO_OUTPUT_EXR_SEQUENCE:
         try:
-            file_path, first, last = render_mp4_to_dwab_exr(nuke_module, mp4_path)
+            file_path, first, last = render_mp4_to_dwab_exr(
+                nuke_module, mp4_path, channels=channels
+            )
             is_sequence = True
         except Exception as e:
             warn = str(e)
@@ -360,6 +370,8 @@ def spawn_video_output_read(
             pass
         r.setXpos(fx)
         r.setYpos(fy)
+        if channels == "rgba":
+            _try_set_knob(r, "premultiplied", False)
         if is_sequence and first is not None and last is not None:
             _set_read_frame_range(r, first, last)
         else:

@@ -45,6 +45,7 @@ from nuke_prerender_video_v1 import (
     KLING_O3_V2V_MAX_BYTES,
     SEEDANCE_20_REFERENCE_TOTAL_BYTES,
     SEEDANCE_25_REFERENCE_MAX_BYTES,
+    LTX_25_ALPHA_GEN_MAX_BYTES,
 )
 
 from nuke_fal_progress_v1 import FalProgressCancelled, run_helper_subprocess

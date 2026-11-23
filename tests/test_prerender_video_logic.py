@@ -96,6 +96,9 @@ class TestQualityLadder(unittest.TestCase):
     def test_kling_cap_matches_schema_bytes(self):
         self.assertEqual(prerender_video.KLING_O3_V2V_MAX_BYTES, 209715200)
 
+    def test_ltx_alpha_gen_cap_matches_schema_bytes(self):
+        self.assertEqual(prerender_video.LTX_25_ALPHA_GEN_MAX_BYTES, 209715200)
+
 
 if __name__ == "__main__":
     unittest.main()
