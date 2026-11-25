@@ -10,6 +10,7 @@ Recreate nodes from **Nodes -> fal.ai** after updating so the new Group is avail
 
 **Image**
 
+- MoGe-3 - textured camera-space mesh from a still via `microsoft/moge-3`. Execute converts the GLB to OBJ and spawns a ReadGeo plus a Camera. Focal length uses the returned horizontal FOV on Nuke's 24.576 mm film back, and window translate uses the normalized principal point. Known horizontal FOV is optional; leave it empty and MoGe estimates the lens. Resolution level defaults to 9 (0-9). Refinement steps default to 3 (0 skips the refiner). Point-cloud export is off. Depth, normals, and the mask are not imported. Lives in Image Utility. $0.015 per megapixel. No ROI. Wire the ReadGeo and Camera into your own Scene and ScanlineRender.
 - Marigold Depth - still depth map via `fal-ai/imageutils/marigold-depth`. Inference steps and ensemble size default to 10 (2-50). Processing resolution defaults to 0, which keeps the input size (max 2048). Lives in Image Utility. The listed price is $0. No ROI.
 - Marigold Normal - still surface-normal map via `fal-ai/marigold-v2` with `prediction_type` set to normals. Output size follows the input, snapped to multiples of 16, up to 2048 on a side. Leave Seed empty and the API chooses one. Match input resolution scales the PNG back to the plate inside Nuke. Lives in Image Utility next to Marigold Depth. $0.03 per image. The result is a viewable PNG, not a numeric normal tensor. No ROI.
 - Nano Banana 2.1 - text-to-image or edit via `google/nano-banana-2.1`. No stills generate. Connected stills edit (`google/nano-banana-2.1/edit`) from `image_a` plus an optional `image_b`. Up to 4 images. Resolution is 1K, 2K, or 4K, and changing it changes the cost. Aspect includes 4:1, 1:4, 8:1, and 1:8. Thinking level is minimal, medium, or high. Optional web search and system prompt. Use ROI crops `image_a`. Lives under Image -> Nano Banana with Nano Banana 2 Generate.
@@ -29,6 +30,7 @@ Recreate nodes from **Nodes -> fal.ai** after updating so the new Group is avail
 
 ### Changed
 
+- When fal.ai refuses a run because the account is out of credits, the dialog says so and points at https://fal.ai/dashboard/billing. That includes the upload 403 from `rest.fal.ai/storage/auth/token`, which used to show a fal-client traceback.
 - MiniMax H3 Image to Video sends `prompt_expansion_mode` (`disabled`, `fast`, `balanced`, or `quality`, default `balanced`) instead of the enable-prompt-expansion checkbox. That checkbox no longer matches the API, so turning it off did not stop expansion. Recreate the node to get the menu. An older Group still runs: checkbox on maps to `balanced`, off maps to `disabled`.
 - Seedream 5.0 Flash Layerize no longer sends `enhance_prompt_mode`. That field left the Flash schema, so the Prompt mode knob did nothing. The node sends `output_format` (`png` or `jpeg`, default `png`) for the base image, and `watermark` false. Layers stay PNG. Recreate the node so the Prompt mode knob is gone.
 - SAM 3.1 Video sends `video_output_type`, so the Output type knob (`X264 (.mp4)` or `VP9 (.webm)`) is applied. The API was ignoring `output_type` and always returning MP4.

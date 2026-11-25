@@ -3,6 +3,8 @@
 #   helper path, subprocess run, and frame range knobs.
 # - FAL_KEY cascade: node knob -> ~/.nuke-fal-ai/config.json -> process env.
 # - Failed helpers surface ERROR lines in the Nuke message dialog, not only Script Editor.
+# - A fal.ai out-of-credits 403 (upload token or "Exhausted balance") is rewritten
+#   to a short dialog. Same check as fal_common.out_of_credits_message.
 # - Importable without Nuke for unit tests (pass nuke_module where needed).
 
 from __future__ import print_function
@@ -75,12 +77,51 @@ def helper_path_from_group(nuke_module, group_node):
 
 _MAX_HELPER_FAILURE_CHARS = 1800
 
+# Kept in step with fal_common._OUT_OF_CREDITS_MESSAGE (this file is Python 2.7).
+_OUT_OF_CREDITS_DIALOG = (
+    "ERROR: Your fal.ai account is out of credits, so this run was refused.\n"
+    "Add credits at https://fal.ai/dashboard/billing and run again."
+)
+
+
+def _output_is_out_of_credits(text):
+    """
+    Match fal's exhausted-balance lock, including the bare upload 403 whose
+    traceback only names the storage-token URL. A lock with some other reason
+    is left as-is.
+    """
+    s = (text or "").lower()
+    if "exhausted balance" in s:
+        return True
+    if "insufficient funds" in s or "insufficient balance" in s:
+        return True
+    if "user is locked" in s and (
+        "balance" in s or "billing" in s or "top up" in s or "top-up" in s
+    ):
+        return True
+    if (
+        "403" in s
+        and "forbidden" in s
+        and "fal.ai" in s
+        and "storage" in s
+        and "token" in s
+    ):
+        if (
+            "user is locked" in s
+            and "exhausted balance" not in s
+            and "insufficient" not in s
+        ):
+            return False
+        return True
+    return False
+
 
 def summarize_helper_output(lines):
     """
     Pick the helper log chunk to show in a Nuke failure dialog.
-    Prefers the last ERROR: line plus anything after it (JSON body, nested
-    fal detail). Falls back to the last non-empty lines.
+    An out-of-credits failure replaces the traceback with a short note.
+    Otherwise prefers the last ERROR: line plus anything after it (JSON body,
+    nested fal detail). Falls back to the last non-empty lines.
     """
     cleaned = []
     for ln in lines or []:
@@ -105,6 +146,8 @@ def summarize_helper_output(lines):
     else:
         chunk = cleaned[start:]
     text = "\n".join(chunk)
+    if _output_is_out_of_credits(text):
+        return _OUT_OF_CREDITS_DIALOG
     if len(text) > _MAX_HELPER_FAILURE_CHARS:
         text = text[:_MAX_HELPER_FAILURE_CHARS] + "\n..."
     return text

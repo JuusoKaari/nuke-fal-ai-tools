@@ -135,6 +135,45 @@ class TestSummarizeHelperOutput(unittest.TestCase):
         self.assertIn("Finegrain Eraser helper failed (exit 5).", msg)
         self.assertIn("premium mode has been removed from the API", msg)
 
+    def test_storage_token_403_traceback_becomes_credits_dialog(self):
+        lines = [
+            'File "C:/Python/site-packages/fal_client/client.py", line 2003, in _get_cdn_client',
+            "    token = self._token_manager.get_token()",
+            'File "C:/Python/site-packages/fal_client/client.py", line 115, in _refresh_token',
+            "    response.raise_for_status()",
+            "httpx.HTTPStatusError: Client error '403 Forbidden' for url "
+            "'https://rest.fal.ai/storage/auth/token?storage_type=fal-cdn-v3'",
+            "For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403",
+        ]
+        msg = runner_util.format_helper_failure_message(
+            "LTX 2.5 Image to Video Pro", 1, lines
+        )
+        self.assertIn("LTX 2.5 Image to Video Pro helper failed (exit 1).", msg)
+        self.assertIn("out of credits", msg)
+        self.assertIn("https://fal.ai/dashboard/billing", msg)
+        self.assertNotIn("HTTPStatusError", msg)
+        self.assertNotIn("raise_for_status", msg)
+
+    def test_exhausted_balance_error_line_becomes_credits_dialog(self):
+        lines = [
+            "ERROR: LTX 2.5 Pro image-to-video request failed.",
+            "User is locked. Reason: Exhausted balance. Top up your balance at fal.ai/dashboard/billing.",
+        ]
+        text = runner_util.summarize_helper_output(lines)
+        self.assertIn("out of credits", text)
+        self.assertNotIn("User is locked", text)
+
+    def test_other_lock_reason_stays_in_the_dialog(self):
+        lines = [
+            "ERROR: request failed.",
+            "Client error '403 Forbidden' for url "
+            "'https://rest.fal.ai/storage/auth/token?storage_type=fal-cdn-v3'",
+            "User is locked. Reason: Admin hold.",
+        ]
+        text = runner_util.summarize_helper_output(lines)
+        self.assertIn("Admin hold", text)
+        self.assertNotIn("out of credits", text)
+
 
 if __name__ == "__main__":
     unittest.main()

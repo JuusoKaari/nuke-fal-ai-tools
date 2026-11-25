@@ -198,6 +198,7 @@ class TestFalToolsCatalog(unittest.TestCase):
                 "Image upscale (Topaz Precision)",
                 "Marigold Depth",
                 "Marigold Normal",
+                "MoGe-3",
                 "SAM 3.1 Image",
             ],
         )

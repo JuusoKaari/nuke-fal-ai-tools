@@ -288,6 +288,82 @@ class TestFormatFalErrorSummary(unittest.TestCase):
         text = fal_common.format_fal_error_summary(err)
         self.assertEqual(text, "Input should be 'express' or 'standard'")
 
+    def test_exhausted_balance_is_plain_language(self):
+        err = Exception(
+            "User is locked. Reason: Exhausted balance. "
+            "Top up your balance at fal.ai/dashboard/billing."
+        )
+        text = fal_common.format_fal_error_summary(err)
+        self.assertIn("out of credits", text)
+        self.assertIn("https://fal.ai/dashboard/billing", text)
+        self.assertNotIn("User is locked", text)
+
+    def test_storage_token_403_without_body_is_out_of_credits(self):
+        err = Exception(
+            "Client error '403 Forbidden' for url "
+            "'https://rest.fal.ai/storage/auth/token?storage_type=fal-cdn-v3'"
+        )
+        text = fal_common.format_fal_error_summary(err)
+        self.assertIn("out of credits", text)
+        self.assertNotIn("403 Forbidden", text)
+
+    def test_storage_token_403_reads_exhausted_balance_body(self):
+        class _Resp(object):
+            text = (
+                '{"detail":"User is locked. Reason: Exhausted balance. '
+                'Top up your balance at fal.ai/dashboard/billing."}'
+            )
+
+        err = Exception("Client error '403 Forbidden'")
+        err.response = _Resp()
+        text = fal_common.format_fal_error_summary(err)
+        self.assertIn("out of credits", text)
+
+    def test_other_lock_reason_is_not_called_out_of_credits(self):
+        class _Resp(object):
+            text = '{"detail":"User is locked. Reason: Admin hold."}'
+
+        err = Exception(
+            "Client error '403 Forbidden' for url "
+            "'https://rest.fal.ai/storage/auth/token?storage_type=fal-cdn-v3'"
+        )
+        err.response = _Resp()
+        text = fal_common.format_fal_error_summary(err)
+        self.assertNotIn("out of credits", text)
+
+    def test_excepthook_prints_credits_line_without_traceback(self):
+        from io import StringIO
+
+        err = Exception(
+            "Client error '403 Forbidden' for url "
+            "'https://rest.fal.ai/storage/auth/token?storage_type=fal-cdn-v3'"
+        )
+        buf = StringIO()
+        old = sys.stderr
+        try:
+            sys.stderr = buf
+            fal_common._out_of_credits_excepthook(
+                type(err), err, None, previous=lambda *args: None
+            )
+        finally:
+            sys.stderr = old
+        printed = buf.getvalue()
+        self.assertTrue(printed.startswith("ERROR:"))
+        self.assertIn("out of credits", printed)
+        self.assertNotIn("Traceback", printed)
+
+    def test_excepthook_leaves_other_errors_to_previous_hook(self):
+        seen = []
+        err = Exception("mask and image sizes do not match")
+        fal_common._out_of_credits_excepthook(
+            type(err),
+            err,
+            None,
+            previous=lambda *args: seen.append(args),
+        )
+        self.assertEqual(len(seen), 1)
+        self.assertIs(seen[0][1], err)
+
 
 if __name__ == "__main__":
     unittest.main()

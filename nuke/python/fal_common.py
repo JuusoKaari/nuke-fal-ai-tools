@@ -2,6 +2,8 @@
 # - Shared Python 3 utilities used by multiple `fal_*.py` helper scripts in this folder.
 # - Centralizes common logic like: creating directories, atomic downloads with timeout/retry,
 #   fal-client subscribe retry, nested fal error unwrapping, retry heuristics, and result sidecars.
+# - An uncaught upload 403 from an exhausted fal.ai balance is printed as a short
+#   out-of-credits line, not a fal-client traceback.
 # - Helpers do not stream fal queue logs to Nuke (noisy tqdm bars).
 
 from __future__ import annotations
@@ -179,7 +181,97 @@ def _humanize_fal_payload(obj, depth: int = 0):
     return str(obj)
 
 
+# fal locks the account when credits run out. Uploads then die in fal-client's
+# CDN token request with a bare httpx 403, before any helper try/except.
+_OUT_OF_CREDITS_MESSAGE = (
+    "Your fal.ai account is out of credits, so this run was refused.\n"
+    "Add credits at https://fal.ai/dashboard/billing and run again."
+)
+
+
+def _response_body(exc: BaseException) -> str:
+    response = getattr(exc, "response", None)
+    if response is None:
+        return ""
+    text = getattr(response, "text", None)
+    if callable(text):
+        try:
+            text = text()
+        except Exception:
+            return ""
+    if text is None:
+        return ""
+    try:
+        return str(text)
+    except Exception:
+        return ""
+
+
+def _exception_chain_text(exc: BaseException) -> str:
+    parts: list[str] = []
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        try:
+            parts.append(str(current))
+        except Exception:
+            pass
+        body = _response_body(current)
+        if body:
+            parts.append(body)
+        nxt = getattr(current, "__cause__", None)
+        if nxt is None:
+            nxt = getattr(current, "__context__", None)
+        current = nxt if isinstance(nxt, BaseException) else None
+    return "\n".join(parts)
+
+
+def _text_is_out_of_credits(text: str) -> bool:
+    """
+    True for fal's exhausted-balance lock, including the upload 403 whose
+    message is only the storage-token URL (the JSON body is not in str(exc)).
+    A storage-token 403 that names some other lock reason stays False.
+    """
+    s = (text or "").lower()
+    if "exhausted balance" in s:
+        return True
+    if "insufficient funds" in s or "insufficient balance" in s:
+        return True
+    if "user is locked" in s and (
+        "balance" in s or "billing" in s or "top up" in s or "top-up" in s
+    ):
+        return True
+    if (
+        "403" in s
+        and "forbidden" in s
+        and "fal.ai" in s
+        and "storage" in s
+        and "token" in s
+    ):
+        if (
+            "user is locked" in s
+            and "exhausted balance" not in s
+            and "insufficient" not in s
+        ):
+            return False
+        return True
+    return False
+
+
+def out_of_credits_message(exc: BaseException) -> str | None:
+    """Plain-language message when fal refused the call for lack of credits."""
+    if exc is None:
+        return None
+    if _text_is_out_of_credits(_exception_chain_text(exc)):
+        return _OUT_OF_CREDITS_MESSAGE
+    return None
+
+
 def format_fal_error_summary(exc: BaseException) -> str:
+    credits = out_of_credits_message(exc)
+    if credits:
+        return credits
     items = extract_fal_error_items(exc)
     human = _humanize_fal_payload(items) if items else _humanize_fal_payload(str(exc))
     if human:
@@ -190,6 +282,34 @@ def format_fal_error_summary(exc: BaseException) -> str:
         except Exception:
             return str(items)
     return str(exc)
+
+
+def _out_of_credits_excepthook(exc_type, exc, tb, previous=None) -> None:
+    """
+    Uncaught helper failures (the upload path) never reach format_fal_error_summary.
+    Print the credits line and skip the fal-client traceback. Other errors
+    keep the previous hook.
+    """
+    if previous is None:
+        previous = sys.__excepthook__
+    if exc_type is not None and issubclass(exc_type, (KeyboardInterrupt, SystemExit)):
+        previous(exc_type, exc, tb)
+        return
+    if isinstance(exc, BaseException):
+        credits = out_of_credits_message(exc)
+        if credits:
+            print("ERROR: %s" % credits, file=sys.stderr)
+            return
+    previous(exc_type, exc, tb)
+
+
+def _install_out_of_credits_excepthook() -> None:
+    previous = sys.excepthook
+
+    def _hook(exc_type, exc, tb):
+        _out_of_credits_excepthook(exc_type, exc, tb, previous=previous)
+
+    sys.excepthook = _hook
 
 
 def should_retry_fal_error(exc: BaseException) -> bool:
@@ -383,3 +503,4 @@ def emit_result_summary(summary, result_path=None) -> None:
 
 
 configure_stdio_utf8()
+_install_out_of_credits_excepthook()
